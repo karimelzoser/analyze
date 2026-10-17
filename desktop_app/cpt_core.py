@@ -17,10 +17,17 @@ SILT_IC_THRESHOLD = 2.60
 MIN_LAYER_THICKNESS = 0.05
 MAX_SMALL_GAP = 0.06
 IGNORE_TOP_DEPTH = 0.20
+TERMINAL_DROPOUT_MAX = 0.20
+SENSOR_EPS = 1e-8
 
 
 def round_01(value: float) -> float:
     return float(Decimal(str(float(value))).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
+
+
+def natural_ref_key(ref: str):
+    parts = re.split(r"(\d+)", ref or "")
+    return tuple(int(p) if p.isdigit() else p.lower() for p in parts)
 
 
 @dataclass
@@ -39,6 +46,7 @@ class SiltInterval:
     start_raw: float
     end_raw: float
     thickness_raw: float
+    source_end_raw: float
 
 
 @dataclass
@@ -54,6 +62,7 @@ class CPTAnalysis:
     fr: np.ndarray
     qtn: np.ndarray
     ic: np.ndarray
+    valid_sensor: np.ndarray
     sbt_labels: List[str]
     pass1: Optional[SiltInterval]
     pass2: Optional[SiltInterval]
@@ -61,6 +70,29 @@ class CPTAnalysis:
     status: str
     verification_note: str
     all_intervals: List[Tuple[float, float]] = field(default_factory=list)
+    sensor_dropout_depth: Optional[float] = None
+
+    @property
+    def test_depth_raw(self) -> float:
+        header = self.metadata.get("end_depth_header")
+        measured = float(self.depth[-1]) if len(self.depth) else float("nan")
+        if isinstance(header, (int, float)) and math.isfinite(float(header)):
+            return min(float(header), measured + 0.02) if measured <= float(header) + 0.05 else measured
+        return measured
+
+    @property
+    def test_depth(self) -> float:
+        return round_01(self.test_depth_raw)
+
+    @property
+    def sand_layer_thickness(self) -> Optional[float]:
+        if self.status == "REVIEW":
+            return None
+        if self.final_interval is not None:
+            return self.final_interval.start
+        if self.status == "NO SILT":
+            return self.test_depth
+        return None
 
     @property
     def silt_start_display(self):
@@ -79,6 +111,26 @@ class CPTAnalysis:
         return self.final_interval.thickness
 
 
+def summarize_analyses(analyses: List[CPTAnalysis]) -> Dict[str, object]:
+    verified = [a for a in analyses if a.status == "VERIFIED" and a.final_interval is not None]
+    no_silt = [a for a in analyses if a.status == "NO SILT"]
+    review = [a for a in analyses if a.status == "REVIEW"]
+    max_value = None
+    max_refs: List[str] = []
+    if verified:
+        max_value = max(a.final_interval.thickness for a in verified)
+        max_refs = [a.reference for a in verified if abs(a.final_interval.thickness - max_value) < 1e-9]
+    return {
+        "total": len(analyses),
+        "verified": len(verified),
+        "no_silt": len(no_silt),
+        "review": len(review),
+        "max_silt_thickness": max_value,
+        "max_silt_refs": max_refs,
+        "avg_silt_thickness": float(np.mean([a.final_interval.thickness for a in verified])) if verified else None,
+    }
+
+
 def _split_header_value(line: str) -> Tuple[str, str]:
     if "=" not in line:
         return line.strip().upper(), ""
@@ -95,24 +147,20 @@ def _parse_float(value: str, default: Optional[float] = None) -> Optional[float]
 
 def parse_gef(path: str | Path) -> GEFData:
     path = Path(path)
-    raw = path.read_bytes()
-    text = raw.decode("latin-1", errors="replace")
+    text = path.read_bytes().decode("latin-1", errors="replace")
     if "#EOH=" not in text.upper():
-        raise ValueError("Not a supported ASCII GEF file: #EOH marker not found")
-
+        raise ValueError("Not a supported ASCII GEF/GFF file: #EOH marker not found")
     marker = re.search(r"(?im)^#EOH\s*=.*$", text)
     if not marker:
         raise ValueError("GEF header termination marker not found")
-    header_text = text[: marker.start()]
-    data_text = text[marker.end() :]
+    header_text, data_text = text[: marker.start()], text[marker.end() :]
 
     headers: Dict[str, List[str]] = {}
     for line in header_text.splitlines():
         line = line.strip()
-        if not line.startswith("#"):
-            continue
-        key, value = _split_header_value(line)
-        headers.setdefault(key, []).append(value)
+        if line.startswith("#"):
+            key, value = _split_header_value(line)
+            headers.setdefault(key, []).append(value)
 
     col_defs: Dict[int, Tuple[str, str, Optional[int]]] = {}
     for value in headers.get("COLUMNINFO", []):
@@ -123,13 +171,11 @@ def parse_gef(path: str | Path) -> GEFData:
             idx = int(parts[0])
         except ValueError:
             continue
-        unit = parts[1] if len(parts) > 1 else ""
-        desc = parts[2] if len(parts) > 2 else f"column_{idx}"
         try:
             code = int(parts[3]) if len(parts) > 3 else None
         except ValueError:
             code = None
-        col_defs[idx] = (unit, desc, code)
+        col_defs[idx] = (parts[1] if len(parts) > 1 else "", parts[2], code)
 
     ncols = int(float(headers.get("COLUMN", [str(len(col_defs) or 0)])[0] or 0))
     if ncols <= 0:
@@ -144,22 +190,19 @@ def parse_gef(path: str | Path) -> GEFData:
         if len(parts) < ncols:
             continue
         try:
-            row = [float(x.replace(",", ".")) for x in parts[:ncols]]
+            rows.append([float(x.replace(",", ".")) for x in parts[:ncols]])
         except ValueError:
             continue
-        rows.append(row)
-
     if not rows:
-        raise ValueError("No numerical GEF records could be parsed")
+        raise ValueError("No numerical GEF/GFF records could be parsed")
     arr = np.asarray(rows, dtype=float)
 
     def find_col(*codes: int, descriptions: Tuple[str, ...] = ()) -> Optional[int]:
-        for idx, (_, desc, code) in col_defs.items():
+        for idx, (_, _, code) in col_defs.items():
             if code in codes:
                 return idx - 1
-        for idx, (_, desc, code) in col_defs.items():
-            dl = desc.lower()
-            if any(term in dl for term in descriptions):
+        for idx, (_, desc, _) in col_defs.items():
+            if any(term in desc.lower() for term in descriptions):
                 return idx - 1
         return None
 
@@ -168,17 +211,14 @@ def parse_gef(path: str | Path) -> GEFData:
     idx_fs = find_col(3, descriptions=("sleeve friction", "local sleeve"))
     idx_u2 = find_col(6, descriptions=("pore pressure", "u2"))
     idx_corr = find_col(11, descriptions=("corrected depth",))
-
     if idx_qc is None or idx_fs is None:
-        raise ValueError("GEF must contain cone resistance qc and sleeve friction fs")
+        raise ValueError("GEF/GFF must contain cone resistance qc and sleeve friction fs")
 
     depth = arr[:, idx_corr] if idx_corr is not None else (arr[:, idx_pen] if idx_pen is not None else None)
     if depth is None:
-        raise ValueError("GEF must contain penetration length or corrected depth")
-
+        raise ValueError("GEF/GFF must contain penetration length or corrected depth")
+    qc, fs = arr[:, idx_qc], arr[:, idx_fs]
     u2 = arr[:, idx_u2] if idx_u2 is not None else np.zeros(len(arr), dtype=float)
-    qc = arr[:, idx_qc]
-    fs = arr[:, idx_fs]
 
     mask = np.isfinite(depth) & np.isfinite(qc) & np.isfinite(fs) & np.isfinite(u2)
     depth, qc, fs, u2 = depth[mask], qc[mask], fs[mask], u2[mask]
@@ -192,15 +232,9 @@ def parse_gef(path: str | Path) -> GEFData:
         vals = headers.get(key, [])
         return vals[0].strip() if vals else default
 
-    test_id = first("TESTID") or path.stem
-    project_id = first("PROJECTID")
-    project_name = first("PROJECTNAME")
-    file_date = first("FILEDATE")
-
     xy = [x.strip() for x in first("XYID").split(",")] if first("XYID") else []
     zid = [x.strip() for x in first("ZID").split(",")] if first("ZID") else []
-
-    mtext = {}
+    mtext, mvar = {}, {}
     for val in headers.get("MEASUREMENTTEXT", []):
         parts = [p.strip() for p in val.split(",")]
         if len(parts) >= 2:
@@ -208,8 +242,6 @@ def parse_gef(path: str | Path) -> GEFData:
                 mtext[int(parts[0])] = parts[1]
             except ValueError:
                 pass
-
-    mvar = {}
     for val in headers.get("MEASUREMENTVAR", []):
         parts = [p.strip() for p in val.split(",")]
         if len(parts) >= 2:
@@ -218,78 +250,77 @@ def parse_gef(path: str | Path) -> GEFData:
             except ValueError:
                 pass
 
+    client = mtext.get(1, "")
     metadata = {
-        "reference": test_id,
-        "project_id": project_id,
-        "project_name": project_name or mtext.get(2, ""),
-        "client": mtext.get(1, ""),
+        "reference": first("TESTID") or path.stem,
+        "project_id": first("PROJECTID"),
+        "project_name": first("PROJECTNAME") or mtext.get(2, ""),
+        "client": client,
         "location": mtext.get(3, ""),
+        "main_contractor": "CTS GULF" if "SAUDI GLOBAL PORTS" in str(client).upper() else "",
         "cone_id": mtext.get(4, ""),
         "ground_elevation": _parse_float(zid[1]) if len(zid) > 1 else None,
         "easting": _parse_float(xy[1]) if len(xy) > 1 else None,
         "northing": _parse_float(xy[2]) if len(xy) > 2 else None,
-        "file_date": file_date,
+        "file_date": first("STARTDATE") or first("FILEDATE"),
         "end_depth_header": mvar.get(16),
         "area_ratio": mvar.get(3, 0.75),
         "standard": mtext.get(6, ""),
         "records": int(len(depth)),
     }
-
-    return GEFData(
-        source_path=path,
-        headers=headers,
-        metadata=metadata,
-        columns={"depth": depth, "qc": qc, "fs": fs, "u2": u2},
-    )
+    return GEFData(path, headers, metadata, {"depth": depth, "qc": qc, "fs": fs, "u2": u2})
 
 
-def compute_robertson(
-    gef: GEFData,
-    gamma_soil: float = DEFAULT_GAMMA,
-    water_table_depth: float = DEFAULT_WATER_TABLE,
-) -> Dict[str, np.ndarray]:
+def _terminal_sensor_valid(depth: np.ndarray, qc: np.ndarray, fs: np.ndarray) -> Tuple[np.ndarray, Optional[float]]:
+    valid = np.isfinite(depth) & np.isfinite(qc) & np.isfinite(fs) & (qc > SENSOR_EPS)
+    zero_fs = np.isfinite(fs) & (np.abs(fs) <= SENSOR_EPS)
+    dropout_start = None
+    if len(fs) >= 4:
+        i = len(fs) - 1
+        while i >= 0 and zero_fs[i]:
+            i -= 1
+        first_zero = i + 1
+        if first_zero < len(fs) and first_zero > 0:
+            terminal_len = float(depth[-1] - depth[first_zero])
+            prev = fs[max(0, first_zero - 8): first_zero]
+            if terminal_len <= TERMINAL_DROPOUT_MAX and np.count_nonzero(prev > SENSOR_EPS) >= min(3, len(prev)):
+                valid[first_zero:] = False
+                dropout_start = float(depth[first_zero])
+    return valid, dropout_start
+
+
+def compute_robertson(gef: GEFData, gamma_soil: float = DEFAULT_GAMMA, water_table_depth: float = DEFAULT_WATER_TABLE) -> Dict[str, np.ndarray]:
     z = np.asarray(gef.columns["depth"], dtype=float)
     qc = np.asarray(gef.columns["qc"], dtype=float)
     fs = np.asarray(gef.columns["fs"], dtype=float)
     u2 = np.asarray(gef.columns["u2"], dtype=float)
     area_ratio = float(gef.metadata.get("area_ratio") or 0.75)
-
+    sensor_valid, dropout_start = _terminal_sensor_valid(z, qc, fs)
     qt = qc + (1.0 - area_ratio) * u2
-
     sigma_v0 = np.maximum(gamma_soil * z, 0.0)
     u0 = np.where(z > water_table_depth, GAMMA_W * (z - water_table_depth), 0.0)
     sigma_v0_eff = np.maximum(sigma_v0 - u0, 1.0)
-    qnet = np.maximum(qt * 1000.0 - sigma_v0, 1e-6)
-
-    fr = np.maximum(fs * 1000.0 / qnet * 100.0, 1e-6)
-
+    qnet = qt * 1000.0 - sigma_v0
+    fr = np.full_like(z, np.nan)
+    calc_valid = sensor_valid & np.isfinite(qnet) & (qnet > 1e-6) & (fs > SENSOR_EPS)
+    fr[calc_valid] = fs[calc_valid] * 1000.0 / qnet[calc_valid] * 100.0
     n = np.full_like(z, 0.5)
     ic = np.full_like(z, np.nan)
     qtn = np.full_like(z, np.nan)
-    for _ in range(30):
-        qtn = np.maximum(qnet / PA_KPA * (PA_KPA / sigma_v0_eff) ** n, 1e-12)
-        ic_new = np.sqrt((3.47 - np.log10(qtn)) ** 2 + (np.log10(fr) + 1.22) ** 2)
-        n_new = np.clip(0.381 * ic_new + 0.05 * (sigma_v0_eff / PA_KPA) - 0.15, 0.0, 1.0)
-        if np.nanmax(np.abs(n_new - n)) < 1e-6:
-            ic = ic_new
-            n = n_new
-            break
-        ic, n = ic_new, n_new
-
+    if np.any(calc_valid):
+        for _ in range(30):
+            qtn_calc = np.maximum(qnet[calc_valid] / PA_KPA * (PA_KPA / sigma_v0_eff[calc_valid]) ** n[calc_valid], 1e-12)
+            fr_calc = np.maximum(fr[calc_valid], 1e-12)
+            ic_new = np.sqrt((3.47 - np.log10(qtn_calc)) ** 2 + (np.log10(fr_calc) + 1.22) ** 2)
+            n_new = np.clip(0.381 * ic_new + 0.05 * (sigma_v0_eff[calc_valid] / PA_KPA) - 0.15, 0.0, 1.0)
+            delta = np.nanmax(np.abs(n_new - n[calc_valid]))
+            n[calc_valid] = n_new
+            qtn[calc_valid] = qtn_calc
+            ic[calc_valid] = ic_new
+            if delta < 1e-6:
+                break
     labels = np.array([classify_ic(v) for v in ic], dtype=object)
-    return {
-        "depth": z,
-        "qc": qc,
-        "fs": fs,
-        "u2": u2,
-        "qt": qt,
-        "sigma_v0": sigma_v0,
-        "sigma_v0_eff": sigma_v0_eff,
-        "fr": fr,
-        "qtn": qtn,
-        "ic": ic,
-        "labels": labels,
-    }
+    return {"depth": z, "qc": qc, "fs": fs, "u2": u2, "qt": qt, "fr": fr, "qtn": qtn, "ic": ic, "labels": labels, "sensor_valid": sensor_valid, "dropout_start": dropout_start}
 
 
 def classify_ic(ic: float) -> str:
@@ -312,13 +343,15 @@ def _median_filter(values: np.ndarray, width: int) -> np.ndarray:
     if width <= 1:
         return values.copy()
     half = width // 2
-    return np.asarray([
-        np.nanmedian(values[max(0, i - half): min(len(values), i + half + 1)])
-        for i in range(len(values))
-    ])
+    out = np.full_like(values, np.nan, dtype=float)
+    for i in range(len(values)):
+        w = values[max(0, i - half): min(len(values), i + half + 1)]
+        if np.any(np.isfinite(w)):
+            out[i] = np.nanmedian(w)
+    return out
 
 
-def _close_small_gaps(state: np.ndarray, depth: np.ndarray, max_gap: float) -> np.ndarray:
+def _close_small_gaps(state: np.ndarray, depth: np.ndarray, valid: np.ndarray, max_gap: float) -> np.ndarray:
     state = np.asarray(state, dtype=bool).copy()
     i = 0
     while i < len(state):
@@ -328,9 +361,8 @@ def _close_small_gaps(state: np.ndarray, depth: np.ndarray, max_gap: float) -> n
         j = i
         while j < len(state) and not state[j]:
             j += 1
-        if i > 0 and j < len(state):
-            if depth[j] - depth[i - 1] <= max_gap:
-                state[i:j] = True
+        if i > 0 and j < len(state) and np.all(valid[i:j]) and depth[j] - depth[i - 1] <= max_gap:
+            state[i:j] = True
         i = j
     return state
 
@@ -351,38 +383,48 @@ def _find_runs(state: np.ndarray, depth: np.ndarray, min_thickness: float) -> Li
     return runs
 
 
-def _detect_interval(
-    depth: np.ndarray,
-    ic: np.ndarray,
-    threshold: float,
-    smooth_width: int,
-    max_gap: float,
-    min_thickness: float,
-) -> Tuple[Optional[SiltInterval], List[Tuple[float, float]]]:
+def _interpolate_crossing(depth: np.ndarray, ic: np.ndarray, idx: int, threshold: float) -> float:
+    if idx <= 0:
+        return float(depth[idx])
+    prev = idx - 1
+    while prev >= 0 and not np.isfinite(ic[prev]):
+        prev -= 1
+    if prev < 0 or not np.isfinite(ic[idx]):
+        return float(depth[idx])
+    x0, x1, y0, y1 = float(depth[prev]), float(depth[idx]), float(ic[prev]), float(ic[idx])
+    if y1 == y0 or not (min(y0, y1) <= threshold <= max(y0, y1)):
+        return x1
+    return x0 + (threshold - y0) / (y1 - y0) * (x1 - x0)
+
+
+def _make_interval(start_raw: float, end_raw: float, source_end_raw: float) -> SiltInterval:
+    start_report, end_report = round_01(start_raw), round_01(end_raw)
+    return SiltInterval(start_report, end_report, round_01(max(0.0, end_report - start_report)), float(start_raw), float(end_raw), float(max(0.0, end_raw - start_raw)), float(source_end_raw))
+
+
+def _detect_interval(depth, ic, sensor_valid, test_end, dropout_start, threshold, smooth_width, max_gap, min_thickness):
     work_ic = _median_filter(ic, smooth_width)
-    valid = np.isfinite(work_ic) & np.isfinite(depth) & (depth >= IGNORE_TOP_DEPTH)
-    state = valid & (work_ic >= threshold)
-    state = _close_small_gaps(state, depth, max_gap)
-    runs = _find_runs(state, depth, min_thickness)
+    valid = np.isfinite(work_ic) & np.isfinite(depth) & sensor_valid & (depth >= IGNORE_TOP_DEPTH)
+    state = _close_small_gaps(valid & (work_ic >= threshold), depth, valid, max_gap)
+    raw_runs = _find_runs(state, depth, 0.0)
+    runs = []
+    for a, b in raw_runs:
+        observed = float(depth[b] - depth[a])
+        terminal_extendable = dropout_start is not None and dropout_start >= float(depth[b]) - 0.03 and (test_end - dropout_start) <= TERMINAL_DROPOUT_MAX and (test_end - float(depth[a])) >= min_thickness
+        if observed >= min_thickness or terminal_extendable:
+            runs.append((a, b))
     all_intervals = [(float(depth[a]), float(depth[b])) for a, b in runs]
     if not runs:
         return None, all_intervals
-
     a, b = runs[-1]
-    start_raw = float(depth[a])
-    end_raw = float(depth[b])
-    test_end = float(depth[-1])
-    if test_end - end_raw <= 0.08:
+    start_raw = _interpolate_crossing(depth, work_ic, a, threshold)
+    source_end = float(depth[b])
+    end_raw = source_end
+    if dropout_start is not None and dropout_start >= source_end - 0.03 and (test_end - dropout_start) <= TERMINAL_DROPOUT_MAX:
         end_raw = test_end
-    thickness_raw = max(0.0, end_raw - start_raw)
-    return SiltInterval(
-        start=round_01(start_raw),
-        end=round_01(end_raw),
-        thickness=round_01(thickness_raw),
-        start_raw=start_raw,
-        end_raw=end_raw,
-        thickness_raw=thickness_raw,
-    ), all_intervals
+    elif test_end - source_end <= 0.08:
+        end_raw = test_end
+    return _make_interval(start_raw, end_raw, source_end), all_intervals
 
 
 def _same(a: Optional[SiltInterval], b: Optional[SiltInterval]) -> bool:
@@ -390,97 +432,46 @@ def _same(a: Optional[SiltInterval], b: Optional[SiltInterval]) -> bool:
         return True
     if a is None or b is None:
         return False
-    return a.start == b.start and a.thickness == b.thickness
+    return a.start == b.start and a.end == b.end and a.thickness == b.thickness
 
 
-def analyze_gef(
-    path: str | Path,
-    gamma_soil: float = DEFAULT_GAMMA,
-    water_table_depth: float = DEFAULT_WATER_TABLE,
-) -> CPTAnalysis:
+def analyze_gef(path: str | Path, gamma_soil: float = DEFAULT_GAMMA, water_table_depth: float = DEFAULT_WATER_TABLE) -> CPTAnalysis:
     gef = parse_gef(path)
-    calc = compute_robertson(gef, gamma_soil=gamma_soil, water_table_depth=water_table_depth)
-    depth = calc["depth"]
-    ic = calc["ic"]
-
-    p1, intervals1 = _detect_interval(depth, ic, SILT_IC_THRESHOLD, 1, MAX_SMALL_GAP, MIN_LAYER_THICKNESS)
-    p2, intervals2 = _detect_interval(depth, ic, SILT_IC_THRESHOLD, 3, MAX_SMALL_GAP, MIN_LAYER_THICKNESS)
+    calc = compute_robertson(gef, gamma_soil, water_table_depth)
+    depth, ic, sensor_valid = calc["depth"], calc["ic"], calc["sensor_valid"]
+    dropout_start = calc["dropout_start"]
+    test_end = float(depth[-1])
+    p1, intervals1 = _detect_interval(depth, ic, sensor_valid, test_end, dropout_start, SILT_IC_THRESHOLD, 1, MAX_SMALL_GAP, MIN_LAYER_THICKNESS)
+    p2, _ = _detect_interval(depth, ic, sensor_valid, test_end, dropout_start, SILT_IC_THRESHOLD, 3, MAX_SMALL_GAP, MIN_LAYER_THICKNESS)
 
     if p1 is None and p2 is None:
-        final = None
-        status = "NO SILT"
-        note = "Two independent passes found no sustained Ic >= 2.60 interval."
+        final, status, note = None, "NO SILT", "Two independent passes found no sustained qualifying Ic >= 2.60 interval."
     elif _same(p1, p2):
-        final = p1
-        status = "VERIFIED"
-        note = "Two independent passes agree after 0.10 m reporting rounding."
+        final, status, note = p1, "VERIFIED", "Two independent passes agree at the 0.10 m project reporting resolution."
     else:
+        specs = [(2.60,1,.05),(2.60,3,.06),(2.58,3,.07),(2.62,3,.07),(2.60,5,.06),(2.59,5,.07),(2.61,5,.07),(2.60,7,.08)]
         candidates = []
-        specs = [
-            (2.60, 1, 0.05),
-            (2.60, 3, 0.06),
-            (2.58, 3, 0.07),
-            (2.62, 3, 0.07),
-            (2.60, 5, 0.06),
-            (2.59, 5, 0.07),
-            (2.61, 5, 0.07),
-            (2.60, 7, 0.08),
-        ]
         for threshold, smooth, gap in specs:
-            z, _ = _detect_interval(depth, ic, threshold, smooth, gap, MIN_LAYER_THICKNESS)
-            if z is None:
-                candidates.append(("NO SILT", None))
-            else:
-                candidates.append((f"{z.start:.1f}/{z.thickness:.1f}", z))
+            z, _ = _detect_interval(depth, ic, sensor_valid, test_end, dropout_start, threshold, smooth, gap, MIN_LAYER_THICKNESS)
+            candidates.append(("NO SILT", None) if z is None else (f"{z.start:.1f}/{z.end:.1f}/{z.thickness:.1f}", z))
         counts: Dict[str, int] = {}
         for label, _ in candidates:
             counts[label] = counts.get(label, 0) + 1
         best_label, best_count = max(counts.items(), key=lambda x: x[1])
         if best_count >= 5:
             if best_label == "NO SILT":
-                final = None
-                status = "NO SILT"
+                final, status = None, "NO SILT"
             else:
-                final = next(z for label, z in candidates if label == best_label and z is not None)
-                status = "VERIFIED"
+                final, status = next(z for label, z in candidates if label == best_label and z is not None), "VERIFIED"
             note = f"Primary passes differed; {best_count}/8 detailed rechecks converged on {best_label}."
         else:
             silt_candidates = [z for _, z in candidates if z is not None]
-            if len(silt_candidates) >= 5:
-                starts = [z.start for z in silt_candidates]
-                thick = [z.thickness for z in silt_candidates]
-                if max(starts) - min(starts) <= 0.1 + 1e-9 and max(thick) - min(thick) <= 0.1 + 1e-9:
-                    sr = float(np.median([z.start_raw for z in silt_candidates]))
-                    tr = float(np.median([z.thickness_raw for z in silt_candidates]))
-                    final = SiltInterval(round_01(sr), round_01(sr + tr), round_01(tr), sr, sr + tr, tr)
-                    status = "VERIFIED"
-                    note = "Detailed checks were within one 0.10 m increment; geometric median used."
-                else:
-                    final = None
-                    status = "REVIEW"
-                    note = "Independent analyses did not converge. Manual review required."
+            if len(silt_candidates) >= 5 and max(z.start for z in silt_candidates)-min(z.start for z in silt_candidates) <= .100000001 and max(z.end for z in silt_candidates)-min(z.end for z in silt_candidates) <= .100000001:
+                sr = float(np.median([z.start_raw for z in silt_candidates])); er = float(np.median([z.end_raw for z in silt_candidates]))
+                final, status, note = _make_interval(sr, er, float(np.median([z.source_end_raw for z in silt_candidates]))), "VERIFIED", "Detailed checks agreed within one 0.10 m interval; median raw boundaries used."
             else:
-                final = None
-                status = "REVIEW"
-                note = "Independent analyses did not converge. Manual review required."
+                final, status, note = None, "REVIEW", "Independent analyses did not converge. Manual review required."
+    if dropout_start is not None:
+        note += f" Terminal sleeve-friction dropout detected from {dropout_start:.3f} m and excluded from Ic calculation."
 
-    return CPTAnalysis(
-        source_path=Path(path),
-        reference=str(gef.metadata.get("reference") or Path(path).stem),
-        metadata=gef.metadata,
-        depth=calc["depth"],
-        qc=calc["qc"],
-        fs=calc["fs"],
-        u2=calc["u2"],
-        qt=calc["qt"],
-        fr=calc["fr"],
-        qtn=calc["qtn"],
-        ic=calc["ic"],
-        sbt_labels=list(calc["labels"]),
-        pass1=p1,
-        pass2=p2,
-        final_interval=final,
-        status=status,
-        verification_note=note,
-        all_intervals=intervals1,
-    )
+    return CPTAnalysis(Path(path), str(gef.metadata.get("reference") or Path(path).stem), gef.metadata, calc["depth"], calc["qc"], calc["fs"], calc["u2"], calc["qt"], calc["fr"], calc["qtn"], calc["ic"], sensor_valid, list(calc["labels"]), p1, p2, final, status, note, intervals1, dropout_start)
