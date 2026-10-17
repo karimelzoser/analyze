@@ -37,7 +37,7 @@ jobs:
         shell: pwsh
         working-directory: desktop_app
         run: |
-          python -m py_compile app_modern.py app_modern_final.py reporting_export_v2.py reporting_pro.py reporting_pdf_ref.py reporting_pdf_ref_v2.py cpt_core.py
+          python -m py_compile app_modern.py app_modern_v2.py app_modern_final.py reporting_export_v2.py reporting_pro.py reporting_pdf_ref.py reporting_pdf_ref_v2.py cpt_core.py
 
       - name: Build executable
         shell: pwsh
