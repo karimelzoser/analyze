@@ -34,7 +34,7 @@ jobs:
         shell: pwsh
         working-directory: desktop_app
         run: |
-          python -m py_compile app_pro.py reporting_pro.py cpt_core.py
+          python -m py_compile app_final.py app_pro.py reporting_pro.py reporting_pdf_ref.py cpt_core.py
 
       - name: Build executable
         shell: pwsh
@@ -43,7 +43,7 @@ jobs:
           pyinstaller --noconfirm --clean --onefile --windowed `
             --name CPT_Silt_Analyzer `
             --collect-all matplotlib `
-            app_pro.py
+            app_final.py
 
       - name: Upload Windows executable
         uses: actions/upload-artifact@v4
