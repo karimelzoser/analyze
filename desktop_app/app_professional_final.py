@@ -1,8 +1,9 @@
-import reporting_pdf_ref
+import reporting_pdf_ref_v2
 import app_pro
 
-# Final entry point: professional UI + complete Excel + reference-style PDFs.
-app_pro.generate_pdf = reporting_pdf_ref.generate_pdf
+# Final entry point: professional UI + complete Excel + refined
+# reference-style PDFs.
+app_pro.generate_pdf = reporting_pdf_ref_v2.generate_pdf
 
 
 class FinalCPTApp(app_pro.CPTApp):
