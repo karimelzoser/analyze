@@ -8,6 +8,9 @@ on:
       - 'desktop_app/**'
       - '.github/workflows/build-desktop.yml'
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -44,6 +47,33 @@ jobs:
             --name CPT_Silt_Analyzer `
             --collect-all matplotlib `
             app_professional_final.py
+
+      - name: Package repository download ZIP
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          if (Test-Path 'release/CPT_Silt_Analyzer_Latest.zip') {
+            Remove-Item 'release/CPT_Silt_Analyzer_Latest.zip' -Force
+          }
+          Compress-Archive `
+            -Path 'desktop_app/dist/CPT_Silt_Analyzer.exe' `
+            -DestinationPath 'release/CPT_Silt_Analyzer_Latest.zip' `
+            -CompressionLevel Optimal
+          Get-Item 'release/CPT_Silt_Analyzer_Latest.zip' | Select-Object FullName,Length
+
+      - name: Publish ZIP into repository
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f release/CPT_Silt_Analyzer_Latest.zip
+          $changes = git status --porcelain -- release/CPT_Silt_Analyzer_Latest.zip
+          if ($changes) {
+            git commit -m "Publish latest CPT Silt Analyzer Windows ZIP [skip ci]"
+            git push origin HEAD:main
+          } else {
+            Write-Host "Release ZIP is already current."
+          }
 
       - name: Upload Windows executable
         uses: actions/upload-artifact@v4
