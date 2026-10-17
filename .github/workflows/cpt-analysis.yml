@@ -8,6 +8,7 @@ on:
       - 'analysis_output/**'
       - 'analysis_output_v2/**'
       - 'analysis_output_v3/**'
+      - 'analysis_output_v4/**'
 
 permissions:
   contents: write
@@ -30,25 +31,25 @@ jobs:
       - name: Install analysis dependencies
         run: python -m pip install --upgrade pip pymupdf numpy
 
-      - name: Analyze every CPT PDF twice using independently calibrated vector copies
-        run: python analysis/analyze_cpt_v3.py
+      - name: Analyze all CPT PDFs with mandatory independent double verification
+        run: python analysis/analyze_cpt_v4.py
 
-      - name: Upload v3 audit results
+      - name: Upload final analysis audit
         uses: actions/upload-artifact@v4
         with:
-          name: cpt-analysis-v3
-          path: analysis_output_v3/
+          name: cpt-analysis-v4
+          path: analysis_output_v4/
           retention-days: 7
 
-      - name: Commit v3 audit results to analysis branch
+      - name: Commit final audit to analysis branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add analysis_output_v3
+          git add analysis_output_v4
           if git diff --cached --quiet; then
             echo "No output changes to commit"
           else
-            git commit -m "Generate paired-vector CPT analysis results v3"
+            git commit -m "Generate final double-verified CPT analysis results v4"
             git fetch origin analysis-work
             git rebase origin/analysis-work
             git push origin HEAD:analysis-work
