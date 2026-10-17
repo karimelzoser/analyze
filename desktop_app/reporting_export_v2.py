@@ -10,16 +10,22 @@ from cpt_core import CPTAnalysis, natural_ref_key
 from reporting_pro import FULL_HEADERS, _full_row, analysis_record
 
 
-def export_excel(analyses: Iterable[CPTAnalysis], output_path: str | Path, errors: Sequence[tuple[str, str]] | None = None) -> Path:
+def export_excel(
+    analyses: Iterable[CPTAnalysis],
+    output_path: str | Path,
+    errors: Sequence[tuple[str, str]] | None = None,
+    source_audit: Sequence[dict] | None = None,
+) -> Path:
     """Export the production workbook.
 
-    The first sheet is deliberately concise and now includes the requested
-    fifth column: sand/overlying thickness before the selected terminal silt
-    layer. Full engineering traceability remains in the subsequent sheets.
+    ``analyses`` contains one authoritative project result per CPT location.
+    ``source_audit`` may contain every physical GEF/GFF/PDF revision considered
+    during source selection so project rows stay clean without losing traceability.
     """
     analyses = sorted(list(analyses), key=lambda a: natural_ref_key(a.reference))
     recs = [analysis_record(a) for a in analyses]
     errors = list(errors or [])
+    source_audit = list(source_audit or [])
     p = Path(output_path)
     p.parent.mkdir(parents=True, exist_ok=True)
 
@@ -29,6 +35,7 @@ def export_excel(analyses: Iterable[CPTAnalysis], output_path: str | Path, error
         "border_color": "#38536A", "align": "center", "valign": "vcenter", "text_wrap": True,
     })
     text = wb.add_format({"border": 1, "border_color": "#D9E2EC"})
+    wrap = wb.add_format({"border": 1, "border_color": "#D9E2EC", "text_wrap": True, "valign": "top"})
     center = wb.add_format({"border": 1, "border_color": "#D9E2EC", "align": "center"})
     num = wb.add_format({"border": 1, "border_color": "#D9E2EC", "align": "center", "num_format": "0.00"})
     num3 = wb.add_format({"border": 1, "border_color": "#D9E2EC", "align": "center", "num_format": "0.000"})
@@ -38,8 +45,9 @@ def export_excel(analyses: Iterable[CPTAnalysis], output_path: str | Path, error
     amber = wb.add_format({"bg_color": "#FEF3C7", "font_color": "#92400E"})
     blue = wb.add_format({"bg_color": "#E0F2FE", "font_color": "#075985"})
     red = wb.add_format({"bg_color": "#FEE2E2", "font_color": "#991B1B"})
+    grey = wb.add_format({"bg_color": "#F1F5F9", "font_color": "#475569"})
 
-    # 1) Quick project sheet - five requested columns.
+    # 1) Quick project sheet - exactly one row per selected CPT family.
     ws = wb.add_worksheet("CPT Analysis")
     simple = [
         "SI.No", "CPT REFERENCE", "Silt start depth after (m)",
@@ -75,7 +83,7 @@ def export_excel(analyses: Iterable[CPTAnalysis], output_path: str | Path, error
         ws.conditional_format(1, 3, len(analyses), 3, {"type": "data_bar", "bar_color": "#7C3AED"})
         ws.conditional_format(1, 4, len(analyses), 4, {"type": "data_bar", "bar_color": "#2563EB"})
 
-    # 2) Full engineering data.
+    # 2) Full engineering data for selected project sources.
     wd = wb.add_worksheet("Full Analysis")
     for c, h in enumerate(FULL_HEADERS):
         wd.write(0, c, h, hdr)
@@ -102,7 +110,7 @@ def export_excel(analyses: Iterable[CPTAnalysis], output_path: str | Path, error
         wd.conditional_format(1, 47, len(analyses), 47, {"type": "text", "criteria": "containing", "value": "REVIEW", "format": amber})
         wd.conditional_format(1, 25, len(analyses), 25, {"type": "data_bar", "bar_color": "#7C3AED"})
 
-    # 3) Every detected qualifying interval.
+    # 3) Every detected qualifying interval from the selected project source.
     wi = wb.add_worksheet("Detected Intervals")
     ih = ["CPT REFERENCE", "Interval No.", "Raw Start (m)", "Raw End (m)", "Raw Thickness (m)", "Selected"]
     for c, h in enumerate(ih):
@@ -134,11 +142,26 @@ def export_excel(analyses: Iterable[CPTAnalysis], output_path: str | Path, error
     starts = [r for r in verified if isinstance(r["start_num"], (int, float))]
     shallow = min([r["start_num"] for r in starts], default=None)
     deep = max([r["start_num"] for r in starts], default=None)
+
+    selected_audit = [r for r in source_audit if str(r.get("selected", "")).upper() == "YES"]
+    fallback_count = sum("selected highest conclusive revision" in str(r.get("selection_reason", "")).lower() for r in selected_audit)
+    superseded_count = max(0, len(source_audit) - len(selected_audit))
+    source_review_count = sum(str(r.get("status", "")).upper() == "REVIEW" for r in source_audit)
+
     metrics = [
-        ("Total CPTs", len(recs)), ("Verified silt CPTs", len(verified)), ("NO SILT CPTs", len(no_silt)),
-        ("REVIEW CPTs", len(reviews)), ("Processing errors", len(errors)),
-        ("Maximum silt thickness (m)", mx), ("CPT(s) at maximum", ", ".join(mxrefs)),
-        ("Minimum silt thickness (m)", mn), ("Average silt thickness (m)", avg),
+        ("Unique project CPTs", len(recs)),
+        ("Physical input sources", len(source_audit) if source_audit else len(recs)),
+        ("Revision / duplicate sources retained in audit", superseded_count),
+        ("Selected fallback revisions", fallback_count),
+        ("Physical source files marked REVIEW", source_review_count),
+        ("Verified silt CPTs", len(verified)),
+        ("NO SILT CPTs", len(no_silt)),
+        ("Final project REVIEW CPTs", len(reviews)),
+        ("Processing errors", len(errors)),
+        ("Maximum silt thickness (m)", mx),
+        ("CPT(s) at maximum", ", ".join(mxrefs)),
+        ("Minimum silt thickness (m)", mn),
+        ("Average silt thickness (m)", avg),
         ("Shallowest silt start (m)", shallow),
         ("CPT(s) shallowest", ", ".join(r["reference"] for r in starts if shallow is not None and abs(r["start_num"]-shallow) < 1e-9)),
         ("Deepest silt start (m)", deep),
@@ -154,18 +177,18 @@ def export_excel(analyses: Iterable[CPTAnalysis], output_path: str | Path, error
             sm.write_number(i, 1, float(v), val)
         else:
             sm.write(i, 1, "" if v is None else str(v), center)
-    sm.set_column(0, 0, 38)
-    sm.set_column(1, 1, 60)
+    sm.set_column(0, 0, 46)
+    sm.set_column(1, 1, 70)
 
     top = sorted(verified, key=lambda r: r["thickness"], reverse=True)[:25]
-    base = 18
+    base = len(metrics) + 3
     sm.write(base, 0, "Top silt thickness CPTs", hdr)
     sm.write(base, 1, "Thickness (m)", hdr)
     for j, r in enumerate(top, base+1):
         sm.write(j, 0, r["reference"], text)
         sm.write_number(j, 1, r["thickness"], num)
 
-    # 5) Printable project charts.
+    # 5) Printable project charts, based only on authoritative project rows.
     ch = wb.add_worksheet("Charts")
     ch.write(0, 0, "PROJECT ANALYSIS CHARTS", hdr)
     ch.set_column(0, 0, 2)
@@ -226,7 +249,48 @@ def export_excel(analyses: Iterable[CPTAnalysis], output_path: str | Path, error
             chart5.set_size({"width": 900, "height": 430})
             ch.insert_chart("B91", chart5)
 
-    # 6) Processing issues kept separate from engineering rows.
+    # 6) Full physical-source audit: every report revision stays traceable.
+    au = wb.add_worksheet("Source Audit")
+    audit_headers = [
+        "CPT FAMILY", "SOURCE FILE", "TYPE", "REVISION", "SOURCE QUALITY",
+        "ANALYSIS STATUS", "SILT START (m)", "SILT THICKNESS (m)",
+        "SELECTED FOR PROJECT", "SELECTION REASON", "VERIFICATION NOTE",
+    ]
+    for c, h in enumerate(audit_headers):
+        au.write(0, c, h, hdr)
+    au.freeze_panes(1, 1)
+    au.autofilter(0, 0, max(1, len(source_audit)), len(audit_headers)-1)
+    au.set_row(0, 38)
+    au.set_column(0, 0, 25)
+    au.set_column(1, 1, 40)
+    au.set_column(2, 5, 17)
+    au.set_column(6, 7, 18)
+    au.set_column(8, 8, 20)
+    au.set_column(9, 10, 70)
+
+    for i, row in enumerate(source_audit, 1):
+        values = [
+            row.get("family"), row.get("source_file"), row.get("source_type"), row.get("revision"),
+            row.get("source_quality"), row.get("status"), row.get("silt_start"), row.get("silt_thickness"),
+            row.get("selected"), row.get("selection_reason"), row.get("verification_note"),
+        ]
+        for c, v in enumerate(values):
+            if c in {6, 7} and isinstance(v, (int, float)):
+                au.write_number(i, c, float(v), num)
+            elif c == 3 and isinstance(v, (int, float)):
+                au.write_number(i, c, float(v), center)
+            else:
+                au.write(i, c, "" if v is None else str(v), wrap if c in {9, 10} else center if c in {2,3,4,5,8} else text)
+        au.set_row(i, 34)
+    if source_audit:
+        au.conditional_format(1, 5, len(source_audit), 5, {"type": "text", "criteria": "containing", "value": "VERIFIED", "format": green})
+        au.conditional_format(1, 5, len(source_audit), 5, {"type": "text", "criteria": "containing", "value": "NO SILT", "format": blue})
+        au.conditional_format(1, 5, len(source_audit), 5, {"type": "text", "criteria": "containing", "value": "REVIEW", "format": amber})
+        au.conditional_format(1, 5, len(source_audit), 5, {"type": "text", "criteria": "containing", "value": "ERROR", "format": red})
+        au.conditional_format(1, 8, len(source_audit), 8, {"type": "text", "criteria": "containing", "value": "YES", "format": green})
+        au.conditional_format(1, 8, len(source_audit), 8, {"type": "text", "criteria": "containing", "value": "NO", "format": grey})
+
+    # 7) Processing issues kept separate from engineering rows.
     er = wb.add_worksheet("Processing Errors")
     er.write(0, 0, "Source File", hdr)
     er.write(0, 1, "Error", hdr)
@@ -234,7 +298,7 @@ def export_excel(analyses: Iterable[CPTAnalysis], output_path: str | Path, error
     er.set_column(1, 1, 90)
     for i, (src, msg) in enumerate(errors, 1):
         er.write(i, 0, src, text)
-        er.write(i, 1, msg, text)
+        er.write(i, 1, msg, wrap)
         er.set_row(i, 28)
     if errors:
         er.conditional_format(1, 0, len(errors), 1, {"type": "no_blanks", "format": red})
