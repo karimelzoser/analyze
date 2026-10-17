@@ -1,244 +1,194 @@
 from __future__ import annotations
 
-import math
+import datetime as dt
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
 import xlsxwriter
+from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
+from matplotlib.backends.backend_pdf import PdfPages
 
-from cpt_core import CPTAnalysis
+from cpt_core import CPTAnalysis, natural_ref_key, summarize_analyses
 
 ZONE_BOUNDS = [0.0, 1.31, 2.05, 2.60, 2.95, 3.60, 5.00]
 ZONE_NAMES = [
-    "Gravelly sand to dense sand",
-    "Clean to silty sand",
-    "Silty sand to sandy silt",
-    "Clayey silt to silty clay",
-    "Silty clay to clay",
-    "Organic soil - clay",
+    "Gravelly sand to dense sand", "Clean to silty sand", "Silty sand to sandy silt",
+    "Clayey silt to silty clay", "Silty clay to clay", "Organic soil - clay",
 ]
 ZONE_COLORS = ["#ffd65a", "#f7b267", "#a8dadc", "#75c9c8", "#4f86c6", "#789262"]
 
 
 def _finite_xy(x, y):
+    x, y = np.asarray(x), np.asarray(y)
     m = np.isfinite(x) & np.isfinite(y)
-    return np.asarray(x)[m], np.asarray(y)[m]
+    return x[m], y[m]
 
 
-def generate_pdf(analysis: CPTAnalysis, output_path: str | Path) -> Path:
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    fig = plt.figure(figsize=(8.5, 11), constrained_layout=False)
-    gs = fig.add_gridspec(
-        nrows=20, ncols=12,
-        left=0.065, right=0.97, top=0.955, bottom=0.05,
-        hspace=1.1, wspace=1.0,
-    )
-
-    fig.text(0.065, 0.975, "CPT ANALYSIS REPORT", fontsize=14, weight="bold", va="top")
-    fig.text(0.97, 0.975, analysis.reference, fontsize=11, weight="bold", ha="right", va="top")
-    client = str(analysis.metadata.get("client") or "")
-    project = str(analysis.metadata.get("project_name") or analysis.metadata.get("project_id") or "")
-    fig.text(0.065, 0.953, f"Client: {client}", fontsize=8.5, va="top")
-    fig.text(0.50, 0.953, f"Project: {project}", fontsize=8.5, va="top")
-
-    ax_qc = fig.add_subplot(gs[1:11, 0:3])
-    ax_fs = fig.add_subplot(gs[1:11, 3:6])
-    ax_u2 = fig.add_subplot(gs[1:11, 6:8])
-    ax_ic = fig.add_subplot(gs[1:11, 8:12])
-
-    depth = analysis.depth
-    ground_elev = analysis.metadata.get("ground_elevation")
-    if isinstance(ground_elev, (int, float)):
-        vertical = float(ground_elev) - depth
-        vertical_label = "Level, m"
-        top_level = max(10.0, math.ceil(float(ground_elev)))
-        bottom_level = min(-10.0, math.floor(float(np.nanmin(vertical))))
-    else:
-        vertical = depth
-        vertical_label = "Depth below ground (m)"
-        top_level = 0.0
-        bottom_level = max(1.0, math.ceil(float(np.nanmax(depth)) * 2) / 2)
-
-    ax_qc.plot(analysis.qc, vertical, color="black", lw=1.0)
-    ax_qc.set_title("Cone resistance, qc (MPa)", fontsize=8)
-    ax_qc.set_xlabel("MPa", fontsize=7)
-    ax_qc.set_ylabel(vertical_label, fontsize=7)
-
-    ax_fs.plot(analysis.fs, vertical, color="#7b2cbf", lw=1.0)
-    ax_fs.set_title("Sleeve friction, fs (MPa)", fontsize=8)
-    ax_fs.set_xlabel("MPa", fontsize=7)
-
-    ax_u2.plot(analysis.u2, vertical, color="#2a9d8f", lw=1.0)
-    ax_u2.set_title("Pore pressure, u2 (MPa)", fontsize=8)
-    ax_u2.set_xlabel("MPa", fontsize=7)
-
-    for i, (lo, hi) in enumerate(zip(ZONE_BOUNDS[:-1], ZONE_BOUNDS[1:])):
-        ax_ic.axvspan(lo, hi, color=ZONE_COLORS[i], alpha=0.88, lw=0)
-    ic_plot = np.where((analysis.ic >= 0.0) & (analysis.ic <= 5.0), analysis.ic, np.nan)
-    ax_ic.plot(ic_plot, vertical, color="black", lw=1.0, zorder=4)
-    ax_ic.axvline(2.60, color="black", lw=0.8, ls="--", alpha=0.8)
-    ax_ic.set_xlim(0.0, 5.0)
-    ax_ic.set_title("Soil Behaviour Type Index, Ic", fontsize=8)
-    ax_ic.set_xlabel("Ic", fontsize=7)
-
-    for ax in (ax_qc, ax_fs, ax_u2, ax_ic):
-        if isinstance(ground_elev, (int, float)):
-            ax.set_ylim(bottom_level, top_level)
-        else:
-            ax.set_ylim(bottom_level, top_level)
-            ax.invert_yaxis()
-        ax.grid(True, which="major", lw=0.35, color="#d9d9d9")
-        ax.tick_params(labelsize=6)
-
-    if analysis.final_interval is not None:
-        for ax in (ax_qc, ax_fs, ax_u2, ax_ic):
-            if isinstance(ground_elev, (int, float)):
-                y1 = float(ground_elev) - analysis.final_interval.start_raw
-                y2 = float(ground_elev) - analysis.final_interval.end_raw
-            else:
-                y1 = analysis.final_interval.start_raw
-                y2 = analysis.final_interval.end_raw
-            ax.axhspan(
-                min(y1, y2),
-                max(y1, y2),
-                color="#e63946", alpha=0.12, zorder=0,
-            )
-        text_y = (float(ground_elev) - analysis.final_interval.start_raw) if isinstance(ground_elev, (int, float)) else analysis.final_interval.start_raw
-        ax_ic.text(
-            4.9, text_y,
-            f"Silt start {analysis.final_interval.start:.2f} m",
-            ha="right", va="bottom", fontsize=6.5, weight="bold",
-        )
-
-    ax_sbt = fig.add_subplot(gs[12:18, 0:7])
-    fx, qy = _finite_xy(analysis.fr, analysis.qtn)
-    ic_f = analysis.ic[np.isfinite(analysis.fr) & np.isfinite(analysis.qtn)]
-    bins = np.digitize(ic_f, ZONE_BOUNDS[1:-1], right=False)
-    for i in range(6):
-        m = bins == i
-        if np.any(m):
-            ax_sbt.scatter(fx[m], qy[m], s=6, alpha=0.65, color=ZONE_COLORS[i], label=ZONE_NAMES[i])
-    ax_sbt.set_xscale("log")
-    ax_sbt.set_yscale("log")
-    ax_sbt.set_xlim(0.1, max(10, float(np.nanpercentile(fx, 99)) * 1.3 if len(fx) else 10))
-    ax_sbt.set_ylim(1, max(1000, float(np.nanpercentile(qy, 99)) * 1.3 if len(qy) else 1000))
-    ax_sbt.set_xlabel("Normalized Friction Ratio, Fr (%)", fontsize=7)
-    ax_sbt.set_ylabel("Normalized Cone Resistance, Qtn", fontsize=7)
-    ax_sbt.set_title("Normalized CPT Soil Behaviour", fontsize=8)
-    ax_sbt.grid(True, which="both", lw=0.35, color="#dddddd")
-    ax_sbt.tick_params(labelsize=6)
-    ax_sbt.legend(fontsize=5.2, loc="best", frameon=True, ncol=2)
-
-    ax_meta = fig.add_subplot(gs[12:18, 7:12])
-    ax_meta.axis("off")
-    md = analysis.metadata
-    raw_date = str(md.get("file_date") or "")
+def _display_date(raw_date: str) -> str:
     try:
-        yy, mm, dd = [int(x.strip()) for x in raw_date.split(",")[:3]]
-        import datetime as _dt
-        date_display = _dt.date(yy, mm, dd).strftime("%d-%b-%Y")
+        yy, mm, dd = [int(x.strip()) for x in str(raw_date).split(",")[:3]]
+        return dt.date(yy, mm, dd).strftime("%d-%b-%Y")
     except Exception:
-        date_display = raw_date
-    rows = [
-        ("CPT Reference", analysis.reference),
-        ("Ground Elevation", f"{md.get('ground_elevation'):.2f} m" if isinstance(md.get('ground_elevation'), (int, float)) else ""),
-        ("Easting", f"{md.get('easting'):.3f}" if isinstance(md.get('easting'), (int, float)) else ""),
-        ("Northing", f"{md.get('northing'):.3f}" if isinstance(md.get('northing'), (int, float)) else ""),
-        ("Cone ID", str(md.get("cone_id") or "")),
-        ("Test Date", date_display),
-        ("Test Depth", f"{float(np.nanmax(depth)):.2f} m"),
-        ("Verification", analysis.status),
+        return str(raw_date or "")
+
+
+def _report_page(a: CPTAnalysis) -> Figure:
+    fig = Figure(figsize=(8.27, 11.69), dpi=150)
+    gs = fig.add_gridspec(24, 14, left=.035, right=.975, top=.965, bottom=.035, hspace=.7, wspace=.9)
+    md = a.metadata
+    client = str(md.get("client") or "")
+    project = str(md.get("project_name") or md.get("project_id") or "")
+    fig.text(.04,.977,"Client    :",fontsize=8.5,weight="bold",va="top")
+    fig.text(.125,.977,client,fontsize=8.5,weight="bold",va="top")
+    fig.text(.04,.958,"Project  :",fontsize=8.5,weight="bold",va="top")
+    fig.text(.125,.958,project,fontsize=8.5,weight="bold",va="top")
+    fig.text(.965,.974,"CPT REPORT",fontsize=9.5,weight="bold",ha="right",va="top")
+    fig.lines.extend([Line2D([.03,.98],[.985,.985],transform=fig.transFigure,color="black",lw=.8), Line2D([.03,.98],[.944,.944],transform=fig.transFigure,color="black",lw=.8)])
+
+    ax_qc = fig.add_subplot(gs[2:16,0:4])
+    ax_fs = fig.add_subplot(gs[2:16,5:9])
+    ax_ic = fig.add_subplot(gs[2:16,10:14])
+    ground = md.get("ground_elevation")
+    vertical = float(ground) - a.depth if isinstance(ground,(int,float)) else a.depth
+    ylab = "Level, m" if isinstance(ground,(int,float)) else "Depth below ground, m"
+
+    ax_qc.plot(a.qc,vertical,color="black",lw=.9)
+    ax_qc.set_title("Cone resistance, qc, MPa",fontsize=7.5); ax_qc.xaxis.set_label_position("top"); ax_qc.xaxis.tick_top(); ax_qc.set_ylabel(ylab,fontsize=7); ax_qc.set_xlim(left=0)
+    ax_fs.plot(a.fs,vertical,color="#7b2cbf",lw=.85)
+    ax_u2 = ax_fs.twiny(); ax_u2.plot(a.u2,vertical,color="#2a9d8f",lw=.8,ls="--")
+    ax_fs.set_title("Sleeve Friction, fs, MPa",fontsize=7.5); ax_fs.xaxis.set_label_position("top"); ax_fs.xaxis.tick_top(); ax_fs.set_xlim(left=0)
+    finite_u = a.u2[np.isfinite(a.u2)]
+    if len(finite_u):
+        umax = max(.05,float(np.nanpercentile(np.abs(finite_u),99))*1.15)
+        ax_u2.set_xlim(umax,0.0); ax_u2.xaxis.set_ticks_position("bottom"); ax_u2.xaxis.set_label_position("bottom")
+        ax_u2.spines["bottom"].set_position(("axes",0.0)); ax_u2.spines["bottom"].set_visible(True); ax_u2.spines["top"].set_visible(False)
+        ax_u2.tick_params(axis="x",labelsize=5.3,pad=1); ax_u2.set_xlabel("Pore Pressure, u2, MPa",fontsize=6.2,labelpad=7)
+
+    for i,(lo,hi) in enumerate(zip(ZONE_BOUNDS[:-1],ZONE_BOUNDS[1:])):
+        ax_ic.axvspan(lo,hi,color=ZONE_COLORS[i],alpha=.92,lw=0)
+    ax_ic.plot(a.ic,vertical,color="black",lw=.9)
+    for bound in ZONE_BOUNDS[1:]: ax_ic.axvline(bound,color="#777",lw=.35)
+    ax_ic.set_xlim(0,5); ax_ic.set_title("Soil Behaviour Type Index, Ic",fontsize=7.5); ax_ic.xaxis.set_label_position("top"); ax_ic.xaxis.tick_top()
+    ax_ic.set_xticks([0,1.31,2.05,2.60,2.95,3.60,5.00]); ax_ic.set_xticklabels(["0","1.31","2.05","2.60","2.95","3.60","5.00"],fontsize=5.4)
+
+    for ax in (ax_qc,ax_fs,ax_ic):
+        ax.set_ylim(-10,10) if isinstance(ground,(int,float)) else ax.set_ylim(10,0)
+        ax.grid(True,which="major",lw=.3,color="#ddd"); ax.tick_params(labelsize=5.8,width=.6,length=2.5)
+        for spine in ax.spines.values(): spine.set_linewidth(.75)
+
+    ax_leg = fig.add_subplot(gs[16:20,0:7]); ax_leg.axis("off")
+    for idx,(name,color) in enumerate(zip(ZONE_NAMES,ZONE_COLORS)):
+        r,c=divmod(idx,2); x=.02+c*.51; y=.80-r*.24
+        ax_leg.add_patch(Rectangle((x,y-.06),.035,.12,transform=ax_leg.transAxes,color=color)); ax_leg.text(x+.045,y,name,fontsize=5.8,va="center",transform=ax_leg.transAxes)
+
+    ax_sbt = fig.add_subplot(gs[16:24,8:14])
+    fx,qy = _finite_xy(a.fr,a.qtn); mask=np.isfinite(a.fr)&np.isfinite(a.qtn); icf=a.ic[mask]; bins=np.digitize(icf,ZONE_BOUNDS[1:-1],right=False)
+    for i in range(6):
+        m=bins==i
+        if np.any(m): ax_sbt.scatter(fx[m],qy[m],s=4,alpha=.72,color=ZONE_COLORS[i])
+    ax_sbt.set_xscale("log"); ax_sbt.set_yscale("log"); ax_sbt.set_xlim(.1,10); ax_sbt.set_ylim(1,1000)
+    ax_sbt.set_xlabel("Normalized Friction Ratio, Fr, %",fontsize=5.5); ax_sbt.set_ylabel("Normalized Cone Resistance Qtn",fontsize=5.5)
+    ax_sbt.grid(True,which="both",lw=.25,color="#ddd"); ax_sbt.tick_params(labelsize=5)
+
+    ax_meta=fig.add_subplot(gs[20:24,0:8]); ax_meta.axis("off")
+    e,n=md.get("easting"),md.get("northing")
+    rows=[
+        ("Main Contractor:",str(md.get("main_contractor") or "")),
+        ("Test Location:",a.reference),
+        ("Ground Elevation:",f"{float(ground):.2f}" if isinstance(ground,(int,float)) else ""),
+        ("Coordinates:",f"Easting {float(e):.3f}    Northing {float(n):.3f}" if isinstance(e,(int,float)) and isinstance(n,(int,float)) else ""),
+        ("Cone ID:",str(md.get("cone_id") or "")),
+        ("Test Date:",_display_date(str(md.get("file_date") or ""))),
     ]
-    if analysis.status == "NO SILT":
-        rows += [("Silt start", "NO SILT"), ("Silt depth", "0.00 m")]
-    elif analysis.final_interval is not None:
-        rows += [
-            ("Silt start", f"{analysis.final_interval.start:.2f} m"),
-            ("Silt depth", f"{analysis.final_interval.thickness:.2f} m"),
-        ]
-    else:
-        rows += [("Silt start", "REVIEW"), ("Silt depth", "-")]
-    table = ax_meta.table(cellText=rows, colWidths=[0.43, 0.57], loc="center", cellLoc="left")
-    table.auto_set_font_size(False)
-    table.set_fontsize(6.8)
-    table.scale(1.0, 1.35)
-    for (r, c), cell in table.get_celld().items():
-        cell.set_edgecolor("#bdbdbd")
-        cell.set_linewidth(0.5)
-        if c == 0:
-            cell.set_facecolor("#eeeeee")
-            cell.set_text_props(weight="bold")
+    table=ax_meta.table(cellText=rows,colWidths=[.35,.65],loc="center",cellLoc="left"); table.auto_set_font_size(False); table.set_fontsize(6.1); table.scale(1,1.25)
+    for (r,c),cell in table.get_celld().items():
+        cell.set_edgecolor("#999"); cell.set_linewidth(.45)
+        if c==0: cell.set_facecolor("#dedede"); cell.set_text_props(weight="bold")
+    return fig
 
-    ax_note = fig.add_subplot(gs[18:20, :])
-    ax_note.axis("off")
-    if analysis.status == "NO SILT":
-        summary = "SILT INTERPRETATION: NO SILT - no sustained qualifying Ic >= 2.60 interval detected."
-    elif analysis.final_interval is not None:
-        summary = (
-            f"SILT INTERPRETATION: start {analysis.final_interval.start:.2f} m BGL; "
-            f"thickness {analysis.final_interval.thickness:.2f} m. {analysis.verification_note}"
-        )
-    else:
-        summary = f"SILT INTERPRETATION: REVIEW REQUIRED. {analysis.verification_note}"
-    ax_note.text(0.0, 0.72, summary, fontsize=8, weight="bold", va="top", wrap=True)
-    ax_note.text(
-        0.0, 0.18,
-        "Method: GEF raw qc/fs/u2 -> qt, Fr, Qtn and Robertson-style Ic; deepest sustained Ic >= 2.60 interval selected. "
-        "Default unit weight 18 kN/m3 and groundwater at ground level are configurable in the desktop tool.",
-        fontsize=6.2, va="bottom", wrap=True, color="#555555",
-    )
 
-    fig.savefig(output_path, format="pdf", dpi=180)
-    plt.close(fig)
+def _analysis_page(a: CPTAnalysis) -> Figure:
+    fig=Figure(figsize=(8.27,11.69),dpi=150); ax=fig.add_subplot(111); ax.axis("off")
+    fig.text(.07,.94,"CPT ANALYSIS SUMMARY",fontsize=16,weight="bold"); fig.text(.07,.905,a.reference,fontsize=11,weight="bold")
+    if a.status=="NO SILT":
+        rs,re,rt="NO SILT","-","0.00 m"; rrs=rre=rrt="-"
+    elif a.final_interval is None:
+        rs="REVIEW"; re=rt=rrs=rre=rrt="-"
+    else:
+        z=a.final_interval; rs=f"{z.start:.2f} m"; re=f"{z.end:.2f} m"; rt=f"{z.thickness:.2f} m"; rrs=f"{z.start_raw:.3f} m"; rre=f"{z.end_raw:.3f} m"; rrt=f"{z.thickness_raw:.3f} m"
+    sand=a.sand_layer_thickness
+    rows=[
+        ["Status",a.status],["Silt start - reported",rs],["Silt end - reported",re],["Silt thickness - reported",rt],
+        ["Sand layer thickness",f"{sand:.2f} m" if sand is not None else "REVIEW"],["Raw interpolated silt start",rrs],
+        ["Raw analysis end",rre],["Raw interval thickness",rrt],["Corrected sounding depth",f"{a.test_depth_raw:.3f} m"],
+        ["Terminal sensor dropout",f"{a.sensor_dropout_depth:.3f} m" if a.sensor_dropout_depth is not None else "None detected"],
+        ["Verification","Two-pass verified" if a.status=="VERIFIED" else a.status],
+    ]
+    tbl=ax.table(cellText=rows,colWidths=[.36,.58],cellLoc="left",bbox=[.08,.42,.84,.42]); tbl.auto_set_font_size(False); tbl.set_fontsize(8)
+    for (r,c),cell in tbl.get_celld().items():
+        cell.set_edgecolor("#b5b5b5"); cell.set_linewidth(.6)
+        if c==0: cell.set_facecolor("#eee"); cell.set_text_props(weight="bold")
+    ax.text(.08,.34,"Calculation basis",transform=ax.transAxes,fontsize=10,weight="bold")
+    ax.text(.08,.30,"Raw GEF/GFF qc, fs and u2 are used to calculate qt, Fr, Qtn and Robertson-style Ic. Terminal exact-zero sleeve-friction dropout is excluded from Ic. Threshold crossings are linearly interpolated. The project output reports start/end to 0.10 m and calculates reported thickness as reported end minus reported start.",transform=ax.transAxes,fontsize=8,wrap=True,va="top")
+    return fig
+
+
+def generate_pdf(analysis: CPTAnalysis, output_path: str|Path) -> Path:
+    output_path=Path(output_path); output_path.parent.mkdir(parents=True,exist_ok=True)
+    with PdfPages(output_path) as pdf:
+        p1=_report_page(analysis); pdf.savefig(p1); p1.clear()
+        p2=_analysis_page(analysis); pdf.savefig(p2); p2.clear()
     return output_path
 
 
-def export_excel(analyses: Iterable[CPTAnalysis], output_path: str | Path) -> Path:
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    analyses = list(analyses)
+def export_excel(analyses: Iterable[CPTAnalysis], output_path: str|Path) -> Path:
+    output_path=Path(output_path); output_path.parent.mkdir(parents=True,exist_ok=True)
+    analyses=sorted(list(analyses),key=lambda a:natural_ref_key(a.reference)); summary=summarize_analyses(analyses)
+    wb=xlsxwriter.Workbook(str(output_path))
+    hdr=wb.add_format({"bold":True,"font_color":"#FFC000","bg_color":"#000000","border":1,"align":"center","valign":"vcenter","text_wrap":True})
+    num=wb.add_format({"num_format":"0.00","align":"center","border":1}); num3=wb.add_format({"num_format":"0.000","align":"center","border":1})
+    integer=wb.add_format({"align":"center","border":1}); text=wb.add_format({"border":1}); center=wb.add_format({"align":"center","border":1})
+    klabel=wb.add_format({"bold":True,"bg_color":"#E7E6E6","border":1}); kval=wb.add_format({"bold":True,"align":"center","border":1,"num_format":"0.00"})
 
-    wb = xlsxwriter.Workbook(str(output_path))
-    ws = wb.add_worksheet("CPT Analysis")
+    ws=wb.add_worksheet("CPT Analysis"); headers=["SI.No","CPT REFERENCE","Silt start depth after (m)","silt depth (m)"]
+    for c,h in enumerate(headers): ws.write(0,c,h,hdr)
+    ws.set_row(0,32); ws.freeze_panes(1,0); ws.autofilter(0,0,max(1,len(analyses)),3); ws.set_column(0,0,9); ws.set_column(1,1,28); ws.set_column(2,2,29); ws.set_column(3,3,17)
+    for i,a in enumerate(analyses,start=1):
+        ws.write_number(i,0,i,integer); ws.write(i,1,a.reference,text)
+        if a.status=="NO SILT": ws.write(i,2,"NO SILT",center); ws.write_number(i,3,0.0,num)
+        elif a.final_interval is not None: ws.write_number(i,2,a.final_interval.start,num); ws.write_number(i,3,a.final_interval.thickness,num)
+        else: ws.write(i,2,"REVIEW",center); ws.write_blank(i,3,None,num)
 
-    header_fmt = wb.add_format({
-        "bold": True, "font_color": "#FFC000", "bg_color": "#000000",
-        "border": 1, "align": "center", "valign": "vcenter", "text_wrap": True,
-    })
-    num_fmt = wb.add_format({"num_format": "0.00", "align": "center", "border": 1})
-    int_fmt = wb.add_format({"align": "center", "border": 1})
-    text_fmt = wb.add_format({"border": 1})
-    center_text_fmt = wb.add_format({"align": "center", "border": 1})
-
-    headers = ["SI.No", "CPT REFERENCE", "Silt start depth after (m)", "silt depth (m)"]
-    for c, h in enumerate(headers):
-        ws.write(0, c, h, header_fmt)
-    ws.set_row(0, 32)
-    ws.freeze_panes(1, 0)
-    ws.autofilter(0, 0, max(1, len(analyses)), 3)
-    ws.set_column(0, 0, 9)
-    ws.set_column(1, 1, 28)
-    ws.set_column(2, 2, 29)
-    ws.set_column(3, 3, 17)
-
-    for i, a in enumerate(analyses, start=1):
-        ws.write_number(i, 0, i, int_fmt)
-        ws.write(i, 1, a.reference, text_fmt)
-        if a.status == "NO SILT":
-            ws.write(i, 2, "NO SILT", center_text_fmt)
-            ws.write_number(i, 3, 0.0, num_fmt)
+    wd=wb.add_worksheet("Full Analysis")
+    dh=["SI.No","CPT REFERENCE","Sand layer thickness (m)","Silt start reported (m)","Silt end reported (m)","Silt thickness reported (m)","Raw silt start (m)","Raw silt end (m)","Raw silt thickness (m)","Corrected test depth (m)","Status"]
+    for c,h in enumerate(dh): wd.write(0,c,h,hdr)
+    wd.freeze_panes(1,2); wd.autofilter(0,0,max(1,len(analyses)),len(dh)-1); wd.set_column(0,0,8); wd.set_column(1,1,27); wd.set_column(2,9,20); wd.set_column(10,10,14)
+    for i,a in enumerate(analyses,start=1):
+        wd.write_number(i,0,i,integer); wd.write(i,1,a.reference,text)
+        sand=a.sand_layer_thickness; wd.write(i,2,"REVIEW",center) if sand is None else wd.write_number(i,2,sand,num)
+        if a.status=="NO SILT":
+            wd.write(i,3,"NO SILT",center); wd.write_blank(i,4,None,num); wd.write_number(i,5,0.0,num)
+            for c in [6,7,8]: wd.write_blank(i,c,None,num3)
         elif a.final_interval is not None:
-            ws.write_number(i, 2, a.final_interval.start, num_fmt)
-            ws.write_number(i, 3, a.final_interval.thickness, num_fmt)
+            z=a.final_interval; wd.write_number(i,3,z.start,num); wd.write_number(i,4,z.end,num); wd.write_number(i,5,z.thickness,num); wd.write_number(i,6,z.start_raw,num3); wd.write_number(i,7,z.end_raw,num3); wd.write_number(i,8,z.thickness_raw,num3)
         else:
-            ws.write(i, 2, "REVIEW", center_text_fmt)
-            ws.write_blank(i, 3, None, num_fmt)
+            wd.write(i,3,"REVIEW",center)
+            for c in range(4,9): wd.write_blank(i,c,None,num3 if c>=6 else num)
+        wd.write_number(i,9,a.test_depth_raw,num3); wd.write(i,10,a.status,center)
 
-    wb.close()
-    return output_path
+    ss=wb.add_worksheet("Summary"); ss.set_column("A:A",28); ss.set_column("B:B",35); ss.write("A1","Full CPT Analysis Summary",hdr)
+    for row,label,key in [(3,"Total CPTs","total"),(4,"Verified silt","verified"),(5,"No silt","no_silt"),(6,"Review required","review")]: ss.write(f"A{row}",label,klabel); ss.write_number(f"B{row}",summary[key],kval)
+    ss.write("A8","Maximum silt thickness (m)",klabel)
+    if summary["max_silt_thickness"] is not None: ss.write_number("B8",summary["max_silt_thickness"],kval)
+    ss.write("A9","CPT(s) at maximum thickness",klabel); ss.write("B9",", ".join(summary["max_silt_refs"]),text)
+    ss.write("A10","Average verified silt thickness (m)",klabel)
+    if summary["avg_silt_thickness"] is not None: ss.write_number("B10",summary["avg_silt_thickness"],kval)
+    if analyses:
+        chart=wb.add_chart({"type":"line"}); n=len(analyses)+1
+        chart.add_series({"name":"Silt thickness","categories":f"='Full Analysis'!$B$2:$B${n}","values":f"='Full Analysis'!$F$2:$F${n}"})
+        chart.add_series({"name":"Sand layer thickness","categories":f"='Full Analysis'!$B$2:$B${n}","values":f"='Full Analysis'!$C$2:$C${n}"})
+        chart.set_title({"name":"Full Analysis - Layer Thickness"}); chart.set_y_axis({"name":"Thickness (m)"}); chart.set_x_axis({"name":"CPT Reference","label_position":"low"}); chart.set_legend({"position":"bottom"}); chart.set_size({"width":980,"height":420}); ss.insert_chart("D2",chart)
+    wb.close(); return output_path
