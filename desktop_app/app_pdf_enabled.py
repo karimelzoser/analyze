@@ -9,7 +9,7 @@ from tkinter import filedialog
 import app_modern
 import app_modern_v2
 import reporting_export_v2
-from pdf_analysis import analyze_pdf, append_pdf_analysis
+from pdf_analysis_refined import analyze_pdf, append_pdf_analysis
 
 
 SUPPORTED_EXTENSIONS = {".gef", ".gff", ".pdf"}
