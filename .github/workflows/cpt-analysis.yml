@@ -31,6 +31,9 @@ jobs:
       - name: Analyze every CPT PDF twice
         run: python analysis/analyze_cpt.py
 
+      - name: Render reference diagnostics
+        run: python analysis/render_validation.py
+
       - name: Upload audit results
         uses: actions/upload-artifact@v4
         with:
