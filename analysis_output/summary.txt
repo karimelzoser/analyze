@@ -1,0 +1,13 @@
+physical_pdfs=448
+unique_cpt_references=446
+verified_2pass=237
+verified_consensus=3
+unresolved=208
+duplicate_conflict_groups=1
+validation_pass=2/6
+validation CPT-A1-B328-100: expected=6.00/0.40, detected=5.8/0.5, pass=False
+validation CPT-A1-B340-100: expected=6.00/0.40, detected=6.0/0.5, pass=False
+validation CPT-A1-B341-100: expected=6.00/0.30, detected=6.1/0.4, pass=False
+validation CPT-A1-B342-100: expected=6.20/0.40, detected=6.2/0.4, pass=True
+validation CPT-A1-B377-100: expected=6.50/0.30, detected=6.5/0.3, pass=True
+validation CPT-A1-B378-100: expected=6.40/0.30, detected=6.3/0.5, pass=False

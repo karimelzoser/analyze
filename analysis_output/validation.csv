@@ -1,0 +1,7 @@
+cpt_reference,expected_start,detected_start,expected_depth,detected_depth,pass
+CPT-A1-B328-100,6.0,5.8,0.4,0.5,False
+CPT-A1-B340-100,6.0,6.0,0.4,0.5,False
+CPT-A1-B341-100,6.0,6.1,0.3,0.4,False
+CPT-A1-B342-100,6.2,6.2,0.4,0.4,True
+CPT-A1-B377-100,6.5,6.5,0.3,0.3,True
+CPT-A1-B378-100,6.4,6.3,0.3,0.5,False
