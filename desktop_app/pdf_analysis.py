@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import re
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Optional, Tuple
@@ -142,8 +143,6 @@ def _find_ic_panel_and_trace(page):
         ):
             panels.append((idx, d))
 
-    # Excel-exported PDFs can contain a hidden duplicate plot group. Prefer the
-    # first/native visible panel, then require a long black vector trace inside.
     for _, panel in panels:
         pr = panel["rect"]
         candidates = []
@@ -245,9 +244,17 @@ def _median_filter(values: np.ndarray, width: int) -> np.ndarray:
     return out
 
 
+def _round_graph_01m(value: float) -> float:
+    """Snap PDF-derived depth to the graph's meaningful 0.01 m resolution."""
+    return float(Decimal(str(float(value))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
 def _make_interval(start_raw: float, end_raw: float, source_end_raw: float) -> SiltInterval:
-    start = round_01(start_raw)
-    end = round_01(end_raw)
+    # Otherwise identical PDF exports can shift vector coordinates by fractions
+    # of a millimetre. The source graph is sampled at about 0.01 m, so suppress
+    # sub-centimetre export jitter before applying the project's 0.10 m rule.
+    start = round_01(_round_graph_01m(start_raw))
+    end = round_01(_round_graph_01m(end_raw))
     return SiltInterval(
         start=start,
         end=end,
@@ -299,8 +306,6 @@ def _detect_pdf_interval(
         return None, all_intervals
 
     a, b = runs[-1]
-    # PDF is a graphical reconstruction: use the first plotted point actually
-    # inside Ic>=2.60. This reproduces the project's 0.10 m reporting convention.
     start_raw = float(depth[a])
     source_end = float(depth[b])
     test_end = float(depth[-1])
@@ -495,7 +500,7 @@ def _pdf_analysis_figure(a: CPTAnalysis) -> Figure:
     ax.text(.07, .255, "PDF calculation basis", transform=ax.transAxes, fontsize=9.5, weight="bold", color="#0F172A")
     ax.text(
         .07, .225,
-        "The original PDF pages are preserved unchanged. The application reads native PDF vector geometry from the Soil Behaviour Type Index (Ic) panel, maps the plotted trace to depth using the report level axis and ground elevation, detects sustained Ic >= 2.60 intervals, and verifies the selected deepest interval with two passes plus sensitivity rechecks when required. Graphical PDF reconstruction is not treated as equivalent to raw GEF/GFF numerical data; unsupported or scanned PDFs are returned as REVIEW rather than guessed.",
+        "The original PDF pages are preserved unchanged. The application reads native PDF vector geometry from the Soil Behaviour Type Index (Ic) panel, maps the plotted trace to depth using the report level axis and ground elevation, suppresses sub-centimetre PDF-export jitter at the graph's 0.01 m resolution, detects sustained Ic >= 2.60 intervals, and verifies the selected deepest interval with two passes plus sensitivity rechecks when required. Graphical PDF reconstruction is not treated as equivalent to raw GEF/GFF numerical data; unsupported or scanned PDFs are returned as REVIEW rather than guessed.",
         transform=ax.transAxes, fontsize=7.6, wrap=True, va="top", color="#334155",
     )
     ax.text(.07, .105, "Source file", transform=ax.transAxes, fontsize=8.5, weight="bold", color="#0F172A")
