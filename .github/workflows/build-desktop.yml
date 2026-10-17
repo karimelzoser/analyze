@@ -34,7 +34,7 @@ jobs:
         shell: pwsh
         working-directory: desktop_app
         run: |
-          python -m py_compile app_professional_final.py app_pro.py reporting_pro.py reporting_pdf_ref.py cpt_core.py
+          python -m py_compile app_professional_final.py app_pro.py reporting_pro.py reporting_pdf_ref.py reporting_pdf_ref_v2.py cpt_core.py
 
       - name: Build executable
         shell: pwsh
