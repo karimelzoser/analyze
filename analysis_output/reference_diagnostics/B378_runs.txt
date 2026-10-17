@@ -1,0 +1,5 @@
+0.00-0.00 (1 samples)
+1.79-1.80 (2 samples)
+1.99-1.99 (1 samples)
+2.44-2.62 (19 samples)
+6.30-6.68 (39 samples)
