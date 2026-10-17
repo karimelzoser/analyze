@@ -18,7 +18,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,6 +31,13 @@ jobs:
       - name: Analyze every CPT PDF twice
         run: python analysis/analyze_cpt.py
 
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpt-analysis-output
+          path: analysis_output/
+          retention-days: 7
+
       - name: Commit audit results to analysis branch
         run: |
           git config user.name "github-actions[bot]"
@@ -40,5 +47,7 @@ jobs:
             echo "No output changes to commit"
           else
             git commit -m "Generate CPT silt analysis results"
+            git fetch origin analysis-work
+            git rebase origin/analysis-work
             git push origin HEAD:analysis-work
           fi
