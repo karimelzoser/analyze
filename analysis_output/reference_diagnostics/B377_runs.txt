@@ -1,6 +1,16 @@
-0.00-0.00 (1 samples)
-2.17-2.92 (76 samples)
-4.59-4.66 (8 samples)
-5.27-5.28 (2 samples)
-5.65-5.71 (7 samples)
-6.47-6.77 (31 samples)
+axis_top=103.729980
+axis_bottom=494.940002
+px_per_m=19.560501
+curve_start_y=224.229980
+curve_end_y=357.630005
+test_depth=6.819867
+thr=2.05 deepest_run=6.4185-6.7703 n=36
+thr=2.30 deepest_run=6.4502-6.7703 n=33
+thr=2.40 deepest_run=6.4589-6.7703 n=32
+thr=2.50 deepest_run=6.4589-6.7703 n=32
+thr=2.60 deepest_run=6.4702-6.7703 n=31
+thr=2.70 deepest_run=6.4789-6.7703 n=30
+thr=2.80 deepest_run=6.4906-6.7503 n=27
+thr=2.90 deepest_run=6.4993-6.7503 n=26
+thr=2.95 deepest_run=6.4993-6.7503 n=26
+thr=3.00 deepest_run=6.6895-6.7299 n=5

@@ -1,1 +1,16 @@
-5.79-6.28 (50 samples)
+axis_top=103.729980
+axis_bottom=494.940002
+px_per_m=19.560501
+curve_start_y=229.119995
+curve_end_y=353.130005
+test_depth=6.339818
+thr=2.05 deepest_run=5.6783-6.2897 n=62
+thr=2.30 deepest_run=5.7391-6.2810 n=55
+thr=2.40 deepest_run=5.7591-6.2810 n=53
+thr=2.50 deepest_run=5.7708-6.2810 n=52
+thr=2.60 deepest_run=5.7908-6.2810 n=50
+thr=2.70 deepest_run=5.8112-6.2693 n=47
+thr=2.80 deepest_run=5.8311-6.2693 n=45
+thr=2.90 deepest_run=5.8485-6.2693 n=43
+thr=2.95 deepest_run=6.0592-6.2606 n=21
+thr=3.00 deepest_run=6.0791-6.2606 n=19
