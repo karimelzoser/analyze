@@ -1,53 +1,62 @@
 # CPT Silt Analyzer - Desktop
 
-Local Windows desktop tool for CPT GEF/GFF files.
+Local Windows desktop application for CPT `.GEF` / `.GFF` files.
 
-## Why desktop
+## Workflow
 
-This workflow does not require the internet. A desktop application keeps project data on the workstation, handles large batches efficiently, and can generate PDFs and Excel locally.
+Select individual files **or** a folder, confirm the output location, then press **START ANALYSIS**. The app generates:
 
-## Inputs
+- `PDFs/<CPT reference>.pdf` for every successfully analyzed CPT.
+- `CPT_Silt_Analysis.xlsx`.
 
-- `.GEF` or `.GFF` ASCII CPT files using the GEF header/data convention.
-- The parser reads the raw channels from `#COLUMNINFO`, including corrected depth/penetration length, cone resistance `qc`, sleeve friction `fs`, and pore pressure `u2` when available.
+The UI includes **Open PDFs**, **Open Excel Sheet**, and **Open Output Folder** buttons. Double-clicking a result row opens that CPT PDF.
 
-## Outputs
+## Accuracy rules
 
-For every input file:
+- Uses raw corrected depth, qc, fs and u2.
+- Calculates qt, Fr, Qtn and Robertson-style Ic.
+- Detects a terminal exact-zero sleeve-friction dropout so it cannot create a false high-Ic tail.
+- Interpolates the Ic=2.60 threshold crossing between measurements.
+- Performs two independent interval analyses; disagreements go through eight detailed rechecks.
+- Never guesses unresolved cases: they remain `REVIEW`.
+- Writes `NO SILT` only when the independent analysis verifies no qualifying sustained terminal silt interval.
+- Reported start and end are rounded to 0.10 m, then reported silt thickness is calculated as `reported end - reported start`.
 
-- One professional CPT PDF under `PDFs/`.
-- One batch Excel workbook: `CPT_Silt_Analysis.xlsx`.
+For the supplied regression GEF `CPT-A1-292-100`, the production result is 6.20 m silt start and 0.20 m reported silt thickness.
 
-The Excel has exactly four columns:
+## Sand thickness
+
+`Sand layer thickness` is the project layer thickness from ground level to the selected terminal silt start. For a verified `NO SILT` sounding it is the analyzed sounding depth. `REVIEW` cases remain blank rather than being guessed.
+
+## Excel
+
+The first sheet, `CPT Analysis`, remains exactly four columns:
 
 1. `SI.No`
 2. `CPT REFERENCE`
 3. `Silt start depth after (m)`
 4. `silt depth (m)`
 
-If no qualifying silt interval is found, the tool writes `NO SILT` and `0.00`.
+Additional sheets:
 
-## Silt analysis
+- `Full Analysis`: sand thickness, reported and raw silt boundaries/thickness, corrected test depth and status.
+- `Summary`: total/verified/no-silt/review counts, the **maximum silt thickness and the CPT reference(s) where it occurs**, average silt thickness, and a full-project layer-thickness chart.
 
-The engine works directly from the raw GEF/GFF numerical data, not from PDF pixels:
+## PDF
 
-1. Read corrected depth, qc, fs, u2 and cone area ratio.
-2. Calculate corrected cone resistance `qt`.
-3. Calculate stress-normalized `Fr`, `Qtn` and Robertson-style `Ic`.
-4. Detect sustained `Ic >= 2.60` intervals.
-5. Ignore shallow startup artefacts and very short/noisy crossings.
-6. Select the deepest qualifying interval, matching the project convention established from the reference PDF set.
-7. Perform two independent passes. If they disagree, run eight detailed rechecks before accepting a result.
-8. Round reporting values to 0.10 m while displaying two decimals in Excel/PDF.
+Page 1 follows the supplied project-report structure: source metadata, qc, fs/u2, Ic zones, normalized behavior plot and the metadata table. No silt-analysis annotation is added to the standard data page.
 
-Defaults are soil unit weight `18 kN/m3` and groundwater at ground level. Both are editable in the desktop UI.
+Page 2 is added **after** the standard CPT data and contains the analysis table with reported values, raw interpolated values, sand thickness, sounding depth, terminal sensor-dropout information and verification status.
 
-## Validation sample
+## Interactive chart
 
-The supplied sample `P261074_CPT-A1-292-100.GEF` contains 637 records, an end depth of approximately 6.36 m, and produces the project result:
+The desktop `Full Analysis Chart` tab has independent show/hide checkboxes for:
 
-- Silt start: `6.20 m`
-- Silt depth: `0.10 m`
+- Silt thickness
+- Sand thickness
+- Silt start
+
+The Matplotlib toolbar supports zoom and pan for large batches.
 
 ## Run from source
 
@@ -57,16 +66,12 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-Batch/CLI:
+CLI:
 
 ```bash
-python cli.py "C:\path\to\gef-folder" --output "C:\path\to\output"
+python cli.py "C:\path\to\folder" --output "C:\path\to\CPT_Output"
 ```
 
-## Windows EXE
+## Windows build
 
-The repository includes a GitHub Actions workflow that builds a single-file Windows executable with PyInstaller. Download the `CPT-Silt-Analyzer-Windows` artifact from the workflow run and extract `CPT_Silt_Analyzer.exe`.
-
-## Engineering note
-
-The PDF includes the raw CPT curves, calculated Ic, normalized CPT behaviour plot, test metadata, and the selected silt interval. The Excel deliberately remains limited to the requested four columns. Results that do not converge during independent verification are written as `REVIEW`, not guessed.
+GitHub Actions runs the automated tests before building `CPT_Silt_Analyzer.exe` with PyInstaller. A failed test prevents delivery of the executable.
