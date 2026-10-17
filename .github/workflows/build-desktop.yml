@@ -37,7 +37,7 @@ jobs:
         shell: pwsh
         working-directory: desktop_app
         run: |
-          python -m py_compile app_modern.py app_modern_v2.py app_modern_final.py reporting_export_v2.py reporting_pro.py reporting_pdf_ref.py reporting_pdf_ref_v2.py cpt_core.py
+          python -m py_compile app_modern.py app_modern_v2.py app_pdf_enabled.py app_modern_final.py pdf_analysis.py reporting_export_v2.py reporting_pro.py reporting_pdf_ref.py reporting_pdf_ref_v2.py cpt_core.py
 
       - name: Build executable
         shell: pwsh
@@ -46,6 +46,7 @@ jobs:
           pyinstaller --noconfirm --clean --onefile --windowed `
             --name CPT_Silt_Analyzer `
             --collect-all matplotlib `
+            --collect-all pymupdf `
             app_modern_final.py
 
       - name: Package repository download ZIP
@@ -69,7 +70,7 @@ jobs:
           git add -f release/CPT_Silt_Analyzer_Latest.zip
           $changes = git status --porcelain -- release/CPT_Silt_Analyzer_Latest.zip
           if ($changes) {
-            git commit -m "Publish latest modern CPT Analyzer Windows ZIP [skip ci]"
+            git commit -m "Publish latest PDF-enabled CPT Analyzer Windows ZIP [skip ci]"
             git push origin HEAD:main
           } else {
             Write-Host "Release ZIP is already current."
@@ -78,6 +79,6 @@ jobs:
       - name: Upload Windows executable
         uses: actions/upload-artifact@v4
         with:
-          name: CPT-Silt-Analyzer-Windows-Modern
+          name: CPT-Silt-Analyzer-Windows-PDF-Enabled
           path: desktop_app/dist/CPT_Silt_Analyzer.exe
           retention-days: 30
