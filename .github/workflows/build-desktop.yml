@@ -30,6 +30,12 @@ jobs:
         run: |
           python -m pytest -q
 
+      - name: Professional reporting smoke test
+        shell: pwsh
+        working-directory: desktop_app
+        run: |
+          python -m py_compile app_pro.py reporting_pro.py cpt_core.py
+
       - name: Build executable
         shell: pwsh
         working-directory: desktop_app
@@ -37,12 +43,11 @@ jobs:
           pyinstaller --noconfirm --clean --onefile --windowed `
             --name CPT_Silt_Analyzer `
             --collect-all matplotlib `
-            --add-data "assets/header_logos.png;assets" `
-            app.py
+            app_pro.py
 
       - name: Upload Windows executable
         uses: actions/upload-artifact@v4
         with:
-          name: CPT-Silt-Analyzer-Windows
+          name: CPT-Silt-Analyzer-Windows-Professional
           path: desktop_app/dist/CPT_Silt_Analyzer.exe
           retention-days: 30
