@@ -1,0 +1,11 @@
+physical_pdfs=448
+UNRESOLVED=199
+VERIFIED_2PASS=216
+VERIFIED_RECHECK=33
+project_reference_overrides=6
+ref CPT-A1-B328-100 expected=6.00/0.40 pass1=5.8/0.6
+ref CPT-A1-B340-100 expected=6.00/0.40 pass1=6.0/0.5
+ref CPT-A1-B341-100 expected=6.00/0.30 pass1=6.1/0.5
+ref CPT-A1-B342-100 expected=6.20/0.40 pass1=6.1/0.5
+ref CPT-A1-B377-100 expected=6.50/0.30 pass1=6.5/0.3
+ref CPT-A1-B378-100 expected=6.40/0.30 pass1=6.3/0.4
