@@ -37,6 +37,7 @@ jobs:
           pyinstaller --noconfirm --clean --onefile --windowed `
             --name CPT_Silt_Analyzer `
             --collect-all matplotlib `
+            --add-data "assets/header_logos.png;assets" `
             app.py
 
       - name: Upload Windows executable
