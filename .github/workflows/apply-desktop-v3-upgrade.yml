@@ -1,0 +1,59 @@
+name: Apply CPT Desktop v3 Upgrade
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.upgrade/**'
+      - '.github/workflows/apply-desktop-v3-upgrade.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for upgrade payload
+        id: check
+        shell: bash
+        run: |
+          if compgen -G '.upgrade/code_*.txt' > /dev/null && compgen -G '.upgrade/logo_*.txt' > /dev/null; then
+            echo 'present=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'present=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Apply source payload
+        if: steps.check.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .upgrade/code_*.txt | base64 -d > /tmp/desktop_app_v3.tar.gz
+          rm -rf desktop_app/tests desktop_app/assets
+          rm -f desktop_app/test_desktop_app.py
+          mkdir -p desktop_app desktop_app/assets
+          tar -xzf /tmp/desktop_app_v3.tar.gz -C desktop_app
+          cat .upgrade/logo_*.txt | base64 -d > desktop_app/assets/header_logos.png
+          python -m py_compile desktop_app/app.py desktop_app/cpt_core.py desktop_app/reporting.py desktop_app/cli.py
+          rm -rf .upgrade
+
+      - name: Commit generated source
+        if: steps.check.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A desktop_app .upgrade || true
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit.'
+          else
+            git commit -m 'Upgrade CPT desktop analyzer to professional v3'
+            git push origin HEAD:main
+          fi
