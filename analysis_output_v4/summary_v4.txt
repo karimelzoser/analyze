@@ -1,0 +1,22 @@
+physical_pdfs=448
+UNRESOLVED=12
+VERIFIED_2PASS=265
+VERIFIED_GEOMETRIC_MEDIAN=1
+VERIFIED_NO_SILT=117
+VERIFIED_RECHECK=47
+VERIFIED_RECHECK_NO_SILT=6
+unresolved=12
+project_reference_overrides=6
+UNRESOLVED_FILES:
+P261074_CPT-A1-B199-100.pdf | double analysis plus detailed rechecks did not converge
+P261074_CPT-A1-B224-100.pdf | no calibratable Ic data curve
+P261074_CPT-A1-B243-100.pdf | no calibratable Ic data curve
+P261074_CPT-A1-B277-100-1.pdf | no calibratable Ic data curve
+P261074_CPT-A1-B277-100-2.pdf | no calibratable Ic data curve
+P261074_CPT-A1-B277-100.pdf | no calibratable Ic data curve
+P261074_CPT-A1-B278-100.pdf | no calibratable Ic data curve
+P261074_CPT-A1-B280-100.pdf | no calibratable Ic data curve
+P261074_CPT-A1-B288-100-1.pdf | double analysis plus detailed rechecks did not converge
+P261074_CPT-A2-B84-100.pdf | no calibratable Ic data curve
+P261074_CPT-A2-B110-100.pdf | double analysis plus detailed rechecks did not converge
+P261074_CPT-A2-B140-100.pdf | double analysis plus detailed rechecks did not converge
