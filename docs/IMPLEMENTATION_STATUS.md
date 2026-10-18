@@ -1,26 +1,29 @@
 # Implementation status — 2026-10-18
-**Latest tested Windows build:** GitHub Actions run 39139010989, commit 165a3538d60142cf063b684d755c11b0e2e9f31e, 39 automated tests passed; built ZIP in release/CPT_Silt_Analyzer_Latest.zip. Publication commit f9f9929. Package ≈70.5MB.
 
-## Delivered and exercised by CI
-| Workstream | Delivered | Important qualification |
+**Latest tested Windows build:** GitHub Actions [run 39142811473](https://github.com/karimelzoser/analyze/actions/runs/39142811473), source commit `ce02302af706088b34fdb46fce7cccb54f0d07bb`, **49 automated tests passed**. Source GUI and frozen PyInstaller EXE launched and navigated all 7 tabs successfully. End-to-end source GUI smoke processed one synthetic GEF -> one CPT PDF (with analysis appendix), comprehensive Excel workbook, and 4 project maps. Release ZIP published to `release/CPT_Silt_Analyzer_Latest.zip`, approximately 70.5 MB.
+
+## Deliverables and evidence
+
+| Workstream | Delivered / tested | Outstanding engineering approval |
 |---|---|---|
-| WS1 raw sensor logic | No automatic fs-dropout extension; thin raw censoring marked REVIEW | Exact parity with original XLSB still unverified |
-| WS2 multi-layer | Full-depth observed SBT classes, UNKNOWN gaps, sustained Ic>=2.60 and brief crossings, 1/3/10 rolling windows | Windows 3/10 smoothing order vs original formula not audited |
-| WS3 candidate/reference audit | Existing physical file revisions, source audit and selection logic | CPT aliases/retests need engineer-approved pairing, cannot infer solely by filename |
-| WS4 individual/full-project plots | Existing CPT plots, all-layer interactive tab, batch PNG coordinate maps | Existing PDF visual output is reference-like, not proven pixel-identical |
-| WS5 maps | Measured Easting/Northing, point click-to-profile, Site Limit boundary import, project metric maps | CRS unspecified; no inferred contour surfaces |
-| WS6 foundation | External Raft/Isolated summary imported, mapped, labeled REFERENCE ONLY | Settlement, liquefaction FOS and footing formulas have **not** been independently re-implemented/verified |
-| WS7 Pre/Post | Import generated/legacy summaries, guarded matching, delta/percent, unmatched QA, charts/coordinate delta, comparison XLSX | No depth-by-depth comparison of full raw PRE/POST GEF curves yet |
-| WS8 Excel | Original five-column and detailed sources, all observed layers, layer stats, methodology QA | Five-column legacy terminal silt result is provisional pending formula reconciliation |
-| WS9 PDF fidelity | Existing PDF input/append/report paths + conservative thin-layer REVIEW | XLSB/Excel exact printing and comprehensive visual regression outstanding |
-| WS10 desktop | Soil Layers, Site Map, Foundations, Pre/Post tabs; published one-file Windows EXE | Human GUI click-through/400+ file timed benchmark outstanding |
+| Raw sensor and layer calculations | Terminal fs dropout never silently extends *measured* silt; censored terminal and zero-rounded thin interval become REVIEW. Synthetic regression tests and batch integration. | Original XLSB formula order and numeric parity; five real engineer-annotated GEF results; B292 discrepancy |
+| Multilayer stratigraphy | All observed Ic SBT bands, silt threshold crossings, brief spikes, UNKNOWN gaps; raw/pre-3/post-10 views; all layers Excel exports. | Exact smoothing order and SBT persistence rule against reference workbook |
+| Source identification | GEF/GFF/PDF revisions audited; conflicting repeated CPT references retained as ambiguous in pre/post. | Survey-date and project survey identity verification on real files |
+| Individual/project charts | Interactive charts, individual raw Ic and layers, 4 offline project point maps. | Detailed visual QA for full project and accurate coordinate reference system |
+| Foundation reference | Existing Raft/Isolated XLSX input, settlement/FOS map, explicit settlement/FOS thresholds and source-check discrepancy workbook. | Native verified design formula implementation and project acceptance criteria. **No independent PASS asserted** |
+| Pre/Post summary and raw depth | PRE/POST summary import, coordinate-safe matching, delta bars/maps, XLSX. Raw qc/fs/u2/qt/Fr/Qtn/Ic depth pairing with harmonized or 3/10 windows; PNG, PDF and XLSX export; missing-sensor and spatial tests. | Paired real PRE/POST field data and engineering approval for changed groundwater/elevations |
+| Reference XLSB audit | Local read-only binary-workbook chart/range/cached-data inventory; optional Windows Excel formula snapshot script disables macros and external link updates. | Actual complete formula/VBA extraction and equation-level parity not yet achieved |
+| PDF fidelity | Original input PDF preserved byte-equivalent in visual rendering; visual difference tool and exact-pixel false-positive regression. GEF reference-like report and analysis summary still provided. | Reference XLSB printed-report *exact* visual reproduction remains unverified |
+| Excel | Original 5 columns plus Full Analysis, All Soil Layers, Layer Statistics, Summary, QA, Source Audit and charts; end-to-end XLSX created in Windows smoke. | Reference model B292 and formatting signoff |
+| UI/performance | Windows opens/maximizes UI with 7 workspaces; GUI startup from source and packaged EXE; end-to-end worker; parallel raw, serial PDF. | Human Windows clickthrough (file dialogs/associations) and 400+ real source batch timed performance benchmark |
 
-## Blocking external technical decisions
-1. Reverse engineer/reference approved XLSB calculation workbook including VBA formulas and exact report print definition; compare with raw CPT and explicit groundwater/load parameters.
-2. Engineering agreement on minimum qualifying silt persistence, exact thin-layer reporting and whether silty clay counts as silt-screening vs soil-lithology label.
-3. Geotechnical sign-off on five manually annotated GEF fixtures and B292 legacy 6.20/0.20 vs foundation summary 6.20/0.10 discrepancy.
-4. Confirm survey CRS, area polygons, settlement/FOS limits, footing stress/load assumptions, pre/post sampling and match tolerances.
-5. Approve original Excel PDF side-by-side visual comparison, full Windows interactive smoke, end-to-end batch benchmark.
+## Unresolved source dependencies
+1. Workbook **CPT analysis v2.5.7 - pore pressure 1.xlsb** is binary and includes VBA. Its 49 native chart definitions and numeric cache references were inspected; this does *not* constitute validated Excel formulas. A qualified engineer with licensed Windows Excel can execute `desktop_app/tools/export_excel_reference_formulas.ps1` read-only with macros disabled to provide a formula snapshot for reconciliation.
+2. Five engineer-annotated raw GEF tests and A1-292 **6.20/0.20 (legacy analyzer)** vs summary **B292 6.20/0.10** discrepancy need independent numerical acceptance. The new sensor handling intentionally changes earlier results; do not assume a historical VERIFIED figure remains valid.
+3. Settlement and liquefaction-FOS calculations require validated project loads, layer stiffness assumptions, ground water, stress model and code/design acceptance limits. The app validates **imported results** against user-supplied limits but does NOT independently design raft/isolated footings.
+4. A geodetic CRS is required for a geographically correct base map. Maps today are in local measured Easting/Northing; contour interpolation is not presented as measured fact.
+5. Full PDF exact parity cannot be guaranteed without native original Excel print output matching from the same current input dataset and visual sign-off.
 
-## Shipping rule
-The current EXE is a **functional engineering-preview build**, not a certified design-analysis model. It should not be used as sole authority for ground improvement or footing compliance. The CI success proves package/test health, not technical model sign-off.
+## Engineering release classification
+**ENGINEERING PREVIEW — NOT CERTIFIED FOR DESIGN SIGN-OFF.**
+The Windows tests prove source, reporting, GUI, frozen EXE and synthetic end-to-end workflow function. They do not prove all engineer-approved source equations, footing acceptance, or every one of 400+ real CPT reports has been independently checked.
