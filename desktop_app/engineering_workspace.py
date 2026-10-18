@@ -17,7 +17,8 @@ from app_pdf_enabled import PDFEnabledCPTApp
 from engineering_layers import from_analysis, _smooth_contiguous
 from engineering_maps import coordinate_rows,filter_coordinate_outliers
 from engineering_3d_map import site_3d_figure
-from engineering_geo_explorer import risk_plan, export_interactive_3d, depth_window_plan
+from engineering_geo_explorer import risk_plan, depth_window_plan
+from engineering_3d_studio import export_professional_3d as export_interactive_3d
 from engineering_comparison import read_summary_xlsx, compare_summaries, export_comparison, read_site_boundary_xlsx
 from engineering_depth_comparison import compare_depth_profiles, export_depth_change
 from engineering_foundations import check_foundation_results, export_foundation_validation
@@ -161,7 +162,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         modelbar=tk.Frame(self.map_tab,bg="#ffffff")
         modelbar.pack(fill="x",padx=16,pady=(1,4))
         self._btn(modelbar,"ALL HIGH CPTs · OPEN LIST",self.show_all_high_points).pack(side="left")
-        self._btn(modelbar,"OPEN OFFLINE INTERACTIVE 3D SOIL MODEL",self.open_interactive_3d,
+        self._btn(modelbar,"OPEN PROFESSIONAL 3D LAYER EXPLORER",self.open_interactive_3d,
                   primary=True).pack(side="left",padx=8)
         self._btn(modelbar,"SAVE 3D HTML",self.save_interactive_3d).pack(side="left",padx=4)
         self.slice_controls=tk.Frame(self.map_tab,bg="#edf4f9")
@@ -187,7 +188,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         # model as a visible primary action without opening Map Options.
         visible3d=tk.Frame(self.map_tab,bg="#ffffff")
         visible3d.pack(fill="x",padx=16,pady=(2,3))
-        self.map_open_3d_btn=self._btn(visible3d,"EXPLORE INTERACTIVE 3D SOIL MODEL",
+        self.map_open_3d_btn=self._btn(visible3d,"OPEN FULL 3D LAYER EXPLORER",
                   self.open_interactive_3d,primary=True)
         self.map_open_3d_btn.pack(side="left")
         self._btn(visible3d,"SAVE 3D MODEL HTML",
