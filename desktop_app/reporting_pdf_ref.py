@@ -64,7 +64,13 @@ def report_page(a: CPTAnalysis) -> Figure:
     for i,(name,color) in enumerate(zip(IC_NAMES,IC_COLORS)):
         r,c=divmod(i,2); x=.02+c*.52; y=.84-r*.25; leg.add_patch(matplotlib.patches.Rectangle((x,y-.055),.035,.11,transform=leg.transAxes,color=color)); leg.text(x+.045,y,name,fontsize=5.5,va="center",transform=leg.transAxes)
     meta=fig.add_subplot(gs[24:30,0:8]); meta.axis("off"); e,n=md.get("easting"),md.get("northing"); g=md.get("ground_elevation")
-    rows=[["Main Contractor:",str(md.get("main_contractor") or "")],["Test Location:",a.reference],["Ground Elevation:",_fmt(g,2)],["Coordinates:",f"Easting {_fmt(e,3)}      Northing {_fmt(n,3)}"],["Cone ID:",str(md.get("cone_id") or "")],["Test Date:",_date_display(md.get("file_date"))]]
+    rows=[["Main Contractor:",str(md.get("main_contractor") or "N/A - not supplied")],
+          ["Test Location:",a.reference],
+          ["Ground Elevation:",_fmt(g,2)],
+          ["Coordinates:",f"Easting {_fmt(e,3)}      Northing {_fmt(n,3)}"],
+          ["Cone ID:",str(md.get("cone_id") or "N/A - not supplied")],
+          ["Test Date:",_date_display(md.get("test_date") or md.get("file_date"))
+                        if (md.get("test_date") or md.get("file_date")) else "N/A - not supplied"]]
     tbl=meta.table(cellText=rows,colWidths=[.34,.66],loc="center",cellLoc="left"); tbl.auto_set_font_size(False); tbl.set_fontsize(5.9); tbl.scale(1,1.18)
     for (r,c),cell in tbl.get_celld().items(): cell.set_edgecolor("#999"); cell.set_linewidth(.45); cell.set_facecolor("#ddd") if c==0 else None; cell.set_text_props(weight="bold") if c==0 else None
     sbt=fig.add_subplot(gs[19:30,8:14]); draw_reference_sbtn(sbt,a)
