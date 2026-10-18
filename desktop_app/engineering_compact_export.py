@@ -400,10 +400,27 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
     summary.merge_range("A1:N2","CPT PROJECT | ENGINEERING OVERVIEW",style["header"])
     summary.set_row(1,39)
     total_high=len(drawn["high"])
+    # Separate the two actionable causes of PDF REVIEW instead of counting
+    # them all as failed calculations. A measured thin positive layer is not
+    # the same uncertainty as contradictory physical test revisions.
+    review_thin=review_conflicts=review_other=0
+    for a in analyses:
+        if a.status!="REVIEW":continue
+        meta=getattr(a,"metadata",{}) or {}
+        if any(bool(meta.get(k)) for k in
+               ("source_revision_conflict","source_spatial_conflict","source_datum_conflict")):
+            review_conflicts+=1
+        elif (num(meta.get("thin_interval_unrounded_thickness")) or 0)>0:
+            review_thin+=1
+        else:
+            review_other+=1
     metrics=[("CPT locations",len(analyses)),
             ("Verified silt",sum(a.status=="VERIFIED" for a in analyses)),
             ("No sustained silt",sum(a.status=="NO SILT" for a in analyses)),
             ("Engineering review",sum(a.status=="REVIEW" for a in analyses)),
+            ("REVIEW — measured thin positive intervals",review_thin),
+            ("REVIEW — conflicting physical source revisions",review_conflicts),
+            ("REVIEW — other missing/uncertain evidence",review_other),
             ("HIGH screening points ≥0.30m",total_high),
             ("Coordinate exceptions",len(excluded)),
             ("Raw measurement records",row),
