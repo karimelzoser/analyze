@@ -24,7 +24,7 @@ def analyze_pdf(path: str | Path):
             " OBSERVED THIN PDF INTERVAL: %.3f to %.3f m BGL;"
             " positive measured thickness %.3f m, below 0.10 m reporting"
             " increment. PROJECT REPORTING REVIEW is required; measured"
-            " thickness has not been inflated to 0.10 m."
+            " thickness cannot be inflated to 0.10 m without approval."
             % (z.start_raw,z.end_raw,z.thickness_raw)
         )
         analysis.status="REVIEW"
