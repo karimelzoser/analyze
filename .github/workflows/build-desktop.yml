@@ -8,6 +8,10 @@ on:
       - 'desktop_app/**'
       - '.github/workflows/build-desktop.yml'
 
+concurrency:
+  group: cpt-windows-main
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -37,7 +41,7 @@ jobs:
         shell: pwsh
         working-directory: desktop_app
         run: |
-          python -m py_compile app_modern.py app_modern_v2.py app_pdf_enabled.py app_modern_final.py pdf_analysis.py pdf_analysis_refined.py reporting_export_v2.py reporting_pro.py reporting_pdf_ref.py reporting_pdf_ref_v2.py cpt_core.py
+          python -m py_compile app_modern.py app_modern_v2.py app_pdf_enabled.py app_modern_final.py pdf_analysis.py pdf_analysis_refined.py reporting_export_v2.py reporting_pro.py reporting_pdf_ref.py reporting_pdf_ref_v2.py cpt_core.py engineering_layers.py engineering_maps.py engineering_comparison.py
 
       - name: Build executable
         shell: pwsh
@@ -71,6 +75,7 @@ jobs:
           $changes = git status --porcelain -- release/CPT_Silt_Analyzer_Latest.zip
           if ($changes) {
             git commit -m "Publish latest revision-aware CPT Analyzer Windows ZIP [skip ci]"
+            git pull --rebase origin main
             git push origin HEAD:main
           } else {
             Write-Host "Release ZIP is already current."
