@@ -50,7 +50,8 @@ def input_matrix_from_gef(path,*,expected_header_lines=61,max_columns=12,max_row
 
 _EXCEL_WORKER = r'''
 param([Parameter(Mandatory=$true)][string]$Source,[Parameter(Mandatory=$true)][string]$Matrix,
-      [Parameter(Mandatory=$true)][string]$Output,[Parameter(Mandatory=$true)][string]$Reference)
+      [Parameter(Mandatory=$true)][string]$Output,[Parameter(Mandatory=$true)][string]$Reference,
+      [string]$WorkbookCopy)
 $ErrorActionPreference='Stop'
 $xl=$null;$book=$null
 try {
@@ -78,6 +79,10 @@ try {
   }
   $book.Worksheets.Item('CPT-Graphs').ExportAsFixedFormat(0,$Output,0,$true,$false)
   if(-not [IO.File]::Exists($Output)){throw 'Microsoft Excel returned without a PDF'}
+  # Preserve the original formulas plus recalculated inputs in a dedicated
+  # per-CPT model copy; never save/overwrite the user's original XLSB.
+  if($WorkbookCopy){$book.SaveCopyAs($WorkbookCopy)}
+
 } finally {
   if($book -ne $null){$book.Close($false)}
   if($xl -ne $null){$xl.Quit()}
@@ -114,7 +119,8 @@ def run_original_excel_gef(gef_path,xlsb_path,pdf_path,*,timeout_s=420):
         run=subprocess.run(["powershell.exe","-NoProfile","-NonInteractive",
                             "-ExecutionPolicy","Bypass","-File",str(script),
                             "-Source",str(source),"-Matrix",str(jsonfile),
-                            "-Output",str(output),"-Reference",ref],
+                            "-Output",str(output),"-Reference",ref,
+                            "-WorkbookCopy",str(output.with_suffix(".xlsb"))],
                            capture_output=True,text=True,timeout=timeout_s)
         if run.returncode!=0:
             raise RuntimeError("Original Excel recalculation failed: "+
