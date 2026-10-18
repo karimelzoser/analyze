@@ -31,10 +31,26 @@ def _packaged_gui_smoke():
         missing=needed-set(texts)
         if missing:
             raise RuntimeError("Missing UI workspaces: "+repr(sorted(missing)))
+        snapshot=os.environ.get("CPT_SCREENSHOT_DIR")
+        if snapshot:
+            from PIL import ImageGrab
+            screenshot_dir=Path(snapshot)
+            screenshot_dir.mkdir(parents=True,exist_ok=True)
         for index in range(len(root.notebook.tabs())):
             root.notebook.select(index)
             root.update_idletasks()
             root.update()
+            if snapshot:
+                import time
+                time.sleep(.08)
+                root.update_idletasks()
+                x,y=root.winfo_rootx(),root.winfo_rooty()
+                w,h=root.winfo_width(),root.winfo_height()
+                if w<800 or h<500:
+                    raise RuntimeError("GUI rendering is below minimum usable dimensions")
+                name="".join(ch if ch.isalnum() else "_" for ch in root.notebook.tab(index,"text").strip())
+                ImageGrab.grab(bbox=(x,y,x+w,y+h),all_screens=True).save(
+                    screenshot_dir/f"{index+1:02d}_{name}.png")
         if "--integration-smoke" in sys.argv:
             import tempfile
             import zipfile
