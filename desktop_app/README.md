@@ -15,13 +15,33 @@ Setup / Results / Charts / **Soil Layers** / **Site Map** / **Foundations** / **
 
 **Soil Layers** — two independent display views: a full-height Ic profile with all colored intervals, and a detailed table of every observed soil-behavior layer. Choose raw, PRE window 3, or POST window 10; UNKNOWN sensor readings remain visible. All depth intervals also appear in Excel.
 
-**Site Map** — offline measured Easting/Northing points colored by observed maximum silt-screen thickness, cumulative thickness, first qualifying depth or test depth. Import source Site Limit polygon, save PNG. CRS must be verified before external basemap use; no arbitrary interpolated surfaces.
+**Site Map** — zoomable/clickable surveyed site plan, area boundary, ALL HIGH CPT review list, configurable LOW/WATCH/HIGH screening thicknesses, and an optional locally bounded *interpretive* contour. **Depth slice plan** allows independently selecting a top and bottom depth BGL; every CPT must have sufficient valid observed/classified depth coverage (minimum 80%) or it is shown as REVIEW, never as clean sand. The offline interactive 3D viewer contains ALL observed screened layers, multiple vertically distinct uncertainty-bounded 3-CPT overlap prisms, and independently zoomable East-West and North-South measured CPT fence sections. No interpretation is extended across absent CPTs, far gaps, or known sensor dropout. The survey CRS must be confirmed before overlaying geographic/satellite basemaps.
 
 **Foundations** — load Raft/Isolated Summary XLSX for coordinate-mapped imported settlement and FOS values, labeled REFERENCE ONLY. Engineering equations and ACCEPT/PASS outcomes are NOT recalculated or certified pending source-workbook formula audit and project design inputs.
 
 **Pre / Post** — choose two summaries, match CPT identities with survey-coordinate checks, compute metric delta / safe percent change (undefined at zero baseline), visualize increase/decrease bars or coordinate delta map, export comparison XLSX with unmatched and ambiguous QA.
 
-**QA & Review** — searchable/filterable project exceptions with original-source opening, profile drilldown, source-model XLSB inventory, PDF visual-difference testing, QA CSV export and keyboard shortcuts. The output explicitly labels source conflicts and sensor dropout; the UI does not hide unverified intervals.
+**QA & Review** — searchable/filterable project exceptions with original-source opening, profile drilldown, source-model XLSB inventory, PDF visual-difference testing, QA CSV export, **OPEN ERROR DIAGNOSTICS**, and keyboard shortcuts. The output explicitly labels source conflicts and sensor dropout; the UI does not hide unverified intervals.
+
+## Recommended investigation and engineering methodology
+
+The default screen thresholds in the plan (watch=0.10 m, high=0.30 m) prioritize detailed investigation; they are **not** engineering hazard, failure or ground improvement acceptance limits. Every displayed point is a measured surveyed CPT; optional shading is a limited 2D interpolation, not independent soil testing. The 3D viewer uses actual observed depths and CPT positions and infers continuity only where *all three* spatially proximate CPTs share **the same vertical screened interval**, including multiple distinct horizons.
+
+Use **Site Map → Depth slice plan** for 2D screening within a particular depth interval; use **OPEN OFFLINE INTERACTIVE 3D SOIL MODEL** for 3D zoom/pan, toggle of observed vs inferred components, plus surveyed E-W and N-S fence sections. Inspect all points in the clickable **ALL HIGH CPTs** list; ties are not arbitrarily discarded.
+
+For geotechnical ground modelling practice and sparse-data limitations, see:
+- https://www.seequent.com/leapfrog-works-best-practice-building-a-geological-model/
+- https://www.issmge.org/uploads/publications/132/133/ISFOG2025-376.pdf
+- https://docs.pyvista.org/examples/00-load/create_tri_surface.html
+- https://doi.org/10.1016/j.compgeo.2020.103681
+
+## Reliability and output contract
+
+The main desktop workflow writes **one consolidated project XLSX** with a concise dashboard, CPT analysis, full numeric measurements, every observed SBT layer, compact site maps (with embedded figures), and source QA. Foundation results and source-reference parity appear only when the relevant files are supplied; instructions and explanations are in the in-app HELP / F1 view, not dozens of redundant workbook tabs. Original CPT PDF pages are preserved when sourced from an approved matching report; report uncertainty is explicit.
+
+A Windows UI exception is saved locally under `.cpt_engineering/diagnostics/` and reported in a dialog; the QA workspace provides an **OPEN ERROR DIAGNOSTICS** control. Worker failures are handled separately, and partial Excel output files are not treated as finished. GitHub CI gates packaging on numeric regressions, 400 synthetic CPTs, screenshot/GUI tests and direct launch of the packaged Windows executable.
+
+Successful software tests do not establish that the private original Excel/VBA foundation equations, site-specific design limits, or every proprietary reference PDF has received independent geotechnical validation.
 
 ## Original Excel calculation and exact report workflow
 
