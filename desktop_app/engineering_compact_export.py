@@ -204,53 +204,11 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
             "Mean Ic","Quality","Ic >= 2.60 screened","Source file"],layer_rows,
            {0:28,2:37,7:25,9:40})
 
-    # Store every real numeric CPT point, not just chart summaries.
-    # Excel's million-row hard cap is enforced with an explicit error;
-    # outputs are never silently truncated.
-    total_measure=sum(len(getattr(a,"depth",[])) for a in analyses)
-    if total_measure>1_048_575:
-        book.close()
-        output.unlink(missing_ok=True)
-        raise ValueError("More than Excel's 1,048,575 data rows. Split batches or use a detail database, never silently truncate.")
-    ws=book.add_worksheet("CPT Measurements")
-    measurement_columns=["CPT REFERENCE","Depth BGL (m)","qc (MPa)","fs (MPa)",
-      "u2 (MPa)","qt (MPa)","Fr (%)","Qtn","Ic","Measurement validity","Source type"]
-    for j,h in enumerate(measurement_columns):ws.write(0,j,h,style["header"])
-    ws.set_row(0,36);ws.freeze_panes(1,2);ws.set_column(0,0,29)
-    ws.set_column(1,8,16);ws.set_column(9,10,24)
-    row=0
-    measurement_ranges=[]
-    for a in analyses:
-        if not hasattr(a,"depth"):continue
-        try:
-            arrays=[np.asarray(getattr(a,key),dtype=float) for key in
-                    ("depth","qc","fs","u2","qt","fr","qtn","ic")]
-            valid=np.asarray(a.valid_sensor,bool)
-        except (AttributeError,TypeError,ValueError):continue
-        n=len(arrays[0])
-        if any(len(x)!=n for x in arrays) or len(valid)!=n:
-            raise ValueError("CPT data arrays have inconsistent depths: "+a.reference)
-        first_measurement_row=row+1
-        for k in range(n):
-            row+=1
-            ws.write(row,0,a.reference,style["plain"])
-            for j,arr in enumerate(arrays,1):
-                # u2=0 is an internal qt fallback when the GEF lacks pore
-                # pressure column code 6. It must never be shown as if it were
-                # a directly measured pore-pressure value in the audit XLSX.
-                if j==4 and (getattr(a,"metadata",{}) or {}).get("pore_pressure_measured") is False:
-                    ws.write(row,j,"NOT MEASURED — 0 ASSUMED FOR qt",style["small"])
-                    continue
-                v=float(arr[k])
-                if isfinite(v):
-                    ws.write_number(row,j,v,style["number"])
-                else:
-                    ws.write(row,j,"NOT MEASURED",style["small"])
-            ws.write(row,9,"VALID" if valid[k] and isfinite(arrays[-1][k]) else "UNKNOWN",style["plain"])
-            ws.write(row,10,str(a.source_path.suffix).upper(),style["plain"])
-        if row>=first_measurement_row:
-            measurement_ranges.append((a.reference,first_measurement_row,row))
-    if row:ws.autofilter(0,0,row,len(measurement_columns)-1)
+    # Preserve ALL raw readings across numbered worksheets when the
+    # project exceeds Excel's million-row physical sheet limit.
+    from engineering_excel_paging import write_cpt_measurements,write_paged_rows
+    row,measurement_ranges,measurement_pages=write_cpt_measurements(
+        book,style,analyses)
 
     # A REVIEW result must never look like an empty CPT. Keep all measured
     # candidate intervals as EVIDENCE ONLY, separate from reportable VERIFIED
@@ -333,8 +291,7 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
         with ReferenceWorkbookCache(original_xlsb) as cache:
             original_points=cache.mapped_profiles()
         point_count=sum(len(curve) for curve in original_points.values())
-        if point_count>1_048_575:
-            raise ValueError("Original XLSB has more SBT samples than one Excel worksheet can hold.")
+        # The complete XLSB source profile is paginated, never rejected or clipped.
         ground={p["reference"]:num(p.get("ground_elevation")) for p in cached}
         def original_rows():
             for ref,curve in original_points.items():
@@ -344,10 +301,10 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
                            qc,zone,"ZONE 1-4 screen" if zone is not None and zone<=4
                            else "Other SBT zone / UNKNOWN",
                            "Original XLSB cached categorical zone, NOT numeric Ic")
-        _sheet(book,style,"Original SBT Curves",
+        write_paged_rows(book,style,"Original SBT Curves",
                ["CPT","Elevation RL (m)","Depth BGL (m)","Saved qc (MPa)",
                 "Saved SBT zone (1-9)","Source zone screen","Provenance"],
-               original_rows(),{0:28,5:32,6:70})
+               original_rows(),widths={0:28,5:32,6:70})
     elif foundation_xlsx:
         from engineering_comparison import read_summary_xlsx
         foundations=read_summary_xlsx(foundation_xlsx)
