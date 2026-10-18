@@ -77,6 +77,9 @@ def engineering_analysis_page(a):
         ("Soil unit weight",_num(md.get("analysis_gamma_soil_kn_m3"),2,"kN/m3")),
         ("Groundwater level",_num(md.get("analysis_water_table_bgl_m"),2,"m BGL")),
         ("Cone area ratio",_num(md.get("area_ratio"),3)),
+        ("Pore pressure u2 source",_cell(md.get("pore_pressure_source") or
+             ("PDF graphical/source unavailable" if source.lower().endswith(".pdf") else
+              "NOT RECORDED — verify whether u2 was measured"))),
         ("Ic criterion","Ic >= 2.60, sustained 0.05 m minimum"),
         ("Silt start (reported)",report_start),
         ("Silt end (reported)",report_end),
