@@ -116,13 +116,18 @@ def engineering_analysis_page(a):
     note=str(getattr(a,"verification_note","") or "No explicit verification note recorded.")
     if status=="NO SILT":
         note += " NO SILT means no persistent qualifying OBSERVED Ic interval; unmeasured depths are not declared clean sand."
-    wrapped=textwrap.fill(note,124,break_long_words=False)
-    fig.text(.065,.13,wrapped,fontsize=7.1,va="top",color="#334155")
-    fig.text(.065,.071,"Engineering basis",fontsize=9.3,weight="bold",color="#14344b")
-    method=("CPT behavior-based screening only; not a laboratory USCS classification. "
-       "Corrected BGL depth, source qc/fs/u2, qt, normalized Qtn/Fr and iterated Ic. "
-       "Raw intervals and unmeasured sensor tails are reported separately. "
-       "Use original Excel/VBA results as explicit reference comparisons, not hidden substitutions.")
-    fig.text(.065,.051,textwrap.fill(method,126,break_long_words=False),
-             fontsize=7.0,va="top",color="#475569")
+    # Explicit line budget avoids the previous overlap between a long
+    # sensitivity-verification note and the Engineering basis footer.
+    note_lines=textwrap.wrap(note,117,break_long_words=False)
+    for index,line in enumerate(note_lines[:4]):
+        fig.text(.065,.139-index*.014,line,fontsize=7.0,va="top",color="#334155")
+    if len(note_lines)>4:
+        fig.text(.065,.083,"Full unabridged verification evidence is in the Excel Source Audit sheet.",
+                 fontsize=7.0,color="#8b4513")
+    fig.text(.065,.068,"Engineering basis",fontsize=9.1,weight="bold",color="#14344b")
+    method=("CPT behavior-based screening, not laboratory USCS. Corrected BGL "
+       "depth, qc/fs/u2, qt, Qtn/Fr and Ic. Invalid sensor tails are UNKNOWN; "
+       "original workbook outputs are reference checks, not silent substitutions.")
+    for index,line in enumerate(textwrap.wrap(method,115)[:3]):
+        fig.text(.065,.048-index*.013,line,fontsize=6.8,va="top",color="#475569")
     return fig
