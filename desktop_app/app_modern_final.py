@@ -40,6 +40,8 @@ def _packaged_gui_smoke():
             root.notebook.select(index)
             root.update_idletasks()
             root.update()
+            if not root.progress.winfo_ismapped():
+                raise RuntimeError("Global analysis progress bar hidden by tab navigation: "+texts[index])
             if snapshot:
                 import time
                 time.sleep(.08)
@@ -118,7 +120,11 @@ def _packaged_gui_smoke():
                 reports=list((destination/"PDFs").glob("*.pdf"))
                 if len(reports)!=1:raise RuntimeError("Expected exactly one generated CPT report")
                 with pymupdf.open(str(reports[0])) as report:
-                    if report.page_count<2:raise RuntimeError("Generated report missing appendix")
+                    if report.page_count<3:raise RuntimeError("Generated report needs source chart, QA summary, full-layer appendix")
+                    if "CPT FULL SOIL-BEHAVIOR DEPTH PROFILE" not in report[-1].get_text():
+                        raise RuntimeError("PDF full-layer appendix missing")
+                    if "NOT PROVIDED" not in report[0].get_text():
+                        raise RuntimeError("Missing source metadata must be explicitly labeled in PDF")
                 with zipfile.ZipFile(latest) as book:
                     sheetlist=book.read("xl/workbook.xml")
                     for name in (b"Project Maps",b"Summary",b"Full Analysis",
@@ -127,7 +133,19 @@ def _packaged_gui_smoke():
                             raise RuntimeError("Unified Excel lacks "+str(name))
                     if len([n for n in book.namelist() if n.startswith("xl/media/image")])<2:
                         raise RuntimeError("Unified Excel lacks embedded 2D/3D map images")
-                result_detail=f" | END-TO-END one GEF -> {len(reports)} PDF and 1 all-in-one XLSX with 2D/3D maps"
+                from threading import Event
+                root.cancel_event=Event()
+                root.cancel_event.set()
+                cancel_dir=rootdir/"Cancel_Output"
+                root._worker(cancel_dir,18.,2.,True)
+                cancellation=[]
+                while not root.messages.empty():
+                    cancellation.append(root.messages.get_nowait())
+                if not any(m[0]=="cancelled" for m in cancellation):
+                    raise RuntimeError("Cancellation did not emit a safe completion status")
+                if list(cancel_dir.glob("*.xlsx")):
+                    raise RuntimeError("Cancellation published an incomplete Excel workbook")
+                result_detail=f" | END-TO-END one GEF -> {len(reports)} PDF and 1 all-in-one XLSX with 2D/3D maps; safe Cancel verified"
         else:
             result_detail=""
         result="PASS: GUI opened; "+", ".join(texts)+result_detail
