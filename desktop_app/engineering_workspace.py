@@ -136,8 +136,12 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                          values=["Risk screening plan","2D measured plan","3D CPT soil columns"],width=23,state="readonly")
         projection.pack(side="left",padx=8)
         projection.bind("<<ComboboxSelected>>",lambda event:self.refresh_map())
-        self._btn(map_actions,"SAVE SITE MAP PNG",self.save_map_image).pack(side="right")
-        self._btn(map_actions,"LOAD SITE LIMIT XLSX",self.load_site_boundary).pack(side="right",padx=8)
+        # Keep data selectors and action buttons on separate rows; this is
+        # essential on 1024px displays and at 125-150% Windows DPI.
+        map_files=tk.Frame(self.map_tab,bg="#ffffff")
+        map_files.pack(fill="x",padx=16,pady=(1,3))
+        self._btn(map_files,"LOAD SITE LIMIT XLSX",self.load_site_boundary).pack(side="left")
+        self._btn(map_files,"SAVE CURRENT PLAN PNG",self.save_map_image).pack(side="left",padx=8)
         riskbar=tk.Frame(self.map_tab,bg="#ffffff")
         riskbar.pack(fill="x",padx=16,pady=(2,4))
         tk.Label(riskbar,text="WATCH from (m)",bg="#ffffff",fg="#475569").pack(side="left")
@@ -151,9 +155,11 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                         variable=self.show_interpolated,
                         command=self.refresh_map).pack(side="left",padx=4)
         self._btn(riskbar,"APPLY",self.refresh_map).pack(side="left",padx=4)
-        self._btn(riskbar,"ALL HIGH CPTs",self.show_all_high_points).pack(side="right",padx=4)
-        self._btn(riskbar,"OPEN INTERACTIVE 3D GEOLOGY",self.open_interactive_3d,
-                  primary=True).pack(side="right",padx=4)
+        modelbar=tk.Frame(self.map_tab,bg="#ffffff")
+        modelbar.pack(fill="x",padx=16,pady=(1,4))
+        self._btn(modelbar,"ALL HIGH CPTs · OPEN LIST",self.show_all_high_points).pack(side="left")
+        self._btn(modelbar,"OPEN OFFLINE INTERACTIVE 3D SOIL MODEL",self.open_interactive_3d,
+                  primary=True).pack(side="left",padx=8)
         self._geo_risk_artists={}
         self._geo_hotspots=[]
         self.map_status=tk.StringVar(value="Project map becomes available after analysis.")
