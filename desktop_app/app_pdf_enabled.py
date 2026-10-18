@@ -367,6 +367,12 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
         try:
             return self._work_batch(out,gamma,wt,make_pdfs)
         except AnalysisCancelled:
+            # Do not leave partly completed project reports after Cancel.
+            # These are run-created unique paths only; existing output files
+            # are never deleted.
+            for report in getattr(self,"_created_pdf_paths",[]):
+                try:Path(report).unlink(missing_ok=True)
+                except OSError:pass
             self.messages.put(("cancelled",))
         except Exception as exc:
             diagnostic=traceback.format_exc()
@@ -386,6 +392,7 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
             if cancel is not None and cancel.is_set():
                 raise AnalysisCancelled()
         generated_pdfs=[]
+        self._created_pdf_paths=generated_pdfs
         guard()
         if make_pdfs:
             pdfs.mkdir(parents=True, exist_ok=True)
