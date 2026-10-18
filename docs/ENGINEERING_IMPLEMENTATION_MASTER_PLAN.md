@@ -66,3 +66,38 @@ Offline Windows desktop application for raw GEF/GFF and supported PDF inputs, wi
 - G4 foundation calculations match engineer-approved source and design criteria; otherwise explicitly NOT VALIDATED.
 - G5 PDF reference visual regression reviewed and Windows GUI behavior checked on a real interactive Windows desktop.
 A GitHub Actions success covers automated tests and package build only. Do not label the entire project COMPLETE before G0-G5 are met.
+
+
+## 2026-10-19 product-correction contract (user acceptance)
+
+**Single obvious operation:** Select GEF/GFF/PDF files OR a folder; click **ANALYZE PROJECT**; show count/percentage/phase/current CPT at all times even when reviewing another tab; then **Open Excel** or **Open PDFs**. Default output beside the selected source. Advanced engineering parameters and source-workbook tools must be collapsed/discoverable, not competing with this primary action.
+
+**Why earlier screenshots were inadequate**
+- Progress was placed on Setup, but analysis switched to Results; the bar was not visible during processing.
+- Normal map UI showed thin 3D line strokes/point plan without accessible depth/elevation context, and full source-project XLSB map required a separate manual import.
+- REVIEW cells lacked useful measured evidence and there could be duplicate/unparsed source versions in uncollapsed views. REVIEW must have code, technical cause, observed interval, point name and missing tail; never replace a defensible uncertainty with a guessed VERIFIED.
+- PDF metadata cells often contained blanks when an input lacked an equivalent source field. Use explicit 'Not supplied in source' or 'Not measured', not empty values. Do not misuse GEF export date as CPT test date.
+- Output had multiple separately exported spreadsheets/maps; normal workflow must create **one comprehensive Excel file** with all raw/derived/source QA, charts and embedded site-map figures, plus PDF reports.
+- GUI's advanced buttons and settings distracted from the one-step intake requested.
+
+### Priority P0 — pre-release blocking checks
+1. Persistent sidebar/footer progress bar with stage, current/total and filename; GUI thread never blocks; queues for raw/PDF analysis and PDF/report/workbook stages; tested failure path, cancel and 100% only after atomic output finalization. No fake zero-depth rows on parsing errors; error reasons in workbook.
+2. Group sources into unique CPTs with provenance, revision and coordinate/datum conflicts; main results one row per CPT, source QA separate. Distinguish NO SILT (no sustained *observed* qualifying interval) from REVIEW (measurement inadequate or disagreement); never infer across invalid fs.
+3. Robust PDF: source originals untouched; numerical raw data preferred; appended analysis with nonblank source metadata, all intervals, measured/unknown regions, calculation assumptions and sensor-quality conclusions. For PDF-only, report graphical evidence limits. Diff against original PDF.
+4. Exactly one normal-run XLSX with original five-column quick sheet (sand fifth), full analysis, every sample when available, all observed/unknown layers, original reference and foundation values if supplied, source audit, QA, site coordinates, embedded 2D+3D maps, methodology and max-thickness identification. Zero standalone PNG or second workbook unless explicitly user-exported.
+5. Site map must render verified coordinates, survey boundary, ground datum, colored CPT interval columns, selectable point with a full vertical profile, mouse-rotatable 3D view and risk/slice view only where supported. No falsely continuous geology/hull extrapolation, coordinate outlier QA.
+6. One-step default UI at 1024×697, 1366×768, 1920×1080 and scaled Windows DPI. Interactive screenshots, assertions on visible primary buttons, no control overlap, modal file-picker and multi-stage pipeline tested.
+7. Source engineering model: original cached workbook supports reference mode; full original XLSB Excel formula execution requires licensed Microsoft Excel and no prohibited macros. No claim of numerical formula parity, independently validated footing settlement/FOS or certified USCS when not evidenced.
+
+### Product acceptance matrix
+| Feature | Positive | Failure/edge | Release criterion |
+|---|---|---|---|
+| GEF/GFF intake | Single/folder mixed-case extensions | corrupted header, duplicates | One result/source QA, no zero-depth fake |
+| PDF intake | Vector template and paired raw | raster/image-only | Original unchanged, REVIEW reason visible |
+| Progress | 1 CPT, 400 CPTs, Reports tab open | cancel/error/worker exception | Visible bar all tabs, monotonic progress, no false 100 |
+| Review | B04/B05/B07/B18/B19 and A1-292 | fs zero/end dropout; conflicting original | Observations/reasons visible; no inferred thickness |
+| XLSX | One output with embedded maps and raw points | 400 samples, missing metadata, source flags | no blank semantic cells, all tabs open |
+| PDF | raw-generated, PDF-appended | missing cone ID, date or u2 | explicit not-supplied, complete appendix |
+| Mapping | 3D surveyed columns and 2D points | bad coords, no CRS, empty data | coordinates grounded, outliers audit |
+| UI | source-only default setup, overview and output buttons | compact screen & high DPI | visual QA and keyboard input tested |
+| Pre/Post | matched coordinate pairs, harmonized windows | mismatched ID, missing samples | audit and no invented differences |
