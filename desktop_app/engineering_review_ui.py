@@ -341,10 +341,11 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
             return
         self.original_model_path=Path(source)
         self.reference_export_busy=True
-        self.qa_status.set("Reading original XLSB caches, soil-zone profiles and 448 foundation rows...")
+        self.qa_status.set("Reading original XLSB caches, soil-zone profiles and full foundation summary...")
+        site_polygon=getattr(self,"site_boundary",None)
         def _run():
             try:
-                exports=export_original_project(source,target)
+                exports=export_original_project(source,target,site_boundary=site_polygon)
             except Exception as exc:
                 message=str(exc)
                 self.after(0,lambda:self._finish_original_project_export(error=message))
