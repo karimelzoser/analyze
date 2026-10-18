@@ -15,7 +15,7 @@ DEFAULT_GAMMA = 18.0
 DEFAULT_WATER_TABLE = 2.0
 SILT_IC_THRESHOLD = 2.60
 MIN_LAYER_THICKNESS = 0.05
-MAX_SMALL_GAP = 0.06
+MAX_SMALL_GAP = 0.025  # preserve >=3cm Ic reversals as distinct layers
 IGNORE_TOP_DEPTH = 0.20
 TERMINAL_DROPOUT_MAX = 0.20
 SENSOR_EPS = 1e-8
@@ -459,7 +459,7 @@ def analyze_gef(path: str | Path, gamma_soil: float = DEFAULT_GAMMA, water_table
     elif _same(p1, p2):
         final, status, note = p1, "VERIFIED", "Two independent passes agree at the 0.10 m project reporting resolution."
     else:
-        specs = [(2.60,1,.05),(2.60,3,.06),(2.58,3,.07),(2.62,3,.07),(2.60,5,.06),(2.59,5,.07),(2.61,5,.07),(2.60,7,.08)]
+        specs = [(2.60,1,.025),(2.60,3,.025),(2.58,3,.025),(2.62,3,.025),(2.60,5,.025),(2.59,5,.025),(2.61,5,.025),(2.60,7,.025)]
         candidates = []
         for threshold, smooth, gap in specs:
             z, _ = _detect_interval(depth, ic, sensor_valid, test_end, dropout_start, threshold, smooth, gap, MIN_LAYER_THICKNESS)
