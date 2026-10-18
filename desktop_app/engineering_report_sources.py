@@ -21,8 +21,12 @@ def _finite(metadata,key):
         return None
 
 
-def _date(metadata):
-    value=str(metadata.get("file_date") or metadata.get("test_date") or "").strip()
+def _date(metadata, *, explicit_test_only=False):
+    # GEF FILEDATE/STARTDATE may mean file export or processing date, not
+    # the original field-test date printed on a CPT PDF. Never assume equal
+    # semantics when matching source reports.
+    value=str(metadata.get("test_date") if explicit_test_only else
+              (metadata.get("test_date") or metadata.get("file_date") or "")).strip()
     if not value:return None
     for fmt in ("%d-%b-%Y","%Y-%m-%d","%d/%m/%Y","%Y,%m,%d","%d-%B-%Y"):
         try:return datetime.strptime(value,fmt).date()
@@ -65,7 +69,7 @@ def choose_official_pdf(raw_analysis,candidates,*,xy_tolerance_m=.50,
         if z0 is not None and z1 is not None and abs(z0-z1)>elevation_tolerance_m:
             rejected.append(pdf_path.name+": ground elevations differ by %.3fm"%abs(z0-z1))
             continue
-        raw_date,pdf_date=_date(raw),_date(metadata)
+        raw_date,pdf_date=_date(raw,explicit_test_only=True),_date(metadata)
         if raw_date is not None and pdf_date is not None and raw_date!=pdf_date:
             rejected.append(pdf_path.name+": test dates conflict")
             continue
@@ -82,4 +86,6 @@ def choose_official_pdf(raw_analysis,candidates,*,xy_tolerance_m=.50,
             # filename; signal to Source Audit for engineering accountability.
             compatible.sort(key=lambda item:(-source_revision(item[0].source_path),item[1]))
             chosen=compatible[0][0]
-    return chosen,"Original PDF pages preserved; report paired to raw GEF/GFF using coordinates, elevation and available test date."
+    return chosen,("Original PDF pages preserved with numerical GEF/GFF calculations; "
+                   "coordinates and elevation agree. File export dates are NOT assumed "
+                   "to be field-test dates; verify source identity if this is a retest.")
