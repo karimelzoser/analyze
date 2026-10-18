@@ -21,9 +21,8 @@ def test_all_in_one_xlsx_contains_all_cpt_measurements_maps_and_qa(tmp_path):
     assert not list(tmp_path.glob("*.png"))
     with zipfile.ZipFile(output) as book:
         manifest=book.read("xl/workbook.xml")
-        for name in (b"CPT Analysis",b"Full Analysis",b"All Soil Layers",
-                     b"Project Dashboard",b"Project Maps",b"CPT Measurements",
-                     b"Survey Coordinate QA",b"CPT Coordinates"):
+        for name in (b"Summary",b"CPT Analysis",b"Full Analysis",b"All Soil Layers",
+                     b"Project Maps",b"CPT Measurements",b"Source Audit"):
             assert name in manifest, name
         media=[n for n in book.namelist() if n.startswith("xl/media/image")]
         assert len(media)>=2
@@ -72,8 +71,7 @@ def test_original_source_reference_and_all_cached_depths_are_inside_same_output(
                         original_xlsb=source)
     with zipfile.ZipFile(result) as book:
         named=book.read("xl/workbook.xml")
-        for title in (b"Original XLSB Foundation",b"Original SBT Intervals",
-                      b"Original SBT Curves",b"Native vs Source XLSB",
+        for title in (b"Foundation Results",b"Original SBT Curves",b"Reference Comparison",
                       b"Project Maps",b"CPT Measurements",b"CPT Analysis"):
             assert title in named, title
         assert len([s for s in book.namelist() if s.startswith("xl/media/image")])>=2
