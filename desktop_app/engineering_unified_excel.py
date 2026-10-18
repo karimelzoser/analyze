@@ -161,6 +161,56 @@ def extend_project_workbook(wb,analyses,*,source_audit=None,
                     r["silt_start_m"],r["silt_thickness_m"],
                     r["max_contiguous_silt_screen_m"],r["cumulative_silt_screen_m"],r["status"])
                    for r in original_profiles])
+        # Preserve EVERY cached original CPT zone interval in the same
+        # deliverable, including separate sandy/fine-grained horizons.
+        # Zone numbers are categorical soil behavior REGIONS, NOT numeric Ic.
+        source_intervals=[]
+        for source in original_profiles:
+            for index,interval in enumerate(source.get("all_intervals",[]),1):
+                source_intervals.append((
+                    source["reference"],index,interval.get("start_raw"),
+                    interval.get("end_raw"),interval.get("thickness_raw"),
+                    interval.get("reported_start"),interval.get("reported_end"),
+                    interval.get("reported_thickness"),
+                    ", ".join(str(z) for z in interval.get("zone_codes",[])),
+                    "ORIGINAL XLSB SBT ZONES (categorical)"))
+        _rows(wb,"Original SBT Intervals",
+              ["CPT","Interval","Measured start BGL","Measured end BGL",
+               "Thickness raw","Start reported","End reported",
+               "Thickness reported","SBT zones","Engineering data source"],
+               source_intervals,{9:51})
+        # Full cached source profiles are available for traceability. A 40MB
+        # source XLSB has about 250k rows: still within Excel's sheet limit.
+        # Do not confuse the original cached categorical Zone with Ic.
+        from engineering_xlsb_reference import ReferenceWorkbookCache
+        original_curves=wb.add_worksheet("Original SBT Curves")
+        curve_headers=["CPT","Depth BGL (m)","Ground RL (m)","qc (MPa)",
+                       "Original SBT zone (INTEGER)","Data lineage"]
+        fmt=_header(wb)
+        for col,title in enumerate(curve_headers):original_curves.write(0,col,title,fmt)
+        original_curves.set_row(0,36)
+        original_curves.set_column(0,0,27)
+        original_curves.set_column(1,4,20)
+        original_curves.set_column(5,5,55)
+        original_curves.freeze_panes(1,1)
+        row_id=1
+        with ReferenceWorkbookCache(original_xlsb) as original_reader:
+            all_cached_profiles=original_reader.mapped_profiles()
+        for ref,observations in all_cached_profiles.items():
+            ground=_numeric(source_profile.get(ref,{}).get("ground_elevation"))
+            for rl,qc,sbt_zone in observations:
+                if row_id>1_048_575:
+                    raise ValueError("Cached source profiles exceed XLSX sheet capacity; select fewer soundings")
+                bgl=ground-float(rl) if ground is not None else None
+                original_curves.write(row_id,0,ref)
+                if bgl is not None:original_curves.write_number(row_id,1,bgl)
+                original_curves.write_number(row_id,2,float(rl))
+                original_curves.write_number(row_id,3,float(qc))
+                if sbt_zone is not None:original_curves.write_number(row_id,4,int(sbt_zone))
+                original_curves.write(row_id,5,"ORIGINAL XLSB cached; not computed Ic")
+                row_id+=1
+        if row_id>1:
+            original_curves.autofilter(0,0,row_id-1,len(curve_headers)-1)
         import hashlib
         _rows(wb,"Original Source Settings",["Parameter","Saved Excel value"],[
             (key,str(value)) for key,value in original_model.items()])
@@ -214,7 +264,7 @@ def extend_project_workbook(wb,analyses,*,source_audit=None,
             "ground_elevation":x["ground_elevation"],
             "metric":x["max_contiguous_silt_screen_m"],
             "all_intervals":x["all_intervals"],
-            "test_depth_m":max((v["end_raw"] for v in x["all_intervals"]),default=0),
+            "test_depth_m":x.get("test_depth_m",max((v["end_raw"] for v in x["all_intervals"]),default=0)),
             "status":"CACHED SOURCE SBT"} for x in source_profile.values()]
     else:plot_points=points
     coords=[(p["reference"],p["easting"],p["northing"],p)
