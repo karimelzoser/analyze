@@ -15,6 +15,10 @@ def export_excel(
     output_path: str | Path,
     errors: Sequence[tuple[str, str]] | None = None,
     source_audit: Sequence[dict] | None = None,
+    original_xlsb: str | Path | None = None,
+    foundation_xlsx: str | Path | None = None,
+    site_boundary=None,
+    comparison_result=None,
 ) -> Path:
     """Export the production workbook.
 
@@ -375,5 +379,13 @@ def export_excel(
     for idx,(key,value) in enumerate(notes,1):
         meth.write(idx,0,key,label);meth.write(idx,1,value,wrap);meth.set_row(idx,30)
 
+    # Deliver a SINGLE comprehensive Excel file. Maps are embedded from
+    # in-memory figures; all native CPT numerical rows, source/cached foundation
+    # comparisons, original map and survey QA reside in this same workbook.
+    from engineering_unified_excel import extend_project_workbook
+    extend_project_workbook(
+        wb,analyses,source_audit=source_audit,original_xlsb=original_xlsb,
+        foundation_xlsx=foundation_xlsx,site_boundary=site_boundary,
+        comparison_result=comparison_result,include_profiles=True)
     wb.close()
     return p
