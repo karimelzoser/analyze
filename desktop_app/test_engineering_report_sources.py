@@ -27,6 +27,7 @@ def test_mismatched_coordinates_or_datum_cannot_be_used_as_official_report():
 
 def test_mismatched_survey_date_blocks_reference_pdf():
     raw=_source("P261074_CPT-A1-292-100.GEF")
+    raw.metadata["test_date"]="21-Sep-2026"
     pdf=_source("P261074_CPT-A1-292-100.pdf",date="22-Sep-2026")
     selected,note=choose_official_pdf(raw,[pdf])
     assert selected is None
@@ -40,3 +41,11 @@ def test_missing_raw_coordinates_prevents_unverified_chart_reuse():
     selected,note=choose_official_pdf(raw,[pdf])
     assert selected is None
     assert "coordinates missing" in note
+
+
+def test_file_export_date_can_differ_from_cpt_report_field_date():
+    raw=_source("P261074_CPT-A1-292-100.GEF",date="24-Sep-2026")
+    official=_source("P261074_CPT-A1-292-100.pdf",date="21-Sep-2026")
+    selected,reason=choose_official_pdf(raw,[official])
+    assert selected is official
+    assert "export dates" in reason
