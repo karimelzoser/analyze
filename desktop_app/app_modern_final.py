@@ -1,5 +1,5 @@
 import app_modern
-import engineering_workspace
+import engineering_review_ui
 import reporting_export_v2
 
 # Production wiring:
@@ -23,11 +23,11 @@ def _packaged_gui_smoke():
     output=os.environ.get("CPT_SMOKE_OUT")
     root=None
     try:
-        root=engineering_workspace.EngineeringWorkspaceApp()
+        root=engineering_review_ui.EngineeringReviewApp()
         root.update_idletasks()
         root.update()
         texts=[root.notebook.tab(tab,"text").strip() for tab in root.notebook.tabs()]
-        needed={"Setup","Results","Charts","Soil Layers","Site Map","Foundations","Pre / Post"}
+        needed={"Setup","Results","Charts","Soil Layers","Site Map","Foundations","Pre / Post","QA & Review"}
         missing=needed-set(texts)
         if missing:
             raise RuntimeError("Missing UI workspaces: "+repr(sorted(missing)))
