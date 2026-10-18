@@ -31,4 +31,32 @@ def analyze_pdf(path: str | Path):
 
 
 def append_pdf_analysis(source_pdf: str | Path, analysis, output_path: str | Path):
-    return _append_pdf_analysis(source_pdf,analysis,output_path)
+    """Preserve untouched source PDF pages and append complete engineering data."""
+    from tempfile import NamedTemporaryFile
+    from matplotlib.backends.backend_pdf import PdfPages
+    from engineering_report_layers import full_layer_pages
+    try:
+        import pymupdf
+    except ImportError:
+        import fitz as pymupdf
+    source=Path(source_pdf);dest=Path(output_path)
+    dest.parent.mkdir(parents=True,exist_ok=True)
+    with NamedTemporaryFile(suffix=".pdf",delete=False) as tmp:
+        supplement=Path(tmp.name)
+    try:
+        with PdfPages(supplement) as pages:
+            summary=engineering_analysis_page(analysis)
+            pages.savefig(summary);summary.clear()
+            for fig in full_layer_pages(analysis):
+                pages.savefig(fig);fig.clear()
+        with pymupdf.open(str(source)) as initial, pymupdf.open(str(supplement)) as extra:
+            output=pymupdf.open()
+            try:
+                output.insert_pdf(initial)
+                output.insert_pdf(extra)
+                output.save(str(dest),garbage=4,deflate=True)
+            finally:
+                output.close()
+    finally:
+        supplement.unlink(missing_ok=True)
+    return dest
