@@ -68,6 +68,25 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.layer_status=tk.StringVar(value="Select a CPT after analysis to view all layers.")
         tk.Label(self.layers_tab,textvariable=self.layer_status,bg="#ffffff",fg="#475569",
                  anchor="w",font=("Segoe UI",9)).pack(fill="x",padx=18,pady=4)
+        # Keep a compact, sortable-seeming engineering layer table alongside
+        # the visual profile. UNKNOWN intervals remain visible rather than
+        # silently being added to sand or silt.
+        table_wrap=tk.Frame(self.layers_tab,bg="#ffffff")
+        table_wrap.pack(fill="x",padx=16,pady=(0,5))
+        colnames=("number","type","from","to","thickness","ic","quality")
+        self.layer_table=ttk.Treeview(table_wrap,columns=colnames,show="headings",
+                                       height=5,selectmode="browse")
+        for key,label,width in [
+            ("number","LAYER",65),("type","CPT SBT INTERPRETATION",260),
+            ("from","START (m)",95),("to","END (m)",95),
+            ("thickness","THICKNESS (m)",115),("ic","MEAN Ic",100),
+            ("quality","DATA QUALITY",180)]:
+            self.layer_table.heading(key,text=label)
+            self.layer_table.column(key,width=width,stretch=key in ("type","quality"),
+                       anchor="w" if key in ("type","quality") else "center")
+        self.layer_table.tag_configure("UNKNOWN",background="#fff4ed",foreground="#92400e")
+        self.layer_table.tag_configure("MEASURED",background="#f0f7ff",foreground="#1e3a5f")
+        self.layer_table.pack(fill="x")
         self.layer_fig=Figure(figsize=(10,6),dpi=100,facecolor="#ffffff")
         self.layer_ax=self.layer_fig.add_subplot(111)
         self.layer_canvas=self._plot(self.layers_tab,self.layer_fig)
@@ -301,6 +320,9 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         if not hasattr(self,"layer_ax"):return
         a=next((v for v in self.results if v.reference==self.layer_reference.get()),None)
         self.layer_ax.clear()
+        if hasattr(self,"layer_table"):
+            for iid in self.layer_table.get_children():
+                self.layer_table.delete(iid)
         if a is None:
             self.layer_ax.text(.5,.5,"Select an analyzed CPT",transform=self.layer_ax.transAxes,
                                ha="center",va="center",color="#64748b")
@@ -318,6 +340,13 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             for layer in strat.layers:
                 color="#cbd5e1" if layer.kind=="UNKNOWN" else "#f5ca70" if (layer.mean_ic or 0)<2.6 else "#77acc7" if (layer.mean_ic or 0)<3.1 else "#b59dcc"
                 self.layer_ax.axhspan(layer.start_m,layer.end_m,color=color,alpha=.25,linewidth=0)
+                if hasattr(self,"layer_table"):
+                    self.layer_table.insert("","end",values=(
+                        layer.number,layer.kind,f"{layer.start_m:.3f}",
+                        f"{layer.end_m:.3f}",f"{layer.thickness_m:.3f}",
+                        "—" if layer.mean_ic is None else f"{layer.mean_ic:.3f}",
+                        layer.status),
+                        tags=("UNKNOWN" if layer.kind=="UNKNOWN" else "MEASURED",))
             self.layer_ax.axvline(2.60,color="#dc2626",linestyle="--",lw=1,label="Ic 2.60")
             self.layer_ax.invert_yaxis()
             self.layer_ax.set_xlim(0,5)
