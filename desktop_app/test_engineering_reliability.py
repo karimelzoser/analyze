@@ -26,3 +26,26 @@ def test_no_partial_output_selected_as_completed_workbook(tmp_path):
     partial=tmp_path/"CPT_Silt_Analysis_20261018.partial.xlsx"
     partial.write_bytes(b"INCOMPLETE")
     assert latest_excel_path(tmp_path) is None
+
+
+def test_unexpected_tk_action_logs_locally_and_displays_recoverable_warning(tmp_path,monkeypatch):
+    import sys
+    from engineering_review_ui import EngineeringReviewApp
+    from tkinter import messagebox
+    monkeypatch.setenv("CPT_LOG_DIR",str(tmp_path))
+    alerts=[]
+    monkeypatch.setattr(messagebox,"showerror",lambda title,body:alerts.append((title,body)))
+    class Status:
+        def set(self,value):self.last=value
+    ctx=SimpleNamespace(qa_status=Status())
+    try:
+        raise RuntimeError("Simulated GUI callback failure")
+    except RuntimeError:
+        kind,value,tb=sys.exc_info()
+        EngineeringReviewApp.report_callback_exception(ctx,kind,value,tb)
+    files=list(tmp_path.glob("gui_error_*.log"))
+    assert len(files)==1
+    assert "Simulated GUI callback failure" in files[0].read_text(encoding="utf-8")
+    assert "unexpected UI error" in ctx.qa_status.last
+    assert len(alerts)==1
+    assert str(files[0]) in alerts[0][1]
