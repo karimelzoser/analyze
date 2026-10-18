@@ -17,6 +17,7 @@ from app_pdf_enabled import PDFEnabledCPTApp
 from engineering_layers import from_analysis, _smooth_contiguous
 from engineering_maps import coordinate_rows
 from engineering_comparison import read_summary_xlsx, compare_summaries, export_comparison, read_site_boundary_xlsx
+from engineering_depth_comparison import compare_depth_profiles, export_depth_change
 
 
 class EngineeringWorkspaceApp(PDFEnabledCPTApp):
@@ -186,6 +187,22 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         cv.bind("<<ComboboxSelected>>",lambda event:self.run_summary_comparison() if self.compare_result else None)
         self._btn(actions,"EXPORT COMPARISON XLSX",self.export_summary_comparison).pack(side="left",padx=8)
         self._btn(actions,"SAVE COMPARISON PNG",self.save_comparison_image).pack(side="left")
+        rawbar=tk.Frame(self.compare_tab,bg="#ffffff")
+        rawbar.pack(fill="x",padx=16,pady=(4,10))
+        self._btn(rawbar,"PRE RAW GEF/GFF",lambda:self._choose_raw_pair("pre")).pack(side="left")
+        self.raw_pre_label=tk.StringVar(value="Select PRE raw sounding")
+        tk.Label(rawbar,textvariable=self.raw_pre_label,bg="#ffffff",fg="#475569",
+                 width=29,anchor="w").pack(side="left",padx=8)
+        self._btn(rawbar,"POST RAW GEF/GFF",lambda:self._choose_raw_pair("post")).pack(side="left")
+        self.raw_post_label=tk.StringVar(value="Select POST raw sounding")
+        tk.Label(rawbar,textvariable=self.raw_post_label,bg="#ffffff",fg="#475569",
+                 width=29,anchor="w").pack(side="left",padx=8)
+        self._btn(rawbar,"COMPARE RAW DEPTH PROFILES",self.run_raw_depth_comparison,primary=True).pack(side="right")
+        self.depth_pair={}
+        self.raw_compare_mode=tk.StringVar(value="Harmonized (3 / 3)")
+        modes=ttk.Combobox(rawbar,textvariable=self.raw_compare_mode,state="readonly",
+              values=["Harmonized (3 / 3)","Workbook reference (3 / 10)"],width=25)
+        modes.pack(side="right",padx=8)
         self.comparison_status=tk.StringVar(value="Select both PRE and POST workbooks.")
         tk.Label(self.compare_tab,textvariable=self.comparison_status,bg="#ffffff",fg="#475569",
                  anchor="w").pack(fill="x",padx=16,pady=5)
@@ -194,6 +211,49 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.comparison_canvas=self._plot(self.compare_tab,self.comparison_fig)
         self.compare_result=None
         self._comparison_inputs={}
+
+    def _choose_raw_pair(self,stage):
+        f=filedialog.askopenfilename(title="Choose "+stage.upper()+" raw CPT",
+                    filetypes=[("Raw CPT sounding","*.GEF *.gef *.GFF *.gff")])
+        if f:
+            self.depth_pair[stage]=Path(f)
+            (self.raw_pre_label if stage=="pre" else self.raw_post_label).set(Path(f).name)
+
+    def run_raw_depth_comparison(self):
+        if "pre" not in self.depth_pair or "post" not in self.depth_pair:
+            messagebox.showwarning("Missing sounding","Select both PRE and POST raw GEF/GFF soundings.")
+            return
+        from cpt_core import analyze_gef
+        from matplotlib.figure import Figure
+        try:
+            gamma=float(self.gamma.get());wt=float(self.wt.get())
+            pre=analyze_gef(self.depth_pair["pre"],gamma_soil=gamma,water_table_depth=wt)
+            post=analyze_gef(self.depth_pair["post"],gamma_soil=gamma,water_table_depth=wt)
+            mode="reference" if "Workbook" in self.raw_compare_mode.get() else "harmonized"
+            change=compare_depth_profiles(pre,post,mode=mode)
+            output=filedialog.askdirectory(title="Save depth comparison files (Excel/PDF/PNG)")
+            if not output:
+                return
+            files=export_depth_change(change,output)
+        except Exception as exc:
+            messagebox.showerror("Raw depth comparison failed",str(exc))
+            return
+        ax=self.comparison_ax;self.comparison_fig.clear()
+        ax=self.comparison_fig.add_subplot(111)
+        ax.plot(change.metrics["qc"]["delta"],change.depth_m,color="#2563eb",linewidth=1.4,label="qc delta (MPa)")
+        ax2=ax.twiny()
+        ax2.plot(change.metrics["ic"]["delta"],change.depth_m,color="#dc2626",linewidth=1.0,label="Ic delta")
+        ax.invert_yaxis();ax.set_xlabel("POST - PRE qc (MPa)")
+        ax2.set_xlabel("POST - PRE Ic (-)")
+        ax.set_ylabel("Corrected depth BGL (m)")
+        ax.grid(alpha=.12)
+        ax.set_title("Raw PRE/POST observed profiles — "+mode,loc="left")
+        self.comparison_ax=ax
+        self.comparison_fig.tight_layout()
+        self.comparison_canvas.draw_idle()
+        self.comparison_status.set("Raw paired depth comparison: %s vs %s | %d depths | %s" % (
+            change.pre_reference,change.post_reference,len(change.depth_m),mode))
+        self.status_var.set("Saved comparison to "+str(files["xlsx"]))
 
     def _select_summary(self,stage):
         path=filedialog.askopenfilename(title="Select "+stage.upper()+" summary",
