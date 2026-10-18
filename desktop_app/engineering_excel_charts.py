@@ -156,12 +156,15 @@ def restore_project_charts(book, spatial, analyses, measurement_ranges=()):
     hues=["#266c91","#c68e43","#be4c55","#64886c"]
     for (code,metric_index,title),cell in zip(labels,locations):
         graph=book.add_chart({"type":"scatter","subtype":"straight"})
-        for i,(ref,first,last) in enumerate(selected):
+        for i,entry in enumerate(selected):
+            if len(entry)==4:ref,sheetname,first,last=entry
+            else:ref,first,last=entry;sheetname="CPT Measurements"
             graph.add_series({"name":ref,
-                     "categories":["CPT Measurements",first,1,last,1],
-                     "values":["CPT Measurements",first,metric_index,last,metric_index],
+                     "categories":[sheetname,first,metric_index,last,metric_index],
+                     "values":[sheetname,first,1,last,1],
                      "line":{"color":hues[i%len(hues)],"width":1.7}})
-        frame(graph,"Observed CPT "+title+" vs corrected depth","Depth below ground (m)",title)
+        frame(graph,"Observed CPT "+title+" profile",title,"Corrected depth BGL (m)")
+        graph.set_y_axis({"reverse":True,"name":"Corrected depth BGL (m)"})
         curves.insert_chart(cell,graph)
     return {"chart_count":8,"source_point_count":n,
             "raw_cpt_curves":[r[0] for r in selected]}
