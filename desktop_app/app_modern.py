@@ -291,10 +291,13 @@ class ModernCPTApp(tk.Tk):
         btns.pack(fill="x", padx=16, pady=(0, 14))
         self._btn(btns, "Select Files", self.select_files, primary=True).pack(side="left")
         self._btn(btns, "Select Folder", self.select_folder).pack(side="left", padx=7)
-        self._btn(btns, "Clear", self.clear).pack(side="left")
+        self._btn(btns,"Clear",self.clear).pack(side="left")
+        self.advanced_expanded=False
+        self._btn(btns,"ADVANCED OPTIONS",self.toggle_advanced).pack(side="left",padx=8)
         # Make the two actual source summary inputs discoverable in Project
         # Setup instead of hiding them inside different analysis tabs.
         reference_bar=tk.Frame(input_panel,bg=PALETTE["surface"])
+        self.reference_bar=reference_bar
         reference_bar.pack(fill="x",padx=16,pady=(0,5))
         self._btn(reference_bar,"SOURCE CALCULATION XLSB",
                   lambda: self.select_original_reference() if hasattr(self,"select_original_reference") else None).pack(side="left")
@@ -312,6 +315,7 @@ class ModernCPTApp(tk.Tk):
         settings = self._surface_panel(content, "Engineering settings", "Applied consistently to all selected raw CPT files.")
         settings.grid(row=0, column=1, sticky="nsew", padx=(7, 0), pady=(0, 7))
         form = tk.Frame(settings, bg=PALETTE["surface"])
+        self.settings_form=form
         form.pack(fill="x", padx=16, pady=(0, 14))
         self.gamma = tk.StringVar(value="18.0")
         self.wt = tk.StringVar(value="2.0")
@@ -363,11 +367,15 @@ class ModernCPTApp(tk.Tk):
         self.worker_label = tk.StringVar(value=f"Auto parallel analysis — up to {max(1, min(8, os.cpu_count() or 4))} workers")
         ttk.Label(obody, textvariable=self.worker_label, style="Muted.TLabel").pack(anchor="w")
 
-        self.start_btn = self._btn(obody, "RUN VERIFIED ANALYSIS", self.start, primary=True)
+        self.start_btn = self._btn(obody, "ANALYZE PROJECT", self.start, primary=True)
         self.start_btn.pack(fill="x", pady=(18, 8))
         tk.Label(obody,text="Live progress stays visible above all tabs.",
                  bg=PALETTE["surface"],fg=PALETTE["muted"],
                  font=("Segoe UI",8)).pack(anchor="w",pady=(3,0))
+        # Default workflow is source-only. Expert assumptions and additional
+        # workbook imports remain available behind one advanced control.
+        self.reference_bar.pack_forget()
+        self.settings_form.pack_forget()
 
     def _build_results(self):
         top = tk.Frame(self.results_tab, bg=PALETTE["surface"])
@@ -532,12 +540,23 @@ class ModernCPTApp(tk.Tk):
         self.refresh_chart()
         self.status_var.set("Ready — select GEF/GFF files or a project folder.")
 
+    def toggle_advanced(self):
+        self.advanced_expanded=not self.advanced_expanded
+        for widget in (self.reference_bar,self.settings_form):
+            if self.advanced_expanded:
+                widget.pack(fill="x",padx=16,pady=(1,8))
+            else:
+                widget.pack_forget()
+        self.status_var.set("Advanced engineering/source options "+(
+            "shown" if self.advanced_expanded else "hidden")+
+            "; no additional source files are required.")
+
     # ---------- analysis ----------
     def start(self):
         if self.running:
             return
         if not self.files:
-            messagebox.showwarning("No files selected", "Select one or more GEF/GFF files, or a project folder first.")
+            messagebox.showwarning("No files selected","Select GEF, GFF, or PDF files, or a project folder.")
             return
         out = self.output_var.get().strip()
         if not out:
