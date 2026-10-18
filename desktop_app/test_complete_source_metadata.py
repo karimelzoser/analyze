@@ -67,6 +67,8 @@ def test_missing_u2_is_declared_not_called_measured(tmp_path):
                       if name.startswith("xl/worksheets/sheet") and name.endswith(".xml"))
         assert "PORE_PRESSURE_CALCULATION_SOURCE" in texts
         assert "assumed u2=0" in texts
+        assert "NOT MEASURED" in texts
+        assert "0 ASSUMED FOR qt" in texts
     fig=engineering_analysis_page(analysis)
     assert fig is not None
     assert any("Pore pressure u2 source" in str(cell.get_text().get_text())
