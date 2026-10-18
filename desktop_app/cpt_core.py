@@ -420,8 +420,16 @@ def _detect_interval(depth, ic, sensor_valid, test_end, dropout_start, threshold
     a, b = runs[-1]
     start_raw = _interpolate_crossing(depth, work_ic, a, threshold)
     source_end = float(depth[b])
-    # End at LAST VALID Ic observation only; do not silently extrapolate.
+    # Interpolate BOTH boundaries when the adjacent observation exists:
+    # for falling Ic this can shift the engineering report end from 4.5
+    # to 4.6 at HALF_UP precision. Never cross a dropout or invalid gap.
     end_raw = source_end
+    nxt=b+1
+    if (nxt<len(depth) and valid[nxt] and work_ic[nxt]<threshold and
+        float(depth[nxt]-depth[b])<=.035 and work_ic[b]!=work_ic[nxt]):
+        fraction=(threshold-float(work_ic[b]))/(float(work_ic[nxt])-float(work_ic[b]))
+        if 0<=fraction<=1:
+            end_raw=source_end+fraction*(float(depth[nxt])-source_end)
     return _make_interval(start_raw, end_raw, source_end), all_intervals
 
 
