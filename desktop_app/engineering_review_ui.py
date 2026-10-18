@@ -88,6 +88,49 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
         self._add_global_shortcuts()
         self._show_first_run_tip()
 
+    def report_callback_exception(self, exc, value, tb):
+        """Recover from Tk event-handler failures without an invisible crash.
+
+        Normal Windows builds have no console: every unexpected GUI failure is
+        recorded locally and the operator is shown where to find the traceback.
+        A REVIEW-worthy engineering processing error is not suppressed.
+        """
+        import traceback
+        import tempfile
+        stamp=dt.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        logdir=Path(os.environ.get("CPT_LOG_DIR") or
+                    Path.home()/".cpt_engineering"/"diagnostics")
+        report="".join(traceback.format_exception(exc,value,tb))
+        target=None
+        for directory in (logdir,Path(tempfile.gettempdir())/"cpt_engineering_logs"):
+            try:
+                directory.mkdir(parents=True,exist_ok=True)
+                target=directory/("gui_error_"+stamp+".log")
+                target.write_text(report,encoding="utf-8")
+                break
+            except (OSError,PermissionError):
+                continue
+        try:
+            if hasattr(self,"qa_status"):
+                self.qa_status.set("An unexpected UI error was logged. Inspect diagnostics; results were not silently accepted.")
+            messagebox.showerror("CPT Engineering Studio — Action could not complete",
+                "The action encountered an unexpected error. Your existing input files were not modified.\n\n"+
+                (f"Diagnostic file: {target}" if target else "Could not write a local diagnostic file.")+
+                "\n\nDo not use any partial result as verified.")
+        except Exception:
+            # Never recursively raise from the GUI exception handler.
+            pass
+
+    def open_diagnostics(self):
+        from app_modern import open_external_path
+        folder=Path(os.environ.get("CPT_LOG_DIR") or
+                    Path.home()/".cpt_engineering"/"diagnostics")
+        if not folder.is_dir():
+            messagebox.showinfo("Diagnostics","No unexpected user-interface errors have been logged.")
+            return
+        if not open_external_path(folder):
+            messagebox.showwarning("Diagnostics","Could not open "+str(folder))
+
     def _add_global_shortcuts(self):
         # Ctrl combinations are conventional Windows shortcuts; never bind to
         # letters alone because editable fields must remain usable.
@@ -154,6 +197,7 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
         self._btn(tools,"COMPARE PDF LAYOUTS",self.compare_pdf_layout).pack(side="left",padx=8)
 
         self._btn(tools,"ENGINEERING GUIDE  F1",self._show_help).pack(side="right")
+        self._btn(tools,"OPEN ERROR DIAGNOSTICS",self.open_diagnostics).pack(side="right",padx=8)
         self.qa_status=tk.StringVar()
         self.qa_note=tk.Label(tools,textvariable=self.qa_status,bg="#ffffff",fg="#64748b",
                   font=("Segoe UI",8),anchor="w")
