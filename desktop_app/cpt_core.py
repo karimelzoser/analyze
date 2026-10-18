@@ -12,7 +12,7 @@ import numpy as np
 PA_KPA = 100.0
 GAMMA_W = 9.81
 DEFAULT_GAMMA = 18.0
-DEFAULT_WATER_TABLE = 0.0
+DEFAULT_WATER_TABLE = 2.0
 SILT_IC_THRESHOLD = 2.60
 MIN_LAYER_THICKNESS = 0.05
 MAX_SMALL_GAP = 0.06
@@ -435,6 +435,10 @@ def _same(a: Optional[SiltInterval], b: Optional[SiltInterval]) -> bool:
 
 def analyze_gef(path: str | Path, gamma_soil: float = DEFAULT_GAMMA, water_table_depth: float = DEFAULT_WATER_TABLE) -> CPTAnalysis:
     gef = parse_gef(path)
+    gef.metadata["analysis_gamma_soil_kn_m3"] = float(gamma_soil)
+    gef.metadata["analysis_water_table_bgl_m"] = float(water_table_depth)
+    gef.metadata["ic_screening_threshold"] = float(SILT_IC_THRESHOLD)
+    gef.metadata["minimum_qualifying_layer_m"] = float(MIN_LAYER_THICKNESS)
     calc = compute_robertson(gef, gamma_soil, water_table_depth)
     depth, ic, sensor_valid = calc["depth"], calc["ic"], calc["sensor_valid"]
     dropout_start = calc["dropout_start"]
@@ -476,10 +480,15 @@ def analyze_gef(path: str | Path, gamma_soil: float = DEFAULT_GAMMA, water_table
         good_idx = np.flatnonzero(sensor_valid & np.isfinite(ic))
         if len(good_idx):
             i_last = int(good_idx[-1])
-            if (float(depth[-1])-float(depth[i_last])<=TERMINAL_DROPOUT_MAX
-                    and float(ic[i_last])>=SILT_IC_THRESHOLD):
-                status="REVIEW"
-                note="Last valid Ic is above 2.60 but the observed terminal interval is shorter than the minimum persistence criterion; classification after fs dropout is unknown."
+            if float(ic[i_last])>=SILT_IC_THRESHOLD:
+                # This is a valid distinction: no sustained qualifying OBSERVED
+                # interval, but the terminal sensor tail remains unclassified.
+                # It must not be labelled a measured 0.10m silt layer or
+                # silently converted into REVIEW with all numeric fields empty.
+                note += (" Last valid Ic crosses the screening limit for less"
+                         " than the required observed persistence. No sustained"
+                         " measured silt found; terminal sensor data remain UNKNOWN."
+                         " This does not exclude unobserved fine-grained soil.")
     # Do not emit a verified 0.00 m thickness for a measured positive interval.
     if status == "VERIFIED" and final is not None and final.thickness_raw>0 and final.thickness==0:
         status="REVIEW"
