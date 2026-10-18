@@ -17,7 +17,7 @@ TOPICS=[
 2. Check calculation assumptions: soil unit weight, groundwater depth, source cone area ratio and PRE/POST stage.
 3. Click START ANALYSIS. Results, charts, and the single consolidated Excel workbook use the same project-level CPT selection.
 4. Open SITE MAP and choose Risk screening plan. Set WATCH and HIGH thickness screening thresholds, click pins or ALL HIGH CPTs. Every high-scoring point is selectable.
-5. OPEN INTERACTIVE 3D GEOLOGY opens a self-contained OFFLINE HTML in your browser: rotate, zoom, show/hide screening layers and inferred wedges.
+5. Site Map > Depth slice plan compares only the surveyed soil interval inside your chosen BGL window; missing depth coverage is REVIEW. OPEN INTERACTIVE 3D GEOLOGY displays all supported layers plus zoomable E-W/N-S CPT fence sections.
 6. Investigate all REVIEWs in QA & REVIEW. A REVIEW must not be replaced with zero, and an UNKNOWN sensor interval must never be assumed clean sand or silt.
 7. Use FOUNDATIONS and PRE / POST to inspect externally supplied engineering results and paired changes. Accept/reject design requires project-approved criteria.
 
@@ -93,6 +93,25 @@ Optional background surface:
   interpolate ONLY confirmed measurable values; keep REVIEW points excluded.
 
 Click any point to inspect its CPT chart. ALL HIGH CPTs lists every qualifying location even when plot labels would overlap. Native Matplotlib toolbar supports pan, zoom, home and export PNG. In 3D the browser handles mouse-wheel zoom and drag rotation.
+"""),
+("Depth slices & fence sections", """DEPTH-DEPENDENT SITE REVIEW
+
+Risk screening plan summarizes the largest qualifying interval over the complete sounding. A DEPTH SLICE PLAN asks a more precise question: how much qualifying SBT thickness is observed within a selected BGL depth window?
+
+Choose Site Map > Depth slice plan and specify Top/Bottom depths (m BGL). For each actual CPT, calculate:
+   intersection thickness = max[0, min(layer_base, slice_bottom) - max(layer_top, slice_top)]
+   cumulative interval thickness = sum(intersection thickness)
+   max continuous interval in slice = max(intersection thickness)
+
+An observation is available only when enough original classified depth samples cover the requested window (default at least 80% depth coverage). A missing friction sensor, large sample gap or CPT that ends above the slice is REVIEW/UNAVAILABLE — NOT zero silt.
+
+3D EXPLORER CROSS-SECTIONS
+The offline 3D viewer contains East-West and North-South CPT fence sections. They select a surveyed corridor around a median site axis, then plot each actual CPT sounding as a vertical line at its station distance and every qualifying screened interval in red. You can pan and zoom the section. Do not interpret a blank space between adjacent CPT columns as a known clean or silt layer.
+
+3D INTERPRETED PRISMS
+A transparent 3D prism is shown ONLY for a spatially supported triangle of 3 CPTs and a depth interval that all three actually classify as fine-grained-like. All separate overlapping layers are considered, rather than only the deepest/thickest one. If the classified layers are at different elevations and have no vertical overlap, no connecting prism is produced.
+
+These are visual interpretations for screening and discussion, NOT certified lithostratigraphic models. The engineer must verify the survey CRS, soil correlations, lateral variability, foundation influence depths and design criteria.
 """),
 ("3D geology & uncertainty", """3D SUBSURFACE MODEL
 
