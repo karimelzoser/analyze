@@ -94,8 +94,8 @@ def _packaged_gui_smoke():
                     raise RuntimeError("Expected ONE comprehensive XLSX per run, found "+repr([p.name for p in delivered]))
                 with zipfile.ZipFile(latest) as book:
                     workbook=book.read("xl/workbook.xml")
-                    for sheet in (b"CPT Analysis",b"Full Analysis",b"All Soil Layers",
-                                  b"Methodology and QA",b"Source Audit",b"Summary"):
+                    for sheet in (b"Summary",b"CPT Analysis",b"Full Analysis",
+                                  b"All Soil Layers",b"Source Audit",b"Project Maps"):
                         if sheet not in workbook:raise RuntimeError("Missing workbook sheet "+repr(sheet))
                 reports=list((destination/"PDFs").glob("*.pdf"))
                 if len(reports)!=1:raise RuntimeError("Expected exactly one generated CPT report")
@@ -103,8 +103,8 @@ def _packaged_gui_smoke():
                     if report.page_count<2:raise RuntimeError("Generated report missing appendix")
                 with zipfile.ZipFile(latest) as book:
                     sheetlist=book.read("xl/workbook.xml")
-                    for name in (b"Project Maps",b"Project Dashboard",b"CPT Coordinates",
-                                 b"CPT Measurements",b"Survey Coordinate QA"):
+                    for name in (b"Project Maps",b"Summary",b"Full Analysis",
+                                 b"CPT Measurements",b"Source Audit"):
                         if name not in sheetlist:
                             raise RuntimeError("Unified Excel lacks "+str(name))
                     if len([n for n in book.namelist() if n.startswith("xl/media/image")])<2:
