@@ -117,7 +117,7 @@ def site_3d_figure(analyses,site_boundary=None,*,max_labels=12,figure=None):
     ax.set_title("3D CPT SBT Layers | Sand · Transition · Silt · Clay · Unknown",loc="left",
                  fontsize=13,fontweight="bold")
     ax.legend(loc="upper left",fontsize=7,frameon=False)
-    fig.text(.06,.02,f"{len(points)} surveyed columns | {len(withheld)} coordinate outlier(s) withheld | "
+    fig.text(.06,.02,f"{len(points)} surveyed columns | {len(withheld)} coordinate outlier(s) withheld | "+
              ("Point labels suppressed for overview; explore exact CPT IDs interactively. "
               if label_limit==0 else "")+
              "SBT is not laboratory USCS.",fontsize=8.5,color="#64748b")
