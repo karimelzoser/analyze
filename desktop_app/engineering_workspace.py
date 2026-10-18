@@ -17,7 +17,7 @@ from app_pdf_enabled import PDFEnabledCPTApp
 from engineering_layers import from_analysis, _smooth_contiguous
 from engineering_maps import coordinate_rows,filter_coordinate_outliers
 from engineering_3d_map import site_3d_figure
-from engineering_geo_explorer import risk_plan, export_interactive_3d
+from engineering_geo_explorer import risk_plan, export_interactive_3d, depth_window_plan
 from engineering_comparison import read_summary_xlsx, compare_summaries, export_comparison, read_site_boundary_xlsx
 from engineering_depth_comparison import compare_depth_profiles, export_depth_change
 from engineering_foundations import check_foundation_results, export_foundation_validation
@@ -133,7 +133,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
 
         self.map_projection=tk.StringVar(value="Risk screening plan")
         projection=ttk.Combobox(map_actions,textvariable=self.map_projection,
-                         values=["Risk screening plan","2D measured plan","3D CPT soil columns"],width=23,state="readonly")
+                         values=["Risk screening plan","Depth slice plan","2D measured plan","3D CPT soil columns"],width=23,state="readonly")
         projection.pack(side="left",padx=8)
         projection.bind("<<ComboboxSelected>>",lambda event:self.refresh_map())
         self._btn(map_actions,"MAP OPTIONS",self.show_map_options).pack(side="right",padx=3)
@@ -164,6 +164,17 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self._btn(modelbar,"OPEN OFFLINE INTERACTIVE 3D SOIL MODEL",self.open_interactive_3d,
                   primary=True).pack(side="left",padx=8)
         self._btn(modelbar,"SAVE 3D HTML",self.save_interactive_3d).pack(side="left",padx=4)
+        self.slice_controls=tk.Frame(self.map_tab,bg="#edf4f9")
+        self.slice_top=tk.StringVar(value="4.0")
+        self.slice_bottom=tk.StringVar(value="5.0")
+        tk.Label(self.slice_controls,text="DEPTH SLICE BGL",fg="#29465d",
+                 bg="#edf4f9",font=("Segoe UI Semibold",9)).pack(side="left",padx=(10,14))
+        tk.Label(self.slice_controls,text="Top (m)",bg="#edf4f9").pack(side="left")
+        ttk.Entry(self.slice_controls,textvariable=self.slice_top,width=9).pack(side="left",padx=6)
+        tk.Label(self.slice_controls,text="Bottom (m)",bg="#edf4f9").pack(side="left")
+        ttk.Entry(self.slice_controls,textvariable=self.slice_bottom,width=9).pack(side="left",padx=6)
+        self._btn(self.slice_controls,"UPDATE DEPTH SLICE",self.refresh_map).pack(side="left",padx=9)
+        self.slice_controls.pack_forget()
         # Keep the map as the main canvas. Advanced controls live in MAP
         # OPTIONS instead of consuming half the screen at 1024x697.
         map_files.pack_forget()
@@ -172,8 +183,9 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self._geo_risk_artists={}
         self._geo_hotspots=[]
         self.map_status=tk.StringVar(value="Project map becomes available after analysis.")
-        tk.Label(self.map_tab,textvariable=self.map_status,bg="#ffffff",fg="#64748b",
-                 anchor="w").pack(fill="x",padx=18,pady=4)
+        self.map_status_label=tk.Label(self.map_tab,textvariable=self.map_status,bg="#ffffff",fg="#64748b",
+                 anchor="w")
+        self.map_status_label.pack(fill="x",padx=18,pady=4)
         self.map_fig=Figure(figsize=(10,6),dpi=100,facecolor="#ffffff")
         self.map_ax=self.map_fig.add_subplot(111)
         self.map_canvas=self._plot(self.map_tab,self.map_fig)
@@ -545,7 +557,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
     def show_map_options(self):
         dlg=tk.Toplevel(self)
         dlg.title("Site Map — Settings & Actions")
-        dlg.geometry("560x370")
+        dlg.geometry("620x425")
         dlg.minsize(490,320)
         dlg.transient(self)
         root=tk.Frame(dlg,bg="#f8fafc",padx=17,pady=15)
@@ -560,6 +572,10 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         ttk.Entry(settings,textvariable=self.risk_watch,width=12).grid(row=0,column=1,padx=(7,20))
         tk.Label(settings,text="High from (m)",bg="#f8fafc").grid(row=0,column=2,sticky="w")
         ttk.Entry(settings,textvariable=self.risk_high,width=12).grid(row=0,column=3,padx=7)
+        tk.Label(settings,text="Slice top (m BGL)",bg="#f8fafc").grid(row=1,column=0,sticky="w",pady=8)
+        ttk.Entry(settings,textvariable=self.slice_top,width=12).grid(row=1,column=1,padx=(7,20),pady=8)
+        tk.Label(settings,text="Slice bottom (m BGL)",bg="#f8fafc").grid(row=1,column=2,sticky="w",pady=8)
+        ttk.Entry(settings,textvariable=self.slice_bottom,width=12).grid(row=1,column=3,padx=7,pady=8)
         ttk.Checkbutton(root,text="Show locally supported *indicative* interpolated shading",
                         variable=self.show_interpolated).pack(anchor="w",pady=8)
         actions=tk.Frame(root,bg="#f8fafc")
@@ -706,6 +722,13 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
 
     def refresh_map(self):
         if not hasattr(self,"map_ax"):return
+        if hasattr(self,"slice_controls"):
+            if self.map_projection.get()=="Depth slice plan":
+                if not self.slice_controls.winfo_manager():
+                    self.slice_controls.pack(fill="x",padx=16,pady=4,
+                                             before=self.map_status_label)
+            elif self.slice_controls.winfo_manager():
+                self.slice_controls.pack_forget()
         map_analyses=self.results
         if self.map_data_source.get()=="Original XLSB full project":
             source=getattr(self,"original_model_path",None)
@@ -727,12 +750,19 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             except Exception as exc:
                 self.map_status.set("Original XLSB project could not be read: "+str(exc))
                 return
-        if self.map_projection.get()=="Risk screening plan":
+        if self.map_projection.get() in ("Risk screening plan","Depth slice plan"):
             try:
                 watch=float(self.risk_watch.get());high=float(self.risk_high.get())
-                summary=risk_plan(self.map_fig,map_analyses,boundary=self.site_boundary,
-                        warning_m=watch,high_m=high,
+                if self.map_projection.get()=="Depth slice plan":
+                    summary=depth_window_plan(
+                        self.map_fig,map_analyses,top_m=float(self.slice_top.get()),
+                        bottom_m=float(self.slice_bottom.get()),
+                        boundary=self.site_boundary,warning_m=watch,high_m=high,
                         show_interpretive_surface=self.show_interpolated.get())
+                else:
+                    summary=risk_plan(self.map_fig,map_analyses,boundary=self.site_boundary,
+                            warning_m=watch,high_m=high,
+                            show_interpretive_surface=self.show_interpolated.get())
             except Exception as exc:
                 self.map_status.set("Risk plan cannot be displayed: "+str(exc))
                 return
