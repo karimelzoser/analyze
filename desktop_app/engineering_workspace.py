@@ -419,6 +419,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         if not path:return
         try:
             self.site_boundary=read_site_boundary_xlsx(path)
+            if hasattr(self,"reference_status"):self.reference_status.set("Survey site limits loaded: "+Path(path).name)
             self.refresh_map()
             self.status_var.set("Site limit loaded: "+Path(path).name)
         except Exception as exc:
