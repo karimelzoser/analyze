@@ -114,7 +114,13 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
         tk.Label(heading,text="Source provenance  ·  Convergence and dropout  ·  Failed interpretations  ·  Reference-model audits",
                  font=("Segoe UI",9),bg="#ffffff",fg="#64748b").pack(anchor="w",pady=(3,0))
 
-        actions=tk.Frame(self.qa_tab,bg="#ffffff")
+        self.qa_views=ttk.Notebook(self.qa_tab)
+        self.qa_views.pack(fill="both",expand=True,padx=12,pady=(5,7))
+        self.qa_results_view=tk.Frame(self.qa_views,bg="#ffffff")
+        self.qa_excel_view=tk.Frame(self.qa_views,bg="#ffffff")
+        self.qa_views.add(self.qa_results_view,text="  CPT Results & Verification  ")
+        self.qa_views.add(self.qa_excel_view,text="  Original Excel & Reference Tools  ")
+        actions=tk.Frame(self.qa_results_view,bg="#ffffff")
         actions.pack(fill="x",padx=18,pady=(10,6))
         self.qa_filter=tk.StringVar(value="All")
         tk.Label(actions,text="Filter",font=("Segoe UI Semibold",9),bg="#ffffff",
@@ -132,7 +138,17 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
         self._btn(actions,"OPEN SOURCE",self.open_selected_qa_source).pack(side="right",padx=7)
         self._btn(actions,"VIEW CPT PROFILE",self.open_selected_qa_profile).pack(side="right",padx=7)
 
-        tools=tk.Frame(self.qa_tab,bg="#ffffff")
+        tk.Label(self.qa_excel_view,text="ORIGINAL SOURCE RECONCILIATION",
+                 font=("Segoe UI Semibold",12),fg="#153850",bg="#ffffff",anchor="w"
+                 ).pack(fill="x",padx=18,pady=(17,5))
+        tk.Label(self.qa_excel_view,
+            text="Reference XLSB values are saved source outputs. Recalculation requires "
+                 "an Excel-equipped computer; no VBA is executed. Select a baseline "
+                 "to embed reference results and comparisons in the next single workbook.",
+            bg="#ffffff",fg="#526779",wraplength=850,justify="left",
+            anchor="w",font=("Segoe UI",9)
+            ).pack(fill="x",padx=18,pady=(0,15))
+        tools=tk.Frame(self.qa_excel_view,bg="#ffffff")
         tools.pack(fill="x",padx=18,pady=(0,12))
         self._btn(tools,"AUDIT ORIGINAL XLSB",self.audit_reference_excel).pack(side="left")
         self._btn(tools,"COMPARE PDF LAYOUTS",self.compare_pdf_layout).pack(side="left",padx=8)
@@ -142,32 +158,32 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
         self.qa_note=tk.Label(tools,textvariable=self.qa_status,bg="#ffffff",fg="#64748b",
                   font=("Segoe UI",8),anchor="w")
         self.qa_note.pack(side="left",padx=12)
-        reference_actions=tk.Frame(self.qa_tab,bg="#ffffff")
+        reference_actions=tk.Frame(self.qa_excel_view,bg="#ffffff")
         reference_actions.pack(fill="x",padx=18,pady=(0,5))
         self._btn(reference_actions,"ANALYZE COMPLETE ORIGINAL XLSB PROJECT",self.export_full_reference_project,
                   primary=True).pack(side="left")
         self._btn(reference_actions,"SET XLSB PARITY BASELINE",self.select_original_reference).pack(side="left",padx=7)
         self._btn(reference_actions,"PRINT EXACT ORIGINAL XLSB PDF",self.print_original_xlsb_pdf).pack(side="left",padx=8)
-        engine_actions=tk.Frame(self.qa_tab,bg="#ffffff")
+        engine_actions=tk.Frame(self.qa_excel_view,bg="#ffffff")
         engine_actions.pack(fill="x",padx=18,pady=(0,6))
         self._btn(engine_actions,"RECALCULATE NEW GEF IN ORIGINAL EXCEL",self.recalculate_raw_excel,
                   primary=True).pack(side="left")
         tk.Label(engine_actions,text="Requires installed Microsoft Excel; disabled VBA, read-only source workbook.",
                  bg="#ffffff",fg="#64748b",font=("Segoe UI",8)).pack(side="left",padx=10)
-        board=tk.Frame(self.qa_tab,bg="#f1f5f9")
+        board=tk.Frame(self.qa_results_view,bg="#f1f5f9")
         board.pack(fill="x",padx=18,pady=(4,10))
         self.qa_counts=tk.StringVar(value="NO RESULTS  |  Choose a source folder and run analysis")
         tk.Label(board,textvariable=self.qa_counts,bg="#f1f5f9",fg="#0f3956",
                  font=("Segoe UI Semibold",10),padx=14,pady=12,anchor="w").pack(fill="x")
 
-        detail=tk.Frame(self.qa_tab,bg="#f8fafc",highlightthickness=1,
+        detail=tk.Frame(self.qa_results_view,bg="#f8fafc",highlightthickness=1,
                         highlightbackground="#dce5ef")
         detail.pack(fill="x",padx=18,pady=(0,8))
         self.qa_details=tk.StringVar(value="Select a CPT to see the original source, interpretation and verification notes.")
         tk.Label(detail,textvariable=self.qa_details,bg="#f8fafc",fg="#334155",
                  justify="left",anchor="w",wraplength=1100,padx=12,pady=11,
                  font=("Segoe UI",9)).pack(fill="x")
-        frame=tk.Frame(self.qa_tab,bg="#ffffff")
+        frame=tk.Frame(self.qa_results_view,bg="#ffffff")
         frame.pack(fill="both",expand=True,padx=18,pady=(0,6))
         columns=("reference","status","type","thickness","quality","issues")
         self.qa_tree=ttk.Treeview(frame,columns=columns,show="headings",selectmode="browse")
