@@ -17,8 +17,11 @@ def write_synthetic_gef(path: Path):
         "#MEASUREMENTVAR= 3, 0.75, -, area ratio", "#MEASUREMENTVAR= 16, 6.4, m, end depth",
         "#TESTID= CPT-TEST-1", "#PROJECTNAME= TEST", "#EOH=",
     ]
-    for i in range(65):
-        z = i * 0.1
+    # 10 mm corrected-depth sampling, matching the field GEF resolution.
+    # The former synthetic 100 mm spacing exceeded the engine's
+    # maximum resolvable gap and incorrectly expected VERIFIED status.
+    for i in range(641):
+        z = i * 0.01
         if z < 6.0:
             qc, fs = 10.0, 0.10
         elif z <= 6.3:
