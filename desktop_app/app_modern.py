@@ -332,6 +332,12 @@ class ModernCPTApp(tk.Tk):
         settings.grid(row=0, column=1, sticky="nsew", padx=(7, 0), pady=(0, 7))
         form = tk.Frame(settings, bg=PALETTE["surface"])
         self.settings_form=form
+        self.settings_hint=tk.Label(settings,
+            text="Automatic Ic analysis, source QA and soil-layer detection.\n"
+                 "Source-specific engineering assumptions are editable under Advanced Options.",
+            bg=PALETTE["surface"],fg=PALETTE["muted"],
+            font=("Segoe UI",9),justify="left",anchor="w",wraplength=260)
+        self.settings_hint.pack(fill="x",padx=16,pady=(0,14))
         form.pack(fill="x", padx=16, pady=(0, 14))
         self.gamma = tk.StringVar(value="18.0")
         self.wt = tk.StringVar(value="2.0")
@@ -558,6 +564,10 @@ class ModernCPTApp(tk.Tk):
 
     def toggle_advanced(self):
         self.advanced_expanded=not self.advanced_expanded
+        if self.advanced_expanded:
+            self.settings_hint.pack_forget()
+        else:
+            self.settings_hint.pack(fill="x",padx=16,pady=(0,14))
         for widget in (self.reference_bar,self.settings_form):
             if self.advanced_expanded:
                 widget.pack(fill="x",padx=16,pady=(1,8))
