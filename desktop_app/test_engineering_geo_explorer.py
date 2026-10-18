@@ -122,7 +122,7 @@ def test_depth_window_only_counts_screening_inside_selected_band():
     assert beyond[0]["status"]=="REVIEW"  # no sounding at this depth
     assert beyond[0]["max_contiguous_silt_screen_m"] is None
     result=depth_window_plan(Figure(),_project_points(),
-                       top_m=4.8,bottom_m=5.10,
+                       top_m=4.8,bottom_m=5.10,high_m=.31,
                        show_interpretive_surface=False)
     assert result["depth_window"]==(4.8,5.1)
     assert len(result["high"])==0
