@@ -41,8 +41,9 @@ def test_actual_pdf_acceptance_has_100_percent_source_manifest_and_one_workbook(
         parsed=ET.fromstring(workbook)
         tabs=parsed.find(f"{namespace}bookViews/{namespace}workbookView")
         assert tabs is not None
-        assert tabs.get("activeTab")=="0"
-        assert tabs.get("firstSheet")=="0"
+        # OOXML omits default zero-valued view attributes in valid workbooks.
+        assert tabs.get("activeTab","0")=="0"
+        assert tabs.get("firstSheet","0")=="0"
         selected=archive.read("xl/worksheets/sheet1.xml")
         assert b'tabSelected="1"' in selected
         assert len([n for n in archive.namelist()
