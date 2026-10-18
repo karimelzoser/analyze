@@ -65,6 +65,15 @@ jobs:
         run: |
           python benchmark_synthetic_batch.py --count 400
 
+      - name: Retain exact tested Python source for private-data regression
+        uses: actions/upload-artifact@v4
+        with:
+          name: CPT-Tested-Source
+          path: |
+            desktop_app/*.py
+            desktop_app/requirements.txt
+          retention-days: 21
+
       - name: Build executable
         shell: pwsh
         working-directory: desktop_app
