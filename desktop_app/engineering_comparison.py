@@ -161,8 +161,14 @@ def _distance(a,b):
     return math.hypot(a.east-b.east,a.north-b.north)
 
 
-def compare_summaries(pre,post,*,coordinate_tolerance:float=2.0):
-    """Return matched points, unmatched points and explicit ambiguous candidates."""
+def compare_summaries(pre,post,*,coordinate_tolerance:float=2.0,
+                      allow_coordinate_only:bool=False):
+    """Match CPTs by ID/verified alias and optionally by unique near coordinates.
+
+    Coordinate-only matching must be explicitly enabled by the operator.
+    Any multiple viable coordinate-only pairings remain AMBIGUOUS, never
+    selected by a nearest-neighbor guess. Foundation type must always match.
+    """
     if coordinate_tolerance<=0:raise ValueError("Coordinate tolerance must be positive")
     pre=list(pre);post=list(post)
     matched=[];unmatched_pre=[];unmatched_post=set(range(len(post)));ambiguous=[]
@@ -185,14 +191,27 @@ def compare_summaries(pre,post,*,coordinate_tolerance:float=2.0):
                 viable.append((0,j,dist))
             elif alias and dist is not None and dist<=coordinate_tolerance:
                 viable.append((1,j,dist))
-        viable.sort(key=lambda x:(x[0], x[2] or 0))
+            elif (allow_coordinate_only and not same and not alias
+                  and dist is not None and dist<=coordinate_tolerance):
+                viable.append((2,j,dist))
+        viable.sort(key=lambda x:(x[0], x[2] if x[2] is not None else 0))
         if not viable:
             unmatched_pre.append(a);continue
         if len(viable)>1 and viable[0][0]==viable[1][0]:
             ambiguous.append((a,[post[x[1]] for x in viable]))
             ambiguous_post.update(v[1] for v in viable)
             continue
-        _,j,dist=viable[0]
+        method_code,j,dist=viable[0]
+        # Coordinate-only fallback cannot depend on input sort order or on
+        # whichever PRE record happened to be visited first.
+        if method_code==2:
+            competing_pre=[x for x in pre if x is not a and x.foundation==a.foundation
+                           and _distance(x,post[j]) is not None
+                           and _distance(x,post[j])<=coordinate_tolerance]
+            if competing_pre:
+                ambiguous.append((a,[post[j]]))
+                ambiguous_post.add(j)
+                continue
         b=post[j];used.add(j);unmatched_post.discard(j)
         diffs={}
         for metric in a.metrics.keys()|b.metrics.keys():
@@ -203,7 +222,9 @@ def compare_summaries(pre,post,*,coordinate_tolerance:float=2.0):
                 delta=after-before
                 diffs[metric]={"pre":before,"post":after,"delta":delta,
                                "percent":delta/before*100 if before!=0 else None}
-        matched.append({"pre":a,"post":b,"distance":dist,"metrics":diffs})
+        matched.append({"pre":a,"post":b,"distance":dist,"metrics":diffs,
+                        "matching_method":{0:"REFERENCE",1:"COORDINATE-VERIFIED ALIAS",
+                                           2:"COORDINATE-ONLY REVIEW"}[method_code]})
     return {"matched":matched,"unmatched_pre":unmatched_pre,
             "unmatched_post":[post[i] for i in sorted(unmatched_post-ambiguous_post)],
             "ambiguous":ambiguous}
@@ -218,7 +239,7 @@ def export_comparison(results,output_path: str|Path) -> Path:
     n=book.add_format({"num_format":"0.000","border":1,"border_color":"#e2e8f0"})
     txt=book.add_format({"border":1,"border_color":"#e2e8f0"})
     ws=book.add_worksheet("Matched Changes")
-    cols=["Foundation","CPT PRE","CPT POST","Coordinate offset","Metric","PRE","POST","Delta","Percent Change","Interpretation"]
+    cols=["Foundation","CPT PRE","CPT POST","Coordinate offset","Metric","PRE","POST","Delta","Percent Change","Interpretation","Match method"]
     for j,c in enumerate(cols):ws.write(0,j,c,h)
     i=1
     for m in results["matched"]:
@@ -231,9 +252,10 @@ def export_comparison(results,output_path: str|Path) -> Path:
             ws.write(i,4,key,txt)
             desc="NOT COMPARABLE" if v["delta"] is None else "INCREASE" if v["delta"]>0 else "DECREASE" if v["delta"]<0 else "UNCHANGED"
             ws.write(i,9,desc,txt)
+            ws.write(i,10,m.get("matching_method","REFERENCE"),txt)
             i+=1
-    ws.freeze_panes(1,4);ws.autofilter(0,0,max(i-1,1),9)
-    ws.set_column(0,2,23);ws.set_column(3,8,17);ws.set_column(9,9,22)
+    ws.freeze_panes(1,4);ws.autofilter(0,0,max(i-1,1),10)
+    ws.set_column(0,2,23);ws.set_column(3,8,17);ws.set_column(9,9,22);ws.set_column(10,10,29)
     audit=book.add_worksheet("Matching QA")
     audit.write_row(0,0,["Status","CPT reference","Foundation","Source sheet","Notes"],h)
     r=1
