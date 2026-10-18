@@ -13,8 +13,10 @@ def write_gef(path: Path):
         '#COLUMNINFO= 1, m, penetration length, 1','#COLUMNINFO= 2, MPa, Tip resistance, 2','#COLUMNINFO= 3, MPa, Local sleeve friction, 3','#COLUMNINFO= 4, m, corrected depth, 11',
         '#XYID= 1, 421000.0, 2928000.0, 0.001, 0.001','#ZID= 31000, 3.5, 0.001','#MEASUREMENTTEXT= 1, SAUDI GLOBAL PORTS','#MEASUREMENTVAR= 3, 0.75, -, area ratio','#MEASUREMENTVAR= 16, 6.4, m, end depth','#TESTID= CPT-A1-TEST-100','#EOH='
     ]
-    for i in range(65):
-        z=i*.1
+    # 10 mm sampling; a 100 mm test grid exceeds the maximum
+    # interval used for continuous observed soil classification.
+    for i in range(641):
+        z=i*.01
         if z<6.0: qc,fs=10.0,.10
         elif z<=6.3: qc,fs=.5,.15
         else: qc,fs=.5,0.0
