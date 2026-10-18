@@ -48,7 +48,9 @@ def _sheet(wb,styles,name,headers,rows,widths=None):
     for i,row in enumerate(rows,1):
         total=i
         for j,val in enumerate(row):
-            if val is None:continue
+            if val is None:
+                sheet.write(i,j,"NOT RECORDED / UNAVAILABLE",styles["small"])
+                continue
             if isinstance(val,(int,float)) and num(val) is not None:
                 sheet.write_number(i,j,float(val),styles["number"])
             else:sheet.write(i,j,str(val)[:32000],styles["plain"])
@@ -164,7 +166,10 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
             ws.write(row,0,a.reference,style["plain"])
             for j,arr in enumerate(arrays,1):
                 v=float(arr[k])
-                if isfinite(v):ws.write_number(row,j,v,style["number"])
+                if isfinite(v):
+                    ws.write_number(row,j,v,style["number"])
+                else:
+                    ws.write(row,j,"NOT MEASURED",style["small"])
             ws.write(row,9,"VALID" if valid[k] and isfinite(arrays[-1][k]) else "UNKNOWN",style["plain"])
             ws.write(row,10,str(a.source_path.suffix).upper(),style["plain"])
     if row:ws.autofilter(0,0,row,len(measurement_columns)-1)
