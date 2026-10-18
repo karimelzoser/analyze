@@ -429,7 +429,7 @@ def fence_section_figure(data,*,bearing="E-W",corridor_m=None):
                 count+=1
             if len(selected)<=65:
                 fig.add_annotation(x=station,y=p.elevation,showarrow=False,
-                                   text=p.reference,angle=-48,yshift=26,
+                                   text=p.reference,textangle=-48,yshift=26,
                                    font={"size":8,"color":"#324b63"})
         fig.add_trace(go.Scatter(x=bx,y=by,mode="lines",
                       line={"color":"#adb8c6","width":2},name="CPT observed sounding",
