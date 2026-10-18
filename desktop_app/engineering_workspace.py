@@ -160,6 +160,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self._btn(modelbar,"ALL HIGH CPTs · OPEN LIST",self.show_all_high_points).pack(side="left")
         self._btn(modelbar,"OPEN OFFLINE INTERACTIVE 3D SOIL MODEL",self.open_interactive_3d,
                   primary=True).pack(side="left",padx=8)
+        self._btn(modelbar,"SAVE 3D HTML",self.save_interactive_3d).pack(side="left",padx=4)
         self._geo_risk_artists={}
         self._geo_hotspots=[]
         self.map_status=tk.StringVar(value="Project map becomes available after analysis.")
@@ -569,6 +570,27 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.notebook.select(self.layers_tab)
         self.refresh_layers()
         self.status_var.set("Opened CPT profile: "+reference)
+
+    def save_interactive_3d(self):
+        output=filedialog.asksaveasfilename(
+            title="Save portable offline 3D geotechnical model",
+            defaultextension=".html",
+            initialfile="CPT_Site_3D_Soil_Model.html",
+            filetypes=[("Offline interactive HTML","*.html")])
+        if not output:return
+        try:
+            dataset=self._map_dataset()
+            result=export_interactive_3d(
+                dataset,output,boundary=self.site_boundary,
+                warning_m=float(self.risk_watch.get()),
+                high_m=float(self.risk_high.get()))
+            self.status_var.set("Offline 3D model saved: "+str(result["file"]))
+            messagebox.showinfo("Offline 3D model exported",
+                f"{result['points']} surveyed CPTs; {result['wedges']} "
+                "locally supported interpretive wedges.\n\n"+
+                str(result["file"]))
+        except Exception as exc:
+            messagebox.showerror("3D export unsuccessful",str(exc))
 
     def open_interactive_3d(self):
         import webbrowser
