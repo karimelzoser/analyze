@@ -1,4 +1,18 @@
-# Implementation status — 2026-10-18
+# CURRENT STATUS — 2026-10-18 (supersedes historical snapshot below)
+
+**Engineering status:** Feature-complete in substantial areas, **not geotechnical-production validated**.
+
+- Current successful Windows Actions run: [39164020555](https://github.com/karimelzoser/analyze/actions/runs/39164020555). **104 automated tests passed**; normal GUI and frozen EXE launched successfully.
+- Synthetic performance benchmark: **400 generated GEFs**, each ~130 readings; 3.63s numeric analysis + 11.17s XLSX + 3.10s four map renders, **17.90s total**. No evidence of the full physical PDF/report workload from that timing.
+- Repository contains **448 real PDF input files** and **zero committed GEF/GFF inputs**; the current Windows CI **does not** execute the whole 448-PDF acceptance campaign.
+- Original XLSB engineering formula/VBA numerical equivalence, native raft/isolated/liquefaction formulas, exact new PDF report parity, and engineer-signed project criteria remain OPEN as [#2](https://github.com/karimelzoser/analyze/issues/2), [#3](https://github.com/karimelzoser/analyze/issues/3), [#4](https://github.com/karimelzoser/analyze/issues/4).
+- Consolidation remains: multiple older entrypoints/exporters; `reporting_export_v2.export_excel` delegates to compact exporter while old exporter code is unreachable; legacy `analysis-work` PDF engine is separate from current desktop engine.
+- **Execution and pass/fail criteria:** [Production Closure Plan](PRODUCTION_CLOSURE_PLAN.md) (W01–W12). This document is authoritative for pending work and release classification.
+
+---
+
+## Historical snapshot (2026-10-18; no longer authoritative)
+
 
 **Latest tested Windows build:** GitHub Actions [run 39142811473](https://github.com/karimelzoser/analyze/actions/runs/39142811473), source commit `ce02302af706088b34fdb46fce7cccb54f0d07bb`, **49 automated tests passed**. Source GUI and frozen PyInstaller EXE launched and navigated all 7 tabs successfully. End-to-end source GUI smoke processed one synthetic GEF -> one CPT PDF (with analysis appendix), comprehensive Excel workbook, and 4 project maps. Release ZIP published to `release/CPT_Silt_Analyzer_Latest.zip`, approximately 70.5 MB.
 
