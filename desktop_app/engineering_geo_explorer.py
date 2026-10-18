@@ -308,7 +308,21 @@ def depth_window_records(data,top_m,bottom_m,*,minimum_coverage=.8):
                             if v.get("start_raw") is not None and v.get("end_raw") is not None)
             max_end=_num(item.get("test_depth_m"))
             source_quality=str(item.get("status","REFERENCE-CACHED"))
-            sufficient=max_end is not None and max_end>=bottom-0.02
+            cached_depths=item.get("source_classified_depths_m")
+            if cached_depths is not None:
+                z=np.asarray(cached_depths,dtype=float)
+                if len(z)>1 and np.all(np.diff(z)>0):
+                    lo=np.maximum(z[:-1],top)
+                    hi=np.minimum(z[1:],bottom)
+                    eligible=(np.diff(z)<=.025)
+                    observed=float(np.maximum(0,hi-lo)[eligible].sum())
+                    sufficient=observed>=minimum_coverage*(bottom-top)-1e-8
+                else:
+                    sufficient=False
+            else:
+                # External summaries without full classification samples only
+                # substantiate a nominal end depth, not guaranteed continuity.
+                sufficient=max_end is not None and max_end>=bottom-.02
         else:
             meta=getattr(item,"metadata",{}) or {}
             e=meta.get("easting");n=meta.get("northing")
@@ -336,7 +350,7 @@ def depth_window_records(data,top_m,bottom_m,*,minimum_coverage=.8):
         if _num(e) is None or _num(n) is None:continue
         observed=max(0.,sum(max(0.,min(b,bottom)-max(a,top)) for a,b in intervals))
         maximum=max((max(0.,min(b,bottom)-max(a,top)) for a,b in intervals),default=0.)
-        status="REVIEW" if not sufficient or source_quality=="REVIEW" else source_quality
+        status="REVIEW" if not sufficient or source_quality.upper().startswith("REVIEW") else source_quality
         output.append({
             "reference":str(item.get("reference","")) if isinstance(item,dict) else str(item.reference),
             "easting":float(e),"northing":float(n),
