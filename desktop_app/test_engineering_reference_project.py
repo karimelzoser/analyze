@@ -38,3 +38,9 @@ def test_original_model_project_excel_maps_run_without_excel(tmp_path):
     assert result["workbook"].is_file()
     assert len(result["maps"])==4
     assert all(x.stat().st_size>1500 for x in result["maps"])
+    import zipfile
+    with zipfile.ZipFile(result["workbook"]) as package:
+        worksheet_xml=package.read("xl/workbook.xml")
+        assert b"Project Maps" in worksheet_xml
+        assert b"Coordinate QA" in worksheet_xml
+        assert sum(x.startswith("xl/media/image") for x in package.namelist())>=4
