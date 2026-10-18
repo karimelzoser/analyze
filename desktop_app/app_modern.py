@@ -294,8 +294,14 @@ class ModernCPTApp(tk.Tk):
         ttk.Entry(form, textvariable=self.gamma, width=12).grid(row=0, column=1, sticky="e", padx=(12, 0), pady=5)
         ttk.Label(form, text="Groundwater depth BGL (m)", style="Surface.TLabel").grid(row=1, column=0, sticky="w", pady=5)
         ttk.Entry(form, textvariable=self.wt, width=12).grid(row=1, column=1, sticky="e", padx=(12, 0), pady=5)
+        self.cpt_stage=tk.StringVar(value="PRE")
+        ttk.Label(form,text="CPT investigation stage",style="Surface.TLabel").grid(
+            row=2,column=0,sticky="w",pady=5)
+        ttk.Combobox(form,textvariable=self.cpt_stage,values=("PRE","POST"),
+                     state="readonly",width=10).grid(
+            row=2,column=1,sticky="e",padx=(12,0),pady=5)
         form.grid_columnconfigure(0, weight=1)
-        tk.Label(form, text="Ic 2.60 • interpolated crossing • terminal sensor-dropout protection\n2-pass verification + sensitivity rechecks", bg=PALETTE["surface"], fg=PALETTE["muted"], justify="left", font=("Segoe UI", 8)).grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        tk.Label(form, text="Ic 2.60 • observed-only intervals • no gap joining\nPRE=3, POST=10 samples; sensitivity checks and dropout QA", bg=PALETTE["surface"], fg=PALETTE["muted"], justify="left", font=("Segoe UI", 8)).grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
         files_panel = self._surface_panel(content, "Selected project files", "The queue is naturally sorted by CPT reference.")
         files_panel.grid(row=1, column=0, sticky="nsew", padx=(0, 7), pady=(7, 0))
