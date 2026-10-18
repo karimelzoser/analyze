@@ -403,7 +403,15 @@ def fence_section_figure(data,*,bearing="E-W",corridor_m=None):
     center=float(np.median(perpendicular))
     along=np.asarray([p.x if bearing=="E-W" else p.y for p in valid])
     extent=float(np.ptp(perpendicular))
-    width=float(corridor_m) if corridor_m is not None else max(8.,extent*.12)
+    if corridor_m is None:
+        # A median line can fall exactly between two rows of CPTs; never show
+        # an empty fence because no point lies *on* that arbitrary centreline.
+        # Widen only far enough to include at least two recorded locations.
+        distances=np.sort(np.abs(perpendicular-center))
+        minimum_for_two=float(distances[1])+.01 if len(distances)>=2 else 0.
+        width=max(8.,extent*.12,minimum_for_two)
+    else:
+        width=float(corridor_m)
     if width<=0:raise ValueError("Section corridor width must be positive")
     selected=[p for p in valid if abs(
         (p.y if bearing=="E-W" else p.x)-center)<=width]
