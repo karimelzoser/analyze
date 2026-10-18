@@ -358,6 +358,21 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
         self.status_var.set("Ready — select GEF/GFF/PDF files or a project folder.")
 
     def _worker(self, out: Path, gamma: float, wt: float, make_pdfs: bool):
+        """Never leave the GUI permanently disabled on a failed batch."""
+        import traceback
+        try:
+            return self._work_batch(out,gamma,wt,make_pdfs)
+        except Exception as exc:
+            diagnostic=traceback.format_exc()
+            log_path=Path(out)/"CPT_Processing_Failure.log"
+            try:
+                Path(out).mkdir(parents=True,exist_ok=True)
+                log_path.write_text(diagnostic,encoding="utf-8")
+            except OSError:
+                log_path=Path("(Could not write processing log)")
+            self.messages.put(("fatal",str(exc),str(log_path)))
+
+    def _work_batch(self, out: Path, gamma: float, wt: float, make_pdfs: bool):
         out.mkdir(parents=True, exist_ok=True)
         pdfs = out / "PDFs"
         if make_pdfs:
@@ -449,11 +464,19 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
         original=getattr(self,"original_model_path",None)
         foundation=getattr(self,"foundation_reference_path",None)
         foundation_xlsx=foundation if foundation and Path(foundation).suffix.lower()==".xlsx" else None
-        excel = reporting_export_v2.export_excel(
-            results,excel_path,errors=errors,source_audit=audit_rows,
-            original_xlsb=original,foundation_xlsx=foundation_xlsx,
-            site_boundary=getattr(self,"site_boundary",None),
-            comparison_result=getattr(self,"compare_result",None))
+        # Atomic publish: never expose a half-written workbook as 'Open Excel'.
+        pending=excel_path.with_name(excel_path.stem+".partial.xlsx")
+        try:
+            reporting_export_v2.export_excel(
+                results,pending,errors=errors,source_audit=audit_rows,
+                original_xlsb=original,foundation_xlsx=foundation_xlsx,
+                site_boundary=getattr(self,"site_boundary",None),
+                comparison_result=getattr(self,"compare_result",None))
+            pending.replace(excel_path)
+            excel=excel_path
+        finally:
+            if pending.exists():
+                pending.unlink(missing_ok=True)
         # Preserve ONE workbook per run. The UI already knows the exact
         # completed timestamped path; duplicating it as *_Latest.xlsx
         # created an unnecessary second Excel deliverable.
