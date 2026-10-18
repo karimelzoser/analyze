@@ -19,6 +19,7 @@ from engineering_maps import coordinate_rows
 from engineering_comparison import read_summary_xlsx, compare_summaries, export_comparison, read_site_boundary_xlsx
 from engineering_depth_comparison import compare_depth_profiles, export_depth_change
 from engineering_foundations import check_foundation_results, export_foundation_validation
+from engineering_xlsb_reference import ReferenceWorkbookCache,reference_foundations
 
 
 class EngineeringWorkspaceApp(PDFEnabledCPTApp):
@@ -134,7 +135,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             "Read approved external summary tables. New settlement/FOS design equations are NOT yet validated.")
         controls=tk.Frame(self.foundation_tab,bg="#ffffff")
         controls.pack(fill="x",padx=16,pady=6)
-        self._btn(controls,"LOAD FOUNDATION SUMMARY",self.load_foundation_summary,primary=True).pack(side="left")
+        self._btn(controls,"LOAD ORIGINAL XLSB / XLSX",self.load_foundation_summary,primary=True).pack(side="left")
         self.foundation_metric=tk.StringVar(value="Settlement (mm)")
         c=ttk.Combobox(controls,textvariable=self.foundation_metric,state="readonly",width=20,
                         values=["Settlement (mm)","Minimum FOS"])
@@ -160,15 +161,29 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.foundation_points=[]
 
     def load_foundation_summary(self):
-        path=filedialog.askopenfilename(title="Select foundation reference summary",
-               filetypes=[("Excel workbook","*.xlsx")])
+        path=filedialog.askopenfilename(title="Select original calculation XLSB or foundation summary XLSX",
+               filetypes=[("Excel workbooks","*.xlsb *.xlsx"),
+                          ("Original calculation XLSB","*.xlsb"),
+                          ("Foundation summary XLSX","*.xlsx")])
         if not path:return
         try:
-            values=read_summary_xlsx(path)
+            if Path(path).suffix.lower()==".xlsb":
+                values=reference_foundations(path)
+                with ReferenceWorkbookCache(path) as wb:
+                    source=wb.summary()
+                detail=("%d original XLSB cached foundation rows | Groundwater %.2f m | "
+                        "Cone ratio %.2f | Current source CPT: %s") % (
+                        len(values),float(source["water_depth_m"] or 0),
+                        float(source["cone_ratio"] or 0),source["cached_selected_cpt"])
+                self.foundation_reference_path=Path(path)
+            else:
+                values=read_summary_xlsx(path)
+                detail="%d summary reference rows loaded" % len(values)
+                self.foundation_reference_path=None
             self.foundation_points=[v for v in values if v.foundation in ("RAFT","ISOLATED")]
-            if not self.foundation_points:raise ValueError("No Raft Summary or Isolated Summary values found.")
-            self.foundation_note.set("%d reference values loaded — not independently validated; no new PASS is inferred." %
-                                     len(self.foundation_points))
+            if not self.foundation_points:raise ValueError("No Raft Summary or Isolated Summary results found.")
+            self.foundation_note.set(detail+"  •  SAVED SOURCE RESULTS; formula recalculation NOT CERTIFIED.")
+
             self.refresh_foundations()
         except Exception as exc:messagebox.showerror("Foundation import failed",str(exc))
 
