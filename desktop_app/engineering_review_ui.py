@@ -80,6 +80,7 @@ def export_qa_csv(rows, destination):
 
 class EngineeringReviewApp(EngineeringWorkspaceApp):
     def __init__(self):
+        self.original_model_path=None
         super().__init__()
         self.title("CPT ENGINEERING STUDIO  |  Project Analysis · Maps · QA")
         self._add_quality_workspace()
@@ -144,6 +145,7 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
         reference_actions.pack(fill="x",padx=18,pady=(0,5))
         self._btn(reference_actions,"ANALYZE COMPLETE ORIGINAL XLSB PROJECT",self.export_full_reference_project,
                   primary=True).pack(side="left")
+        self._btn(reference_actions,"SET XLSB PARITY BASELINE",self.select_original_reference).pack(side="left",padx=7)
         self._btn(reference_actions,"PRINT EXACT ORIGINAL XLSB PDF",self.print_original_xlsb_pdf).pack(side="left",padx=8)
         board=tk.Frame(self.qa_tab,bg="#f1f5f9")
         board.pack(fill="x",padx=18,pady=(4,10))
@@ -260,6 +262,26 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
                 "This does not certify cell formulas or VBA calculations.")
         except Exception as exc:messagebox.showerror("Source-model audit failed",str(exc))
 
+    def select_original_reference(self):
+        from engineering_xlsb_reference import ReferenceWorkbookCache
+        file=filedialog.askopenfilename(title="Select original XLSB for numerical parity of future GEF/PDF batches",
+                           filetypes=[("Original XLSB engineering model","*.xlsb")])
+        if not file:return
+        try:
+            with ReferenceWorkbookCache(file) as wb:
+                source=wb.summary()
+            if source["cpt_summary_count"]<1:
+                raise ValueError("No cached CPT source data available")
+            self.original_model_path=Path(file)
+            self.qa_status.set("XLSB parity enabled: %d cached source points. New batches will add CPT_Reference_Parity.xlsx."%
+                               source["cpt_summary_count"])
+            messagebox.showinfo("Original Excel source selected",
+                "New GEF/GFF/PDF analyses will be compared with the original XLSB saved zone output "
+                "by CPT reference and coordinates. The app will export CPT_Reference_Parity.xlsx "
+                "beside the normal workbook.\\n\\nNo formulas or macros will be executed.")
+        except Exception as exc:
+            messagebox.showerror("Reference source not usable",str(exc))
+
     def export_full_reference_project(self):
         from threading import Thread
         source=filedialog.askopenfilename(title="Choose original project XLSB calculation workbook",
@@ -271,6 +293,7 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
             messagebox.showinfo("Reference analysis already running",
                                 "The source workbook is being processed.")
             return
+        self.original_model_path=Path(source)
         self.reference_export_busy=True
         self.qa_status.set("Reading original XLSB caches, soil-zone profiles and 448 foundation rows...")
         def _run():
