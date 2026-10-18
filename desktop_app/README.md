@@ -23,6 +23,20 @@ Setup / Results / Charts / **Soil Layers** / **Site Map** / **Foundations** / **
 
 **QA & Review** — searchable/filterable project exceptions with original-source opening, profile drilldown, source-model XLSB inventory, PDF visual-difference testing, QA CSV export and keyboard shortcuts. The output explicitly labels source conflicts and sensor dropout; the UI does not hide unverified intervals.
 
+## Original Excel calculation and exact report workflow
+
+This app now provides several distinct, auditable ways to use the ORIGINAL supplied calculation workbook without changing its formulas or leaking the private XLSB into GitHub:
+
+1. **QA & Review → ANALYZE COMPLETE ORIGINAL XLSB PROJECT**: Select the original `.xlsb` file and an output folder. The app reads its saved BIN cache directly (no Excel required), extracts the project summary/settlement/FOS/coordinates and 1-9 SBT ZONE series, creates a five-column results sheet, all-layer intervals, full source-reference summary and **four project maps**. The saved source has 448 foundation rows and 447 unique CPT series. These are *saved reference outputs*; not independently recalculated.
+2. **QA & Review → SET XLSB PARITY BASELINE**: Subsequent normal GEF/GFF/PDF batch analyses create `CPT_Reference_Parity.xlsx` alongside the normal report, comparing native vs original source-saved interval boundaries by CPT reference AND surveyed coordinates; mismatches and model differences (groundwater, cone ratio) are flagged.
+3. **Foundations → LOAD ORIGINAL XLSB / XLSX**: Directly map cached original raft settlement and minimum FOS; still do not label imported design results independently validated.
+4. **QA & Review → PRINT EXACT ORIGINAL XLSB PDF**: Uses locally installed Microsoft Excel to print the source workbook's *currently saved* `CPT-Graphs` sheet, retaining exact original Excel chart layout, fonts and plot series. It will NOT pretend to print another CPT.
+5. **QA & Review → RECALCULATE NEW GEF IN ORIGINAL EXCEL**: Optional on Windows PCs with Microsoft Excel. Validates the new GEF's header field positions, opens the original XLSB READ-ONLY with VBA macros and external link updates disabled, loads the new data into `Input Data`, invokes Excel's own full recalculation, verifies the new `Input!B5` CPT ID, prints the original `CPT-Graphs` sheet, then verifies the generated PDF's CPT identity. Does not overwrite the original workbook. The source model's live Excel/VBA requirements must still be validated on a Windows PC with Excel installed; some templates require enabled macros and are intentionally NOT executed in this safer mode.
+
+### Discovered model details
+
+Read [forensic source findings](../docs/ORIGINAL_XLSB_FORENSIC_FINDINGS.md): source XLSB Input `a=0.80`, groundwater `2.0 m`, smoothing 'Above 3 / Below 3' in centimeters; original Combined CPTs 'Ic' field is **categorical SBT zone**, not a continuous Ic float. A1-292 source zones show approx 6.20-6.29m qualifying zone 4 and support **6.20/0.10**, versus the earlier app's incorrect 6.20/0.20. Do not silently assume a 0.10m source discrepancy is acceptable; use `CPT_Reference_Parity.xlsx` and engineer review.
+
 ## Engineering QA updates
 - Silt is a **project Ic screening label**, not a laboratory USCS class.
 - Raw last valid Ic record bounds *measured* silt. Terminal zero-fs or missing-data tail is UNKNOWN and is never silently extended to full CPT depth.
