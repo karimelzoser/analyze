@@ -303,5 +303,77 @@ def export_excel(
     if errors:
         er.conditional_format(1, 0, len(errors), 1, {"type": "no_blanks", "format": red})
 
+
+    # 8) Engineering observation layers. This sheet intentionally separates
+    # measured SBT screening from legacy terminal-silt project report columns.
+    from engineering_layers import from_analysis
+    ly = wb.add_worksheet("All Soil Layers")
+    layer_headers = ["CPT Reference","Layer No","SBT estimated class","Observed start BGL (m)",
+       "Observed end BGL (m)","Observed thickness (m)","Mean Ic","Data quality",
+       "Screen Ic >= 2.60","Source","Interpretation method"]
+    for col, value in enumerate(layer_headers):
+        ly.write(0,col,value,hdr)
+    ly.freeze_panes(1,2)
+    ly.set_column(0,0,27);ly.set_column(1,1,11);ly.set_column(2,2,35)
+    ly.set_column(3,8,22);ly.set_column(9,10,55)
+    metrics_ws = wb.add_worksheet("Layer Statistics")
+    statistics = ["CPT Reference","Qualifying layer count","Cumulative observed threshold thickness (m)",
+        "Thickest observed qualifying layer (m)","Unclassified observed gap (m)",
+        "Brief threshold exceedances","Profile QA","Legacy project status"]
+    for col,value in enumerate(statistics):
+        metrics_ws.write(0,col,value,hdr)
+    metrics_ws.set_column(0,0,27);metrics_ws.set_column(1,5,23)
+    metrics_ws.set_column(6,6,70);metrics_ws.set_column(7,7,20)
+    metrics_ws.freeze_panes(1,1)
+    layer_row=1
+    for idx,a in enumerate(analyses,1):
+        try:
+            obs=from_analysis(a)
+            for layer in obs.layers:
+                row=[a.reference,layer.number,layer.kind,layer.start_m,layer.end_m,
+                     layer.thickness_m,layer.mean_ic,layer.status,
+                     "YES" if layer.silt_screen else "NO",layer.source,
+                     "Observed Ic categories; NOT laboratory USCS"]
+                for col,value in enumerate(row):
+                    if isinstance(value,(float,int)) and np.isfinite(float(value)):
+                        ly.write_number(layer_row,col,float(value),num3)
+                    elif value is not None:
+                        ly.write(layer_row,col,str(value),text)
+                layer_row+=1
+            stat=[a.reference,obs.silt_count,obs.cumulative_silt_m,obs.maximum_silt_m,
+                  obs.unknown_m,len(obs.brief_exceedances),
+                  "; ".join(obs.notes),a.status]
+        except Exception as exc:
+            stat=[a.reference,None,None,None,None,None,"PROFILE REVIEW: "+str(exc),a.status]
+        for col,value in enumerate(stat):
+            if isinstance(value,(float,int)) and np.isfinite(float(value)):
+                metrics_ws.write_number(idx,col,float(value),num3)
+            elif value is not None:
+                metrics_ws.write(idx,col,str(value),wrap if col==6 else text)
+        metrics_ws.set_row(idx,43)
+    if layer_row>1:
+        ly.autofilter(0,0,layer_row-1,len(layer_headers)-1)
+    if analyses:
+        metrics_ws.autofilter(0,0,len(analyses),len(statistics)-1)
+    # Explicitly document that the five-column first sheet is a legacy project
+    # interpretation pending independent parity with the original XLSB model.
+    meth=wb.add_worksheet("Methodology and QA")
+    meth.set_column(0,0,39);meth.set_column(1,1,105)
+    for col,h in enumerate(["Engineering parameter","Scope / caution"]):meth.write(0,col,h,hdr)
+    notes=[
+      ("Project Ic screening threshold","2.60 (project rule; not definitive laboratory USCS)"),
+      ("All Soil Layers","Valid Ic measurements segmented across the entire sounding; UNKNOWN where invalid"),
+      ("Observed thickness","Computed from valid measured profile only; not extended through terminal sensor dropout"),
+      ("Legacy five-column sheet","Existing selected project interval for backwards compatibility; awaiting source-XLSB equation parity/signoff"),
+      ("Pre rolling mean","3 samples as requested; explicit comparative settings require formula audit"),
+      ("Post rolling mean","10 samples as requested; use harmonized windows before implying improvement"),
+      ("SBT vs laboratory USCS","Ic is behavior-based; fines content and lithology require independent validation"),
+      ("Foundation settlement / FOS","No new design acceptance calculations are inferred from Ic or silt alone"),
+      ("Coordinate map","Uses measured project Easting/Northing; CRS must be confirmed; no interpolation by default"),
+      ("Source audit","Physical versions and selected CPT family identified separately"),
+    ]
+    for idx,(key,value) in enumerate(notes,1):
+        meth.write(idx,0,key,label);meth.write(idx,1,value,wrap);meth.set_row(idx,30)
+
     wb.close()
     return p
