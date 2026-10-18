@@ -441,46 +441,65 @@ def _same(a: Optional[SiltInterval], b: Optional[SiltInterval]) -> bool:
     return a.start == b.start and a.end == b.end and a.thickness == b.thickness
 
 
-def analyze_gef(path: str | Path, gamma_soil: float = DEFAULT_GAMMA, water_table_depth: float = DEFAULT_WATER_TABLE) -> CPTAnalysis:
+def _profile_screening_interval(depth, ic, sensor_valid, window):
+    """Observed-only Ic >= project threshold: never join intervening sand zones.
+
+    All persistent intervals are retained. The project quick sheet chooses the
+    deepest qualifying interval; detailed Excel charts preserve every layer.
+    """
+    from engineering_layers import analyze_stratigraphy
+    p = analyze_stratigraphy(
+        depth, ic, sensor_valid, rolling_window=window,
+        silt_threshold=SILT_IC_THRESHOLD, min_silt_m=MIN_LAYER_THICKNESS)
+    intervals=list(p.silt_intervals)
+    if not intervals:
+        return None, intervals, p
+    start,end=intervals[-1]
+    return _make_interval(start,end,end),intervals,p
+
+
+def analyze_gef(path: str | Path, gamma_soil: float = DEFAULT_GAMMA,
+                water_table_depth: float = DEFAULT_WATER_TABLE) -> CPTAnalysis:
     gef = parse_gef(path)
     gef.metadata["analysis_gamma_soil_kn_m3"] = float(gamma_soil)
     gef.metadata["analysis_water_table_bgl_m"] = float(water_table_depth)
     gef.metadata["ic_screening_threshold"] = float(SILT_IC_THRESHOLD)
     gef.metadata["minimum_qualifying_layer_m"] = float(MIN_LAYER_THICKNESS)
-    calc = compute_robertson(gef, gamma_soil, water_table_depth)
-    depth, ic, sensor_valid = calc["depth"], calc["ic"], calc["sensor_valid"]
-    dropout_start = calc["dropout_start"]
-    test_end = float(depth[-1])
-    p1, intervals1 = _detect_interval(depth, ic, sensor_valid, test_end, dropout_start, SILT_IC_THRESHOLD, 1, MAX_SMALL_GAP, MIN_LAYER_THICKNESS)
-    p2, _ = _detect_interval(depth, ic, sensor_valid, test_end, dropout_start, SILT_IC_THRESHOLD, 3, MAX_SMALL_GAP, MIN_LAYER_THICKNESS)
+    gef.metadata["analysis_smoothing_window_samples"] = 3
+    gef.metadata["analysis_interval_gap_joining"] = False
+    gef.metadata["analysis_method"] = "Observed-only Ic threshold, 3-sample mean; independently checked with 1/5/7"
+    calc=compute_robertson(gef, gamma_soil, water_table_depth)
+    depth,ic,sensor_valid=calc["depth"],calc["ic"],calc["sensor_valid"]
+    dropout_start=calc["dropout_start"]
+    p1,_,profile1=_profile_screening_interval(depth,ic,sensor_valid,1)
+    p2,intervals1,profile3=_profile_screening_interval(depth,ic,sensor_valid,3)
+    p5,_,_=_profile_screening_interval(depth,ic,sensor_valid,5)
+    p7,_,_=_profile_screening_interval(depth,ic,sensor_valid,7)
 
-    if p1 is None and p2 is None:
-        final, status, note = None, "NO SILT", "Two independent passes found no sustained qualifying Ic >= 2.60 interval."
-    elif _same(p1, p2):
-        final, status, note = p1, "VERIFIED", "Two independent passes agree at the 0.10 m project reporting resolution."
+    # Source-defined PRE=3 is primary. Verify with three independent window
+    # sensitivities; unlike legacy _close_small_gaps, do NOT merge a second
+    # short fine-grained-like excursion through observed sand-like material.
+    candidates={1:p1,3:p2,5:p5,7:p7}
+    label=lambda z: "NONE" if z is None else f"{z.start:.1f}/{z.end:.1f}/{z.thickness:.1f}"
+    primary=label(p2)
+    support=sum(label(x)==primary for x in candidates.values())
+    if p2 is None and support>=3:
+        final,status=None,"NO SILT"
+    elif p2 is not None and support>=3:
+        final,status=p2,"VERIFIED"
     else:
-        specs = [(2.60,1,.025),(2.60,3,.025),(2.58,3,.025),(2.62,3,.025),(2.60,5,.025),(2.59,5,.025),(2.61,5,.025),(2.60,7,.025)]
-        candidates = []
-        for threshold, smooth, gap in specs:
-            z, _ = _detect_interval(depth, ic, sensor_valid, test_end, dropout_start, threshold, smooth, gap, MIN_LAYER_THICKNESS)
-            candidates.append(("NO SILT", None) if z is None else (f"{z.start:.1f}/{z.end:.1f}/{z.thickness:.1f}", z))
-        counts: Dict[str, int] = {}
-        for label, _ in candidates:
-            counts[label] = counts.get(label, 0) + 1
-        best_label, best_count = max(counts.items(), key=lambda x: x[1])
-        if best_count >= 5:
-            if best_label == "NO SILT":
-                final, status = None, "NO SILT"
-            else:
-                final, status = next(z for label, z in candidates if label == best_label and z is not None), "VERIFIED"
-            note = f"Primary passes differed; {best_count}/8 detailed rechecks converged on {best_label}."
-        else:
-            silt_candidates = [z for _, z in candidates if z is not None]
-            if len(silt_candidates) >= 5 and max(z.start for z in silt_candidates)-min(z.start for z in silt_candidates) <= .100000001 and max(z.end for z in silt_candidates)-min(z.end for z in silt_candidates) <= .100000001:
-                sr = float(np.median([z.start_raw for z in silt_candidates])); er = float(np.median([z.end_raw for z in silt_candidates]))
-                final, status, note = _make_interval(sr, er, float(np.median([z.source_end_raw for z in silt_candidates]))), "VERIFIED", "Detailed checks agreed within one 0.10 m interval; median raw boundaries used."
-            else:
-                final, status, note = None, "REVIEW", "Independent analyses did not converge. Manual review required."
+        final,status=None,"REVIEW"
+    report="; ".join(f"window {k}: {label(v)}" for k,v in candidates.items())
+    note=(f"Observed-only 3-sample PRE Ic screening; {support}/4 sensitivity windows "
+          f"agree with {primary} at 0.10m reporting resolution. {report}. "
+          "No joining across observed below-threshold gaps.")
+    if status=="NO SILT":
+        note+=" NO SILT means no sustained *observed* Ic-screening layer, not laboratory evidence of clean sand."
+    if status=="REVIEW":
+        note+=" Processing sensitivity changes the selected interval; verify with source workbook or engineer."
+    if profile3.brief_exceedances:
+        note+=f" {len(profile3.brief_exceedances)} brief threshold crossing(s) retained separately in the layer audit."
+
     # Censored terminal crossing: a thin observed above-threshold tail may
     # continue beyond the last valid sensor record, but its extent is UNKNOWN.
     # Do not turn this into NO SILT or measured full-terminal silt.
