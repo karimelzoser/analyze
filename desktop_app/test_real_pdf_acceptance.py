@@ -34,6 +34,17 @@ def test_actual_pdf_acceptance_has_100_percent_source_manifest_and_one_workbook(
         assert b"CPT Analysis" in workbook
         assert b"Source Audit" in workbook
         assert b"Project Maps" in workbook
+        # First/default visible view must be the requested five-column sheet,
+        # not a stale Excel tab index left over after worksheet rearrangement.
+        import xml.etree.ElementTree as ET
+        namespace="{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+        parsed=ET.fromstring(workbook)
+        tabs=parsed.find(f"{namespace}bookViews/{namespace}workbookView")
+        assert tabs is not None
+        assert tabs.get("activeTab")=="0"
+        assert tabs.get("firstSheet")=="0"
+        selected=archive.read("xl/worksheets/sheet1.xml")
+        assert b'tabSelected="1"' in selected
         assert len([n for n in archive.namelist()
                     if n.startswith("xl/media/image")])>=2
 
