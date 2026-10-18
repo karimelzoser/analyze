@@ -615,6 +615,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             indices=getattr(event,"ind",[])
             if len(indices) and int(indices[0])<len(found):
                 self._open_map_reference(found[int(indices[0])].reference)
+                popup.destroy()  # reveal the selected full CPT profile
         canvas.mpl_connect("pick_event",clicked)
         canvas.draw_idle()
         # Keep figure+canvas strongly reachable while popup is alive.
