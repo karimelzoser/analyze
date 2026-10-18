@@ -99,7 +99,25 @@ def prefer_best_sources(paths) -> tuple[list[Path], list[Path]]:
 
 
 def collect_project_folder(folder: str | Path) -> tuple[list[Path], list[Path]]:
-    paths = [p for p in Path(folder).rglob("*") if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS]
+    """Discover sources without re-ingesting previously generated CPT reports.
+
+    Default CPT_Output is deliberately located under the input folder, so a
+    recursive unfiltered rglob caused the app to ingest its own previous PDFs
+    on the second run, creating artificial duplicate/REVIEW project rows.
+    Explicitly selected individual PDFs remain supported.
+    """
+    import re
+    root=Path(folder)
+    paths=[]
+    for p in root.rglob("*"):
+        if not p.is_file() or p.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            continue
+        # Inspect subdirectories relative to the requested root, never the
+        # root name itself: users may explicitly select a folder named CPT_Output.
+        parents=p.relative_to(root).parts[:-1]
+        if any(re.match(r"(?i)^cpt[_ -]?output(?:$|[_ -])", part) for part in parents):
+            continue
+        paths.append(p)
     return prefer_best_sources(paths)
 
 
