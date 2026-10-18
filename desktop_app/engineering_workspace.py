@@ -15,7 +15,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 
 from app_pdf_enabled import PDFEnabledCPTApp
 from engineering_layers import from_analysis, _smooth_contiguous
-from engineering_maps import coordinate_rows
+from engineering_maps import coordinate_rows,filter_coordinate_outliers
 from engineering_comparison import read_summary_xlsx, compare_summaries, export_comparison, read_site_boundary_xlsx
 from engineering_depth_comparison import compare_depth_profiles, export_depth_change
 from engineering_foundations import check_foundation_results, export_foundation_validation
@@ -222,7 +222,9 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         norm=colors.Normalize(vmin=min(all_vals),vmax=max(all_vals)+1e-9) if all_vals else None
         last=None
         for typ,items in cases.items():
-            rows=[v for v in items if v.east is not None and v.north is not None and v.metrics.get(key) is not None]
+            source_rows=[v for v in items if v.east is not None and v.north is not None and v.metrics.get(key) is not None]
+            mapped,excluded=filter_coordinate_outliers([(v.reference,v.east,v.north,v) for v in source_rows])
+            rows=[t[3] for t in mapped]
             if not rows:continue
             last=ax.scatter([v.east for v in rows],[v.north for v in rows],
                             c=[v.metrics[key] for v in rows],marker=marks[typ],
@@ -422,7 +424,8 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                 "Cumulative observed silt-screen thickness":"cumulative_silt",
                 "First qualifying silt-screen depth":"silt_start",
                 "Sounding test depth":"test_depth"}[self.map_metric.get()]
-        rows=coordinate_rows(self.results,option) if self.results else []
+        rawrows=coordinate_rows(self.results,option) if self.results else []
+        rows,coordinate_outliers=filter_coordinate_outliers(rawrows)
         data=[r for r in rows if math.isfinite(r[3]) and r[4]!="REVIEW"]
         review=[r for r in rows if r not in data]
         self._mapped_points=data
@@ -442,8 +445,8 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         ax.set_xlabel("Easting (project grid units)");ax.set_ylabel("Northing (project grid units)")
         ax.set_aspect("equal",adjustable="datalim");ax.grid(alpha=.12)
         ax.set_title("CPT Site Map | "+option.replace("_"," ").title(),loc="left",fontweight="bold")
-        self.map_status.set("%d coordinate points | %d numeric points | %d uncertain. CRS not yet verified; no interpolation." %
-                             (len(rows),len(data),len(review)))
+        self.map_status.set("%d plotted coordinate points | %d numeric points | %d uncertain | %d outlier(s) withheld for survey verification. CRS not verified." %
+                             (len(rows),len(data),len(review),len(coordinate_outliers)))
         if review:ax.legend()
         self.map_fig.tight_layout()
         self.map_canvas.draw_idle()
