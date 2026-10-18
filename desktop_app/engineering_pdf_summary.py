@@ -68,7 +68,7 @@ def engineering_analysis_page(a):
         ("CPT location / area",_cell(md.get("location"))),
         ("Cone serial / type",_cell(md.get("cone_id"))),
         ("Testing standard",_cell(md.get("standard"))),
-        ("Test date",_cell(md.get("test_date") or md.get("file_date"))),
+        ("Test date",_cell(md.get("test_date")) if md.get("test_date") else "NOT RECORDED; file date is not test date"),
         ("Processing stage",_cell(md.get("cpt_stage") or "PRE (default)")),
         ("Smoothing window",str(md.get("analysis_smoothing_window_samples") or "N/A - PDF source") +" observations"),
         ("Ground elevation",_num(ground,3,"m RL")),
@@ -92,6 +92,7 @@ def engineering_analysis_page(a):
         ("Terminal friction dropout",_num(getattr(a,"sensor_dropout_depth",None),3,"m") if getattr(a,"sensor_dropout_depth",None) is not None else "None recorded"),
         ("First sensitivity window",_num(a.pass1.start,2)+" / "+_num(a.pass1.thickness,2) if a.pass1 else "NO PERSISTENT LAYER"),
         ("Project stage primary window",_num(a.pass2.start,2)+" / "+_num(a.pass2.thickness,2) if a.pass2 else "NO PERSISTENT LAYER"),
+        ("File export / recorded date",_cell(md.get("file_date"))),
     ]
     fig=Figure(figsize=(8.27,11.69),dpi=150,facecolor="#ffffff")
     ax=fig.add_axes((.06,.18,.88,.69));ax.axis("off")
