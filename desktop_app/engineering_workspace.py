@@ -195,6 +195,8 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                         len(values),float(source["water_depth_m"] or 0),
                         float(source["cone_ratio"] or 0),source["cached_selected_cpt"])
                 self.foundation_reference_path=Path(path)
+                self.original_model_path=Path(path)
+                self._source_cached_analysis=None
             else:
                 values=read_summary_xlsx(path)
                 detail="%d summary reference rows loaded" % len(values)
