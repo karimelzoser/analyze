@@ -101,8 +101,13 @@ def site_3d_figure(analyses,site_boundary=None,*,max_labels=12,figure=None):
                     label="Survey site boundary")
         except (ValueError,TypeError):
             pass
+    # On a large project the 2D/3D spreadsheet preview is a spatial
+    # overview. Printing labels for 400 closely spaced vertical columns
+    # makes the geology illegible. The offline interactive 3D explorer
+    # retains the full CPT reference in hover/click details.
     tops=sorted(points,key=lambda p:max((b-a for a,b in p["layers"]),default=0),reverse=True)
-    for p in tops[:min(max_labels,len(points))]:
+    label_limit=min(max_labels,len(points)) if len(points)<=30 else 0
+    for p in tops[:label_limit]:
         ax.text(p["easting"]-east0,p["northing"]-north0,
                 p["ground"]+.12,p["reference"],fontsize=6.5)
     ax.set_xlabel(f"Easting offset from {east0:,.1f} m")
@@ -113,6 +118,8 @@ def site_3d_figure(analyses,site_boundary=None,*,max_labels=12,figure=None):
                  fontsize=13,fontweight="bold")
     ax.legend(loc="upper left",fontsize=7,frameon=False)
     fig.text(.06,.02,f"{len(points)} surveyed columns | {len(withheld)} coordinate outlier(s) withheld | "
-             "SBT screening is not laboratory USCS.",fontsize=9,color="#64748b")
+             ("Point labels suppressed for overview; explore exact CPT IDs interactively. "
+              if label_limit==0 else "")+
+             "SBT is not laboratory USCS.",fontsize=8.5,color="#64748b")
     fig.subplots_adjust(left=.02,right=.97,bottom=.06,top=.91)
     return fig,{"plotted":len(points),"withheld":len(withheld),"reference_xy":(east0,north0)}
