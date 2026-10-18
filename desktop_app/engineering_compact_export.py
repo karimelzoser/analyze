@@ -416,12 +416,15 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
         summary.write(i,3,p.reference,style["plain"])
         summary.write_number(i,4,p.maximum_m,style["number"])
     summary.insert_image("G4","plan.png",{"image_data":map_images[0],"x_scale":.30,"y_scale":.30})
-    # Place Summary first for quick consumption; sheets have independent IDs
-    # in the package, XlsxWriter supports reordered worksheets via objs.
+    # Contract: the editable/readable five-column CPT Analysis is the FIRST
+    # workbook tab and the default open view. Summary and 2D/3D maps remain
+    # adjacent in this same XLSX rather than separate output artifacts.
+    quick_sheet=next(x for x in book.worksheets_objs if x.name=="CPT Analysis")
+    book.worksheets_objs.remove(quick_sheet)
+    book.worksheets_objs.insert(0,quick_sheet)
     book.worksheets_objs.remove(summary)
-    book.worksheets_objs.insert(0,summary)
-    # selected worksheet should be Overview, not a deep data table
-    summary.activate()
-    summary.set_first_sheet()
+    book.worksheets_objs.insert(1,summary)
+    quick_sheet.activate()
+    quick_sheet.set_first_sheet()
     book.close()
     return output
