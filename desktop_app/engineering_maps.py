@@ -10,6 +10,29 @@ import numpy as np
 from matplotlib.figure import Figure
 
 
+def filter_coordinate_outliers(rows,*,minimum_points=8):
+    """Separate gross coordinate outliers from a compact project survey.
+
+    This is a QA SCREEN, not a coordinate repair: original rows remain in
+    audit/Excel. A median-centred robust radius flags implausibly remote
+    points instead of autoscaling the entire survey map to a typo.
+    Accepts tuples with Easting/Northing as elements [1],[2].
+    """
+    rows=list(rows)
+    if len(rows)<minimum_points:
+        return rows,[]
+    x=np.asarray([float(r[1]) for r in rows])
+    y=np.asarray([float(r[2]) for r in rows])
+    good=np.isfinite(x)&np.isfinite(y)
+    if good.sum()<minimum_points:
+        return [r for i,r in enumerate(rows) if good[i]],[r for i,r in enumerate(rows) if not good[i]]
+    dist=np.hypot(x-np.median(x[good]),y-np.median(y[good]))
+    threshold=max(2500.0,float(np.percentile(dist[good],90))*6)
+    acceptable=good&(dist<=threshold)
+    return [r for i,r in enumerate(rows) if acceptable[i]],[
+        r for i,r in enumerate(rows) if not acceptable[i]]
+
+
 def coordinate_rows(analyses, metric="maximum_silt"):
     from engineering_layers import from_analysis
     rows=[]
@@ -44,7 +67,9 @@ def render_site_map(analyses, output_path: str | Path, metric="maximum_silt", ti
     """
     p=Path(output_path)
     p.parent.mkdir(parents=True,exist_ok=True)
+
     rows=coordinate_rows(analyses,metric)
+    rows,coordinate_exceptions=filter_coordinate_outliers(rows)
     fig=Figure(figsize=(10.8,7.4),dpi=140,facecolor="#ffffff")
     ax=fig.add_subplot(111)
     if site_boundary is not None:
@@ -81,7 +106,7 @@ def render_site_map(analyses, output_path: str | Path, metric="maximum_silt", ti
     ax.set_aspect("equal",adjustable="datalim")
     ax.grid(alpha=.18)
     if uncertain or site_boundary is not None:ax.legend(loc="best",fontsize=8)
-    fig.text(.09,.016,crs_label+" | Measured CPT points only — no surface interpolation or inferred values.",
+    fig.text(.09,.016,crs_label+" | Measured CPT points only; %d coordinate outlier(s) withheld for survey verification."%len(coordinate_exceptions),
              fontsize=8,color="#64748b")
     fig.subplots_adjust(left=.10,bottom=.12,right=.89,top=.90)
     fig.savefig(p,dpi=160)
