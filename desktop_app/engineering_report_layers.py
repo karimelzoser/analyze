@@ -64,6 +64,42 @@ def full_layer_pages(analysis,*,page_size=23):
                     cell.get_text().set_color("white")
                     cell.get_text().set_weight("bold")
         ax.add_table(tb)
+        # Put the unused lower page area to work: a measured depth column
+        # alongside the numerical Ic trace is substantially easier to
+        # interpret than a long table by itself. On dense >14-layer reports
+        # the table takes priority and this figure is omitted.
+        table_bottom=.885-table_height
+        diagram_top=min(.58,table_bottom-.023)
+        diagram_bottom=.325
+        if layers and diagram_top-diagram_bottom>.13:
+            import numpy as np
+            top_end=max(float(layer.end_m) for layer in layers)
+            if top_end>0:
+                strip=fig.add_axes([.145,diagram_bottom,.115,diagram_top-diagram_bottom])
+                for layer in layers:
+                    kind=layer.kind.upper()
+                    color=("#b5bdc7" if kind=="UNKNOWN" else
+                           "#74a8c1" if layer.silt_screen else "#e6c477")
+                    strip.axhspan(layer.start_m,layer.end_m,color=color,
+                                  alpha=.92,lw=0)
+                strip.set_ylim(top_end,0);strip.set_xlim(0,1)
+                strip.set_xticks([]);strip.set_ylabel("Depth BGL (m)",fontsize=7)
+                strip.set_title("Observed SBT\ncolumn",fontsize=8)
+                strip.tick_params(axis="y",labelsize=7)
+                curve=fig.add_axes([.355,diagram_bottom,.45,diagram_top-diagram_bottom],
+                                   sharey=strip)
+                depths=np.asarray(getattr(analysis,"depth",[]),dtype=float)
+                values=np.asarray(getattr(analysis,"ic",[]),dtype=float)
+                if len(depths)==len(values) and len(depths)>1:
+                    good=np.isfinite(depths)&np.isfinite(values)
+                    curve.plot(np.ma.masked_where(~good,values),depths,color="#2563a6",
+                               lw=1.35)
+                curve.axvline(2.60,color="#c24132",ls="--",lw=1.1)
+                curve.set_xlim(0,5);curve.set_xlabel("Ic (2.60 screened)",fontsize=8)
+                curve.grid(alpha=.16)
+                curve.tick_params(axis="y",left=False,labelleft=False)
+                curve.tick_params(axis="x",labelsize=7)
+                curve.set_title("Continuous Ic behavior profile",fontsize=8)
         fig.text(.06,.245,"OBSERVED SCREENING TOTALS",fontsize=9,weight="bold",color="#153851")
         valid_sum=sum(max(0,b-a) for a,b in observed_intervals)
         largest=max((max(0,b-a) for a,b in observed_intervals),default=0)
