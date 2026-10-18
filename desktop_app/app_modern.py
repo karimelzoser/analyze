@@ -117,6 +117,8 @@ class ModernCPTApp(tk.Tk):
         self.excel_path: Path | None = None
         self.pdf_by_ref: dict[str, list[Path]] = {}
         self.running = False
+        self.cancel_event = threading.Event()
+        self._last_progress = 0
 
         self._configure_styles()
         self._build_shell()
@@ -231,6 +233,24 @@ class ModernCPTApp(tk.Tk):
             c.grid(row=0, column=idx, sticky="nsew", padx=(0 if idx == 0 else 5, 0 if idx == len(specs)-1 else 5))
             cards.grid_columnconfigure(idx, weight=1)
 
+        # Global progress remains visible while the Results, Map, or QA tabs are open.
+        activity=tk.Frame(main,bg="#eaf0f7",highlightthickness=1,highlightbackground="#d9e4ef")
+        activity.pack(fill="x",padx=24,pady=(0,7))
+        bar=tk.Frame(activity,bg="#eaf0f7");bar.pack(fill="x",padx=10,pady=(5,1))
+        self.stage_var=tk.StringVar(value="Ready to analyze")
+        self.progress_text=tk.StringVar(value="0%")
+        self.current_file_var=tk.StringVar(value="Select CPT files or folder")
+        tk.Label(bar,textvariable=self.stage_var,bg="#eaf0f7",fg="#17344f",
+                 font=("Segoe UI Semibold",9)).pack(side="left")
+        self.cancel_btn=self._btn(bar,"CANCEL",self.cancel_analysis,state="disabled")
+        self.cancel_btn.pack(side="right",padx=(8,0))
+        tk.Label(bar,textvariable=self.progress_text,bg="#eaf0f7",
+                 fg="#164f80",font=("Segoe UI Semibold",10)).pack(side="right")
+        self.progress=ttk.Progressbar(activity,style="Modern.Horizontal.TProgressbar",
+                                     mode="determinate",maximum=100)
+        self.progress.pack(fill="x",padx=10,pady=(2,2))
+        tk.Label(activity,textvariable=self.current_file_var,bg="#eaf0f7",
+                 fg="#64748b",font=("Segoe UI",8),anchor="w").pack(fill="x",padx=10,pady=(0,5))
         self.notebook = ttk.Notebook(main)
         self.notebook.pack(fill="both", expand=True, padx=24, pady=(0, 14))
         self.dashboard = tk.Frame(self.notebook, bg=PALETTE["surface"])
@@ -345,12 +365,9 @@ class ModernCPTApp(tk.Tk):
 
         self.start_btn = self._btn(obody, "RUN VERIFIED ANALYSIS", self.start, primary=True)
         self.start_btn.pack(fill="x", pady=(18, 8))
-        self.stage_var = tk.StringVar(value="Ready")
-        tk.Label(obody, textvariable=self.stage_var, bg=PALETTE["surface"], fg=PALETTE["muted"], font=("Segoe UI Semibold", 8)).pack(anchor="w", pady=(2, 4))
-        self.progress = ttk.Progressbar(obody, style="Modern.Horizontal.TProgressbar", mode="determinate", maximum=100)
-        self.progress.pack(fill="x")
-        self.progress_text = tk.StringVar(value="0%")
-        tk.Label(obody, textvariable=self.progress_text, bg=PALETTE["surface"], fg=PALETTE["muted"], font=("Segoe UI", 8)).pack(anchor="e", pady=(3, 0))
+        tk.Label(obody,text="Live progress stays visible above all tabs.",
+                 bg=PALETTE["surface"],fg=PALETTE["muted"],
+                 font=("Segoe UI",8)).pack(anchor="w",pady=(3,0))
 
     def _build_results(self):
         top = tk.Frame(self.results_tab, bg=PALETTE["surface"])
@@ -507,8 +524,10 @@ class ModernCPTApp(tk.Tk):
             for i in tree.get_children():
                 tree.delete(i)
         self.progress["value"] = 0
+        self._last_progress=0
         self.progress_text.set("0%")
         self.stage_var.set("Ready")
+        self.current_file_var.set("Select CPT files or folder")
         self._set_output_buttons(False)
         self.refresh_chart()
         self.status_var.set("Ready — select GEF/GFF files or a project folder.")
@@ -539,6 +558,8 @@ class ModernCPTApp(tk.Tk):
 
         self.analysis_stage_value=self.cpt_stage.get()
         self.running = True
+        self.cancel_event.clear()
+        self._last_progress=0
         self.output_dir = Path(out)
         self.results = []
         self.errors = []
@@ -549,6 +570,7 @@ class ModernCPTApp(tk.Tk):
         self.progress["value"] = 0
         self.progress_text.set("0%")
         self.stage_var.set("Preparing analysis…")
+        self.current_file_var.set(f"{len(self.files)} source files queued")
         self.notebook.select(self.results_tab)
         threading.Thread(
             target=self._worker,
@@ -604,6 +626,7 @@ class ModernCPTApp(tk.Tk):
                 kind = m[0]
                 if kind == "analysis_row":
                     _, i, total, a = m
+                    self.current_file_var.set(str(a.source_path.name))
                     pct = int((i / max(total, 1)) * (60 if self.generate_pdfs.get() else 90))
                     self._set_progress(pct, f"Analyzing CPTs — {i}/{total}")
                     # Candidates can be PDF and raw revisions of the same CPT.
@@ -612,6 +635,7 @@ class ModernCPTApp(tk.Tk):
                     self.status_var.set(f"Read {a.reference} ({i}/{total}); reconciling source versions...")
                 elif kind == "analysis_error":
                     _, i, total, p, err = m
+                    self.current_file_var.set(str(p.name))
                     pct = int((i / max(total, 1)) * (60 if self.generate_pdfs.get() else 90))
                     self._set_progress(pct, f"Analyzing CPTs — {i}/{total}")
                     # Error will appear in the single workbook Processing Errors
@@ -619,6 +643,7 @@ class ModernCPTApp(tk.Tk):
                     self.status_var.set(f"Error in {p.name}: {err}")
                 elif kind == "pdf_done":
                     _, i, total, ref, pdf = m
+                    self.current_file_var.set(str(ref)+" · "+str(Path(pdf).name))
                     self.pdf_by_ref.setdefault(ref, []).append(Path(pdf))
                     pct = 60 + int((i / max(total, 1)) * 35)
                     self._set_progress(pct, f"Generating PDFs — {i}/{total}")
@@ -627,6 +652,16 @@ class ModernCPTApp(tk.Tk):
                     pct = 60 + int((i / max(total, 1)) * 35)
                     self._set_progress(pct, f"Generating PDFs — {i}/{total}")
                     self.status_var.set(f"PDF generation warning for {ref}: {err}")
+                elif kind == "batch_stage":
+                    _,percent,label,filename=m
+                    self._set_progress(percent,label)
+                    self.current_file_var.set(str(filename))
+                elif kind == "cancelled":
+                    self.running=False
+                    self._set_running(False)
+                    self.stage_var.set("Cancelled — no incomplete Excel was published")
+                    self.current_file_var.set("Run analysis again when ready")
+                    self.status_var.set("Cancelled. Existing complete outputs were not overwritten.")
                 elif kind == "fatal":
                     _, detail, log_path = m
                     self.running=False
@@ -645,7 +680,8 @@ class ModernCPTApp(tk.Tk):
                     self.pdf_dir = pdfs
                     self.excel_path = excel
                     self.running = False
-                    self._set_progress(100, "Complete")
+                    self._set_progress(100,"Complete — workbook and reports verified")
+                    self.current_file_var.set(Path(excel).name)
                     self._set_running(False)
                     self._set_output_buttons(True)
                     self.update_kpis()
@@ -678,7 +714,10 @@ class ModernCPTApp(tk.Tk):
                 pass
 
     def _set_progress(self, value: int, stage: str):
-        value = max(0, min(100, value))
+        value=max(0,min(100,int(value)))
+        if self.running:
+            value=min(99,max(value,self._last_progress))
+        self._last_progress=value
         self.progress["value"] = value
         self.progress_text.set(f"{value}%")
         self.stage_var.set(stage)
@@ -687,8 +726,17 @@ class ModernCPTApp(tk.Tk):
         state = "disabled" if running else "normal"
         self.start_btn.config(state=state)
         self.header_start_btn.config(state=state)
+        if hasattr(self,"cancel_btn"):
+            self.cancel_btn.config(state="normal" if running else "disabled")
         if running:
             self._set_output_buttons(False)
+
+    def cancel_analysis(self):
+        if self.running:
+            self.cancel_event.set()
+            self.stage_var.set("Cancelling after current safe operation…")
+            self.current_file_var.set("Waiting for current file to complete")
+            self.cancel_btn.config(state="disabled")
 
     def _set_output_buttons(self, enabled: bool):
         out_ok = enabled and self.output_dir is not None and self.output_dir.exists()
