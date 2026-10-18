@@ -47,7 +47,8 @@ def pdf_visual_regression(reference:str|Path,generated:str|Path,output_dir:str|P
             })
     finally:
         ref.close();gen.close()
-    verdict=bool(results) and all(r["geometry_compatible"] and r["mean_normalized_absolute_pixel_error"]<.002
+    verdict=bool(results) and all(r["geometry_compatible"] and r["mean_normalized_absolute_pixel_error"]<.00001
+                                  and r["fraction_pixels_changed_over_20"]<.000001
                                   for r in results)
     summary={"reference":str(reference),"generated":str(generated),
              "exact_layout_near_match":verdict,"pages_tested":len(results),
