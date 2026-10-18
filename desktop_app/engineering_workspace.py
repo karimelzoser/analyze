@@ -117,6 +117,15 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                     "First qualifying silt-screen depth","Sounding test depth"])
         self.map_metric_picker.pack(side="left",padx=8)
         self.map_metric_picker.bind("<<ComboboxSelected>>",lambda event:self.refresh_map())
+        self.map_data_source=tk.StringVar(value="Current CPT batch")
+        source_picker=ttk.Combobox(ctrl,textvariable=self.map_data_source,
+           values=["Current CPT batch","Original XLSB full project"],
+           width=23,state="readonly")
+        source_picker.pack(side="left",padx=6)
+        source_picker.bind("<<ComboboxSelected>>",lambda event:self.refresh_map())
+        self._source_cached_analysis=None
+        self._source_cached_file=None
+
         self.map_projection=tk.StringVar(value="2D measured plan")
         projection=ttk.Combobox(ctrl,textvariable=self.map_projection,
                          values=["2D measured plan","3D CPT soil columns"],width=23,state="readonly")
@@ -427,8 +436,29 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
 
     def refresh_map(self):
         if not hasattr(self,"map_ax"):return
+        map_analyses=self.results
+        if self.map_data_source.get()=="Original XLSB full project":
+            source=getattr(self,"original_model_path",None)
+            if not source:
+                self.map_fig.clear()
+                ax=self.map_fig.add_subplot(111);self.map_ax=ax
+                ax.text(.5,.5,"Set an original XLSB baseline in QA & Review first",
+                    transform=ax.transAxes,ha="center",va="center",fontsize=12)
+                ax.set_axis_off()
+                self.map_status.set("No original XLSB loaded. QA & Review > Original Excel & Reference Tools > Set XLSB baseline")
+                self.map_canvas.draw_idle()
+                return
+            try:
+                if self._source_cached_analysis is None or self._source_cached_file!=str(source):
+                    from engineering_reference_project import analyze_original_xlsb
+                    _,self._source_cached_analysis,_=analyze_original_xlsb(source)
+                    self._source_cached_file=str(source)
+                map_analyses=self._source_cached_analysis
+            except Exception as exc:
+                self.map_status.set("Original XLSB project could not be read: "+str(exc))
+                return
         if self.map_projection.get()=="3D CPT soil columns":
-            fig,summary=site_3d_figure(self.results,self.site_boundary,figure=self.map_fig)
+            fig,summary=site_3d_figure(map_analyses,self.site_boundary,figure=self.map_fig)
             self.map_ax=self.map_fig.axes[0]
             self._mapped_points=[]
             self.map_status.set("%d observed CPT columns | %d source-coordinate exceptions | Drag the model to rotate, mouse wheel to zoom. No interpolated surfaces." %
@@ -441,7 +471,18 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                 "Cumulative observed silt-screen thickness":"cumulative_silt",
                 "First qualifying silt-screen depth":"silt_start",
                 "Sounding test depth":"test_depth"}[self.map_metric.get()]
-        rawrows=coordinate_rows(self.results,option) if self.results else []
+        if self.map_data_source.get()=="Original XLSB full project":
+            metric={"maximum_silt":"max_contiguous_silt_screen_m",
+                    "cumulative_silt":"cumulative_silt_screen_m",
+                    "silt_start":"first_silt_screen_m",
+                    "test_depth":"test_depth_m"}[option]
+            rawrows=[(r["reference"],float(r["easting"]),float(r["northing"]),
+                      float(r[metric]) if r.get(metric) is not None else float("nan"),
+                      str(r["status"]))
+                     for r in map_analyses if r.get("easting") is not None and
+                     r.get("northing") is not None]
+        else:
+            rawrows=coordinate_rows(map_analyses,option) if map_analyses else []
         rows,coordinate_outliers=filter_coordinate_outliers(rawrows)
         data=[r for r in rows if math.isfinite(r[3]) and r[4]!="REVIEW"]
         review=[r for r in rows if r not in data]
