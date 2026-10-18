@@ -18,6 +18,7 @@ from engineering_workspace import EngineeringWorkspaceApp
 from engineering_reference_audit import audit_to_json
 from engineering_pdf_parity import pdf_visual_regression
 from engineering_excel_pdf import export_original_excel_pdf
+from engineering_excel_engine import run_original_excel_gef
 from engineering_reference_project import export_original_project
 
 
@@ -147,6 +148,12 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
                   primary=True).pack(side="left")
         self._btn(reference_actions,"SET XLSB PARITY BASELINE",self.select_original_reference).pack(side="left",padx=7)
         self._btn(reference_actions,"PRINT EXACT ORIGINAL XLSB PDF",self.print_original_xlsb_pdf).pack(side="left",padx=8)
+        engine_actions=tk.Frame(self.qa_tab,bg="#ffffff")
+        engine_actions.pack(fill="x",padx=18,pady=(0,6))
+        self._btn(engine_actions,"RECALCULATE NEW GEF IN ORIGINAL EXCEL",self.recalculate_raw_excel,
+                  primary=True).pack(side="left")
+        tk.Label(engine_actions,text="Requires installed Microsoft Excel; disabled VBA, read-only source workbook.",
+                 bg="#ffffff",fg="#64748b",font=("Segoe UI",8)).pack(side="left",padx=10)
         board=tk.Frame(self.qa_tab,bg="#f1f5f9")
         board.pack(fill="x",padx=18,pady=(4,10))
         self.qa_counts=tk.StringVar(value="NO RESULTS  |  Choose a source folder and run analysis")
@@ -281,6 +288,45 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
                 "beside the normal workbook.\\n\\nNo formulas or macros will be executed.")
         except Exception as exc:
             messagebox.showerror("Reference source not usable",str(exc))
+
+    def recalculate_raw_excel(self):
+        from threading import Thread
+        source=getattr(self,"original_model_path",None)
+        if not source:
+            source=filedialog.askopenfilename(title="Select original XLSB calculation model",
+                      filetypes=[("Binary Excel Workbook","*.xlsb")])
+        if not source:return
+        gef=filedialog.askopenfilename(title="Select GEF to recalculate in original Excel",
+                     filetypes=[("Raw CPT GEF/GFF","*.gef *.GEF *.gff *.GFF")])
+        if not gef:return
+        pdf=filedialog.asksaveasfilename(defaultextension=".pdf",
+               initialfile=Path(gef).stem+"_Original_Excel.pdf",
+               filetypes=[("Original Excel PDF","*.pdf")])
+        if not pdf:return
+        if getattr(self,"excel_engine_busy",False):
+            messagebox.showinfo("Excel process running","Wait for the current calculation.");return
+        self.excel_engine_busy=True
+        self.qa_status.set("Recalculating GEF through original Excel model — source workbook remains read-only...")
+        def job():
+            try:
+                output,ref=run_original_excel_gef(gef,source,pdf)
+            except Exception as exc:
+                msg=str(exc)
+                self.after(0,lambda:self._original_excel_done(error=msg))
+            else:
+                self.after(0,lambda:self._original_excel_done(output=output,reference=ref))
+        Thread(target=job,daemon=True,name="original-excel-recalculate").start()
+
+    def _original_excel_done(self,output=None,reference=None,error=None):
+        self.excel_engine_busy=False
+        if error:
+            self.qa_status.set("Original Excel calculation failed / input incompatible")
+            messagebox.showerror("Original calculation failed",error)
+            return
+        self.qa_status.set("Original Excel calculated "+str(reference)+" and exported native report PDF")
+        messagebox.showinfo("Original formula engine completed",
+           "Original Excel calculated "+str(reference)+
+           "\\nUsing its native formulas and report template. PDF saved:\\n"+str(output))
 
     def export_full_reference_project(self):
         from threading import Thread
