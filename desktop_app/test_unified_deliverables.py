@@ -78,3 +78,14 @@ def test_original_source_reference_and_all_cached_depths_are_inside_same_output(
             assert title in named, title
         assert len([s for s in book.namelist() if s.startswith("xl/media/image")])>=2
     assert len(list(tmp_path.glob("*.xlsx")))==1
+
+
+def test_full_report_uses_actual_calculation_groundwater_and_unit_weight(tmp_path):
+    from reporting_pro import analysis_record
+    source=tmp_path/"test.GEF"
+    make_synthetic_gef(source,41,135)
+    analysis=analyze_gef(source,gamma_soil=19.3,water_table_depth=2.0)
+    report=analysis_record(analysis)
+    assert report["gamma"]==19.3
+    assert report["water_table"]==2.0
+    assert report["area_ratio"]==analysis.metadata["area_ratio"]
