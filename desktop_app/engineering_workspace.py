@@ -16,6 +16,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from app_pdf_enabled import PDFEnabledCPTApp
 from engineering_layers import from_analysis, _smooth_contiguous
 from engineering_maps import coordinate_rows,filter_coordinate_outliers
+from engineering_3d_map import site_3d_figure
 from engineering_comparison import read_summary_xlsx, compare_summaries, export_comparison, read_site_boundary_xlsx
 from engineering_depth_comparison import compare_depth_profiles, export_depth_change
 from engineering_foundations import check_foundation_results, export_foundation_validation
@@ -116,6 +117,11 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                     "First qualifying silt-screen depth","Sounding test depth"])
         self.map_metric_picker.pack(side="left",padx=8)
         self.map_metric_picker.bind("<<ComboboxSelected>>",lambda event:self.refresh_map())
+        self.map_projection=tk.StringVar(value="2D measured plan")
+        projection=ttk.Combobox(ctrl,textvariable=self.map_projection,
+                         values=["2D measured plan","3D CPT soil columns"],width=23,state="readonly")
+        projection.pack(side="left",padx=8)
+        projection.bind("<<ComboboxSelected>>",lambda event:self.refresh_map())
         self._btn(ctrl,"SAVE SITE MAP PNG",self.save_map_image).pack(side="right")
         self._btn(ctrl,"LOAD SITE LIMIT XLSX",self.load_site_boundary).pack(side="right",padx=8)
         self.map_status=tk.StringVar(value="Project map becomes available after analysis.")
@@ -418,6 +424,14 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
 
     def refresh_map(self):
         if not hasattr(self,"map_ax"):return
+        if self.map_projection.get()=="3D CPT soil columns":
+            fig,summary=site_3d_figure(self.results,self.site_boundary,figure=self.map_fig)
+            self.map_ax=self.map_fig.axes[0]
+            self._mapped_points=[]
+            self.map_status.set("%d observed CPT columns | %d source-coordinate exceptions | Drag the model to rotate, mouse wheel to zoom. No interpolated surfaces." %
+                                (summary["plotted"],summary["withheld"]))
+            self.map_canvas.draw_idle()
+            return
         self.map_fig.clear()
         ax=self.map_fig.add_subplot(111);self.map_ax=ax
         option={"Maximum observed silt-screen thickness":"maximum_silt",
