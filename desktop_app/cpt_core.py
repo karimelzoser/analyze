@@ -267,6 +267,16 @@ def parse_gef(path: str | Path) -> GEFData:
         "area_ratio": mvar.get(3, 0.75),
         "standard": mtext.get(6, ""),
         "records": int(len(depth)),
+        # Preserve every original source header line, including manufacturer
+        # fields not mapped by the current report template. This allows a
+        # complete engineering provenance sheet without guessing metadata.
+        "source_header_entries": [
+            (key, item) for key, values in headers.items() for item in values
+        ],
+        "pore_pressure_source": ("MEASURED" if idx_u2 is not None
+                                  else "NOT PROVIDED — assumed u2=0 for qt; engineering validation required"),
+        "pore_pressure_measured": idx_u2 is not None,
+        "test_date": first("TESTDATE") or first("TEST_DATE") or "",
     }
     return GEFData(path, headers, metadata, {"depth": depth, "qc": qc, "fs": fs, "u2": u2})
 
