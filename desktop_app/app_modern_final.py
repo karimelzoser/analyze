@@ -98,9 +98,15 @@ def _packaged_gui_smoke():
                 if len(reports)!=1:raise RuntimeError("Expected exactly one generated CPT report")
                 with pymupdf.open(str(reports[0])) as report:
                     if report.page_count<2:raise RuntimeError("Generated report missing appendix")
-                maps=list((destination/"Charts").glob("*.png"))
-                if len(maps)<3:raise RuntimeError("Expected project map image exports")
-                result_detail=f" | END-TO-END one GEF -> {len(reports)} PDF, XLSX, {len(maps)} maps"
+                with zipfile.ZipFile(latest) as book:
+                    sheetlist=book.read("xl/workbook.xml")
+                    for name in (b"Project Maps",b"Project Dashboard",b"CPT Coordinates",
+                                 b"CPT Measurements",b"Survey Coordinate QA"):
+                        if name not in sheetlist:
+                            raise RuntimeError("Unified Excel lacks "+str(name))
+                    if len([n for n in book.namelist() if n.startswith("xl/media/image")])<2:
+                        raise RuntimeError("Unified Excel lacks embedded 2D/3D map images")
+                result_detail=f" | END-TO-END one GEF -> {len(reports)} PDF and 1 all-in-one XLSX with 2D/3D maps"
         else:
             result_detail=""
         result="PASS: GUI opened; "+", ".join(texts)+result_detail
