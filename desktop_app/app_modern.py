@@ -267,6 +267,20 @@ class ModernCPTApp(tk.Tk):
         self._btn(btns, "Select Files", self.select_files, primary=True).pack(side="left")
         self._btn(btns, "Select Folder", self.select_folder).pack(side="left", padx=7)
         self._btn(btns, "Clear", self.clear).pack(side="left")
+        # Make the two actual source summary inputs discoverable in Project
+        # Setup instead of hiding them inside different analysis tabs.
+        reference_bar=tk.Frame(input_panel,bg=PALETTE["surface"])
+        reference_bar.pack(fill="x",padx=16,pady=(0,5))
+        self._btn(reference_bar,"SOURCE CALCULATION XLSB",
+                  lambda: self.select_original_reference() if hasattr(self,"select_original_reference") else None).pack(side="left")
+        self._btn(reference_bar,"RAFT / ISOLATED SUMMARY XLSX",
+                  lambda: self.load_foundation_summary() if hasattr(self,"load_foundation_summary") else None).pack(side="left",padx=7)
+        self._btn(reference_bar,"SITE LIMIT / COORDINATES",
+                  lambda: self.load_site_boundary() if hasattr(self,"load_site_boundary") else None).pack(side="left")
+        self.reference_status=tk.StringVar(value="Reference sources optional · native GEF/GFF/PDF analysis works independently.")
+        tk.Label(input_panel,textvariable=self.reference_status,
+                 bg=PALETTE["surface"],fg=PALETTE["muted"],
+                 font=("Segoe UI",8),anchor="w").pack(fill="x",padx=16,pady=(0,8))
         self.file_label = tk.StringVar(value="No files selected")
         tk.Label(btns, textvariable=self.file_label, bg=PALETTE["surface"], fg=PALETTE["muted"], font=("Segoe UI", 9)).pack(side="right")
 
