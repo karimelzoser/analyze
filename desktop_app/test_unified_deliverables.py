@@ -28,7 +28,8 @@ def test_all_in_one_xlsx_contains_all_cpt_measurements_maps_and_qa(tmp_path):
         media=[n for n in book.namelist() if n.startswith("xl/media/image")]
         assert len(media)>=2
         # All data rows in one output, not an external CSV or extra workbook.
-        entries=b"".join(book.read(n) for n in book.namelist()
+        entries=book.read("xl/sharedStrings.xml") if "xl/sharedStrings.xml" in book.namelist() else b""
+        entries+=b"".join(book.read(n) for n in book.namelist()
                          if n.startswith("xl/worksheets/sheet") and n.endswith(".xml"))
         assert b"CPT-A1-SYNTH-0017-100" in entries or b"CPT-A1-TEST-100" in entries
 
