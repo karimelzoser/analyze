@@ -128,12 +128,28 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
         self._btn(actions,"OPEN SOURCE",self.open_selected_qa_source).pack(side="right",padx=7)
         self._btn(actions,"VIEW CPT PROFILE",self.open_selected_qa_profile).pack(side="right",padx=7)
 
+        tools=tk.Frame(self.qa_tab,bg="#ffffff")
+        tools.pack(fill="x",padx=18,pady=(0,12))
+        self._btn(tools,"AUDIT ORIGINAL XLSB",self.audit_reference_excel).pack(side="left")
+        self._btn(tools,"COMPARE PDF LAYOUTS",self.compare_pdf_layout).pack(side="left",padx=8)
+        self._btn(tools,"ENGINEERING GUIDE  F1",self._show_help).pack(side="right")
+        self.qa_status=tk.StringVar()
+        self.qa_note=tk.Label(tools,textvariable=self.qa_status,bg="#ffffff",fg="#64748b",
+                  font=("Segoe UI",8),anchor="w")
+        self.qa_note.pack(side="left",padx=12)
         board=tk.Frame(self.qa_tab,bg="#f1f5f9")
         board.pack(fill="x",padx=18,pady=(4,10))
         self.qa_counts=tk.StringVar(value="NO RESULTS  |  Choose a source folder and run analysis")
         tk.Label(board,textvariable=self.qa_counts,bg="#f1f5f9",fg="#0f3956",
                  font=("Segoe UI Semibold",10),padx=14,pady=12,anchor="w").pack(fill="x")
 
+        detail=tk.Frame(self.qa_tab,bg="#f8fafc",highlightthickness=1,
+                        highlightbackground="#dce5ef")
+        detail.pack(fill="x",padx=18,pady=(0,8))
+        self.qa_details=tk.StringVar(value="Select a CPT to see the original source, interpretation and verification notes.")
+        tk.Label(detail,textvariable=self.qa_details,bg="#f8fafc",fg="#334155",
+                 justify="left",anchor="w",wraplength=1100,padx=12,pady=11,
+                 font=("Segoe UI",9)).pack(fill="x")
         frame=tk.Frame(self.qa_tab,bg="#ffffff")
         frame.pack(fill="both",expand=True,padx=18,pady=(0,6))
         columns=("reference","status","type","thickness","quality","issues")
@@ -156,23 +172,8 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
         self.qa_tree.bind("<Double-1>",lambda _e:self.open_selected_qa_profile())
         self._qa_source_by_iid={}
 
-        detail=tk.Frame(self.qa_tab,bg="#f8fafc",highlightthickness=1,
-                        highlightbackground="#dce5ef")
-        detail.pack(fill="x",padx=18,pady=(0,8))
-        self.qa_details=tk.StringVar(value="Select a CPT to see the original source, interpretation and verification notes.")
-        tk.Label(detail,textvariable=self.qa_details,bg="#f8fafc",fg="#334155",
-                 justify="left",anchor="w",wraplength=1100,padx=12,pady=11,
-                 font=("Segoe UI",9)).pack(fill="x")
 
-        tools=tk.Frame(self.qa_tab,bg="#ffffff")
-        tools.pack(fill="x",padx=18,pady=(0,12))
-        self._btn(tools,"AUDIT ORIGINAL XLSB",self.audit_reference_excel).pack(side="left")
-        self._btn(tools,"COMPARE PDF LAYOUTS",self.compare_pdf_layout).pack(side="left",padx=8)
-        self._btn(tools,"ENGINEERING GUIDE  F1",self._show_help).pack(side="right")
-        self.qa_status=tk.StringVar()
-        self.qa_note=tk.Label(tools,textvariable=self.qa_status,bg="#ffffff",fg="#64748b",
-                  font=("Segoe UI",8),anchor="w")
-        self.qa_note.pack(side="left",padx=12)
+
         self.refresh_qa()
 
     def refresh_qa(self):
