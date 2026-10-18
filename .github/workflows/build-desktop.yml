@@ -93,6 +93,7 @@ jobs:
           pyinstaller --noconfirm --clean --onefile --windowed `
             --name CPT_Silt_Analyzer `
             --collect-all matplotlib `
+            --collect-all plotly `
             --collect-all pymupdf `
             app_modern_final.py
 
