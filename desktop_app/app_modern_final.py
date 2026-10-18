@@ -131,8 +131,32 @@ def _packaged_gui_smoke():
             except Exception:pass
 
 
+def launch_desktop(*, check_normal_startup=False):
+    """Single entry point used by BOTH double-click startup and CI.
+
+    The normal-startup smoke tests the real constructor/mainloop call, not a
+    separate helper constructor that could mask a broken Windows launcher.
+    """
+    import os
+    from pathlib import Path
+    app = engineering_review_ui.EngineeringReviewApp()
+    if check_normal_startup:
+        # Allow the actual Tk event loop to render, then exit deterministically
+        # so this verification works for the console-less Windows executable.
+        app.after(400, app.destroy)
+    app.mainloop()
+    if check_normal_startup:
+        output = os.environ.get("CPT_STARTUP_SMOKE_OUT")
+        if output:
+            Path(output).write_text(
+                "PASS: normal desktop startup created EngineeringReviewApp "
+                "and entered/exited its real Tk mainloop", encoding="utf-8")
+    return 0
+
+
 if __name__ == "__main__":
     import sys
     if "--smoke-test" in sys.argv or "--integration-smoke" in sys.argv:
         raise SystemExit(_packaged_gui_smoke())
-    engineering_review_ui.EngineeringReviewApp().mainloop()
+    raise SystemExit(launch_desktop(
+        check_normal_startup="--normal-startup-smoke" in sys.argv))
