@@ -406,15 +406,8 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
         results, audit_rows = select_project_results(candidate_results, self.files, error_map)
         self.source_audit = audit_rows
 
-        # Project-wide measured-coordinate maps are saved even in Analyze Only
-        # mode; missing CRS remains visibly unverified.
-        try:
-            from engineering_maps import render_site_map
-            chart_dir=out / "Charts"
-            for metric in ("maximum_silt","cumulative_silt","silt_start","test_depth"):
-                render_site_map(results,chart_dir / ("CPT_Site_"+metric+".png"),metric=metric)
-        except Exception as exc:
-            errors.append(("Project coordinate charts",str(exc)))
+        # 2D and 3D project maps are now embedded inside ONE comprehensive XLSX.
+        # Explicit Save PNG remains available from the interactive Site Map tab.
 
         if make_pdfs:
             for idx, a in enumerate(results, 1):
@@ -440,23 +433,18 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
                     self.messages.put(("pdf_error", idx, len(results), a.reference, str(exc)))
 
         excel_path = app_modern_v2.timestamped_excel_path(out)
-        excel = reporting_export_v2.export_excel(results, excel_path, errors=errors, source_audit=audit_rows)
-        app_modern_v2.update_latest_excel_alias(Path(excel), out)
-        # Optional original XLSB parity check is an ADDITIONAL QA output, not a
-        # silent replacement of the calculated native engineering results.
+        # One deliverable: combine calculated CPTs, all raw points, both
+        # georeferenced map views, optional XLSB reference and foundation
+        # results, Pre/Post changes, coordinate exceptions and QA.
         original=getattr(self,"original_model_path",None)
-        if original:
-            try:
-                from engineering_reference_parity import compare_against_xlsb
-                parity_path,parity_rows=compare_against_xlsb(
-                     results,original,out/"CPT_Reference_Parity.xlsx",
-                     water_table=wt)
-                if any("MISMATCH" in row["status"] for row in parity_rows):
-                    self.messages.put(("reference_parity_warning",
-                        str(parity_path),
-                        sum("MISMATCH" in row["status"] for row in parity_rows)))
-            except Exception as exc:
-                errors.append(("Original XLSB comparison",str(exc)))
+        foundation=getattr(self,"foundation_reference_path",None)
+        foundation_xlsx=foundation if foundation and Path(foundation).suffix.lower()==".xlsx" else None
+        excel = reporting_export_v2.export_excel(
+            results,excel_path,errors=errors,source_audit=audit_rows,
+            original_xlsb=original,foundation_xlsx=foundation_xlsx,
+            site_boundary=getattr(self,"site_boundary",None),
+            comparison_result=getattr(self,"compare_result",None))
+        app_modern_v2.update_latest_excel_alias(Path(excel), out)
         self.messages.put(("done", out, pdfs if make_pdfs else None, excel, results, errors))
 
 
