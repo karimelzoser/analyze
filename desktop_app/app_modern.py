@@ -275,7 +275,7 @@ class ModernCPTApp(tk.Tk):
         form = tk.Frame(settings, bg=PALETTE["surface"])
         form.pack(fill="x", padx=16, pady=(0, 14))
         self.gamma = tk.StringVar(value="18.0")
-        self.wt = tk.StringVar(value="0.0")
+        self.wt = tk.StringVar(value="2.0")
         ttk.Label(form, text="Soil unit weight (kN/m³)", style="Surface.TLabel").grid(row=0, column=0, sticky="w", pady=5)
         ttk.Entry(form, textvariable=self.gamma, width=12).grid(row=0, column=1, sticky="e", padx=(12, 0), pady=5)
         ttk.Label(form, text="Groundwater depth BGL (m)", style="Surface.TLabel").grid(row=1, column=0, sticky="w", pady=5)
