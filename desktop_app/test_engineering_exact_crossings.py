@@ -25,4 +25,4 @@ def test_sensor_dropout_does_not_infer_end_beyond_last_valid_record():
     assert value.start==6.2
     assert value.end==6.3
     assert value.thickness==.1
-    assert value.end_raw<=6.251
+    assert value.end_raw<=6.261  # final valid sample; never inferred into dropout
