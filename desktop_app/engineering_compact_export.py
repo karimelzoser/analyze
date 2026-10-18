@@ -117,6 +117,51 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
                   "YES" if l.silt_screen else "NO",str(a.source_path.name)))
         points.append(a)
 
+    # Preserve ALL available original source header/metadata, including
+    # distinctions between field test date and GEF export date. The quick
+    # five-column sheet remains concise while nothing disappears from Excel.
+    meta_rows=[]
+    for a in analyses:
+        md=getattr(a,"metadata",{}) or {}
+        def extent(attr):
+            try:
+                arr=np.asarray(getattr(a,attr),dtype=float)
+                values=arr[np.isfinite(arr)]
+                return ((float(np.min(values)),float(np.max(values))) if len(values)
+                        else (None,None))
+            except (AttributeError,TypeError,ValueError):
+                return (None,None)
+        qc_lo,qc_hi=extent("qc")
+        fs_lo,fs_hi=extent("fs")
+        u_lo,u_hi=extent("u2")
+        ic_lo,ic_hi=extent("ic")
+        meta_rows.append((a.reference,a.source_path.name,a.source_path.suffix.upper(),
+          md.get("client"),md.get("project_name") or md.get("project_id"),
+          md.get("main_contractor"),md.get("location"),
+          md.get("test_date") or "NOT RECORDED — source file date is separate",
+          md.get("file_date"),md.get("cone_id"),md.get("standard"),
+          md.get("area_ratio"),md.get("ground_elevation"),md.get("easting"),
+          md.get("northing"),md.get("records",len(getattr(a,"depth",[]))),
+          getattr(a,"test_depth_raw",None),md.get("analysis_gamma_soil_kn_m3"),
+          md.get("analysis_water_table_bgl_m"),md.get("cpt_stage"),
+          md.get("analysis_smoothing_window_samples"),qc_lo,qc_hi,
+          fs_lo,fs_hi,u_lo,u_hi,ic_lo,ic_hi,
+          getattr(a,"sensor_dropout_depth",None),a.status,
+          getattr(a,"verification_note",None),md.get("source_selection_reason"),
+          md.get("source_quality")))
+    _sheet(book,style,"CPT Metadata",
+        ["CPT REFERENCE","Original file","Source format","Client","Project",
+         "Main contractor","Area / location","Field test date (if recorded)",
+         "Source FILEDATE (not test date)","Cone ID","CPT standard",
+         "Cone area ratio","Ground elevation RL (m)","Survey Easting",
+         "Survey Northing","Measurement records","Sounding depth BGL (m)",
+         "Soil unit weight kN/m3","Groundwater BGL (m)","PRE/POST stage",
+         "Smoothing window samples","qc minimum MPa","qc maximum MPa",
+         "fs minimum MPa","fs maximum MPa","u2 minimum MPa","u2 maximum MPa",
+         "Ic minimum","Ic maximum","Terminal sensor dropout (m)",
+         "Engineering status","Verification notes","Revision/source decision",
+         "Source quality"],meta_rows,{0:27,1:44,7:36,8:35,31:92,32:92})
+
     # Main deliverable: the user's original five columns; no extra fields here.
     _sheet(book,style,"CPT Analysis",
            ["SI.No","CPT REFERENCE","Silt start depth after (m)","silt depth (m)",
