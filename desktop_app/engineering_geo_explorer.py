@@ -381,6 +381,72 @@ def depth_window_plan(fig,data,*,top_m,bottom_m,boundary=None,warning_m=.10,
     return result
 
 
+def fence_section_figure(data,*,bearing="E-W",corridor_m=None):
+    """Interactive measured CPT fence section (NO lateral interpolation).
+
+    The fence is a corridor extraction from an actual surveyed plan, not a
+    claim that the selected soundings lie exactly on a geological transect.
+    All observed qualifying intervals are drawn, including multiple layers.
+    """
+    import plotly.graph_objects as go
+    if bearing not in ("E-W","N-S"):
+        raise ValueError("Section bearing must be E-W or N-S")
+    points,excluded=spatial_points(data)
+    valid=[p for p in points if p.elevation is not None and
+           (p.depth is not None or p.intervals)]
+    fig=go.Figure()
+    if len(valid)<2:
+        fig.add_annotation(text="At least two georeferenced CPT profiles are required",
+                           showarrow=False)
+        return fig,{"points":0,"corridor_m":0,"bearing":bearing}
+    perpendicular=np.asarray([p.y if bearing=="E-W" else p.x for p in valid])
+    center=float(np.median(perpendicular))
+    along=np.asarray([p.x if bearing=="E-W" else p.y for p in valid])
+    extent=float(np.ptp(perpendicular))
+    width=float(corridor_m) if corridor_m is not None else max(8.,extent*.12)
+    if width<=0:raise ValueError("Section corridor width must be positive")
+    selected=[p for p in valid if abs(
+        (p.y if bearing=="E-W" else p.x)-center)<=width]
+    selected.sort(key=lambda p:p.x if bearing=="E-W" else p.y)
+    if not selected:
+        fig.add_annotation(text="No CPT points within the selected section corridor",
+                           showarrow=False)
+    elif len(selected)<2:
+        fig.add_annotation(text="Only one observed CPT falls inside this corridor",
+                           showarrow=False)
+    else:
+        base=min(p.x if bearing=="E-W" else p.y for p in selected)
+        bx=[];by=[];sx=[];sy=[];count=0
+        for p in selected:
+            station=(p.x if bearing=="E-W" else p.y)-base
+            end=p.depth if p.depth is not None else max(b for _,b in p.intervals)
+            bx.extend([station,station,None])
+            by.extend([p.elevation,p.elevation-end,None])
+            for start,finish in p.intervals:
+                if finish<=start:continue
+                sx.extend([station,station,None])
+                sy.extend([p.elevation-start,p.elevation-finish,None])
+                count+=1
+            if len(selected)<=65:
+                fig.add_annotation(x=station,y=p.elevation,showarrow=False,
+                                   text=p.reference,angle=-48,yshift=26,
+                                   font={"size":8,"color":"#324b63"})
+        fig.add_trace(go.Scatter(x=bx,y=by,mode="lines",
+                      line={"color":"#adb8c6","width":2},name="CPT observed sounding",
+                      hoverinfo="skip"))
+        fig.add_trace(go.Scatter(x=sx,y=sy,mode="lines",
+                      line={"color":"#c3483d","width":9},
+                      name="Observed Ic-screen interval",hoverinfo="skip"))
+        fig.update_layout(hovermode="x unified")
+    fig.update_layout(
+        title=f"{bearing} CPT fence | surveyed corridor ±{width:.1f} m "
+              "(intervals observed at CPTs only)",
+        template="plotly_white",height=520,margin={"l":66,"r":20,"t":72,"b":65},
+        xaxis_title="Distance along transect (m)",yaxis_title="Elevation RL (m)",
+        legend={"orientation":"h","y":-0.22,"x":0.02})
+    return fig,{"points":len(selected),"corridor_m":width,"bearing":bearing}
+
+
 def export_interactive_3d(data,path,*,boundary=None,warning_m=.10,high_m=.30,
                           max_spacing_m=None):
     """Create a standalone fully offline 3D geotechnical explorer HTML.
@@ -500,5 +566,19 @@ def export_interactive_3d(data,path,*,boundary=None,warning_m=.10,high_m=.30,
                      config={"responsive":True,"scrollZoom":True,"displaylogo":False,
                              "modeBarButtonsToAdd":["resetCameraDefault3d"]})
     html=html.replace("<body>","<body style='margin:0;background:#f9fbfd'>"+header,1)
+    # Two independent E-W / N-S observed cross-sections make the 3D volume
+    # interpretable. Each section shows all measured depth bands; never
+    # implies that strata continue between separate CPTs.
+    sections=[]
+    for bearing in ("E-W","N-S"):
+        fence,summary=fence_section_figure(data,bearing=bearing)
+        sections.append(summary)
+        section_html=pio.to_html(fence,include_plotlyjs=False,full_html=False,
+            config={"responsive":True,"scrollZoom":True,"displaylogo":False})
+        panel=("<section style='margin:18px 18px 28px;background:white;"
+               "border:1px solid #cbd5e1;border-radius:12px'>"
+               +section_html+"</section>")
+        html=html.replace("</body>",panel+"</body>",1)
     path.write_text(html,encoding="utf-8")
-    return {"file":path,"points":len(points),"wedges":len(wedges),"withheld":len(excluded)}
+    return {"file":path,"points":len(points),"wedges":len(wedges),
+            "withheld":len(excluded),"fence_sections":sections}
