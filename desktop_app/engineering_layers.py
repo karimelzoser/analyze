@@ -212,6 +212,9 @@ def analyze_stratigraphy(depth, ic, sensor_valid=None, *, rolling_window: int = 
                         int(rolling_window),float(silt_threshold),tuple(notes))
 
 
-def from_analysis(analysis, rolling_window: int = 1) -> Stratigraphy:
+def from_analysis(analysis, rolling_window: int | None = None) -> Stratigraphy:
+    if rolling_window is None:
+        metadata=getattr(analysis,"metadata",{}) or {}
+        rolling_window=int(metadata.get("analysis_smoothing_window_samples",1))
     return analyze_stratigraphy(analysis.depth,analysis.ic,analysis.valid_sensor,
                                 rolling_window=rolling_window)
