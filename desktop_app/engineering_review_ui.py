@@ -17,6 +17,7 @@ from tkinter import filedialog, messagebox, ttk
 from engineering_workspace import EngineeringWorkspaceApp
 from engineering_reference_audit import audit_to_json
 from engineering_pdf_parity import pdf_visual_regression
+from engineering_excel_pdf import export_original_excel_pdf
 
 
 def qa_record(analysis):
@@ -132,6 +133,7 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
         tools.pack(fill="x",padx=18,pady=(0,12))
         self._btn(tools,"AUDIT ORIGINAL XLSB",self.audit_reference_excel).pack(side="left")
         self._btn(tools,"COMPARE PDF LAYOUTS",self.compare_pdf_layout).pack(side="left",padx=8)
+        self._btn(tools,"EXPORT ORIGINAL EXCEL PDF",self.print_original_xlsb_pdf).pack(side="left",padx=7)
         self._btn(tools,"ENGINEERING GUIDE  F1",self._show_help).pack(side="right")
         self.qa_status=tk.StringVar()
         self.qa_note=tk.Label(tools,textvariable=self.qa_status,bg="#ffffff",fg="#64748b",
@@ -251,6 +253,33 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
                 "The read-only XLSB chart/formula reference inventory was exported.\n\n"
                 "This does not certify cell formulas or VBA calculations.")
         except Exception as exc:messagebox.showerror("Source-model audit failed",str(exc))
+
+    def print_original_xlsb_pdf(self):
+        source=filedialog.askopenfilename(title="Select original CPT calculation XLSB",
+                      filetypes=[("Original Excel model","*.xlsb")])
+        if not source:return
+        from engineering_xlsb_reference import ReferenceWorkbookCache
+        try:
+            with ReferenceWorkbookCache(source) as book:
+                meta=book.summary()
+            ref=meta["cached_selected_cpt"]
+            if not ref:raise ValueError("Workbook does not expose a current CPT reference")
+            proceed=messagebox.askyesno("Export original Excel chart",
+                 "The original workbook currently contains cached report charts for:\\n"+
+                 str(ref)+"\\n\\nThis prints ONLY the source workbook's current saved CPT using "
+                 "locally installed Microsoft Excel. Macros and external links are disabled; "
+                 "it will not calculate an arbitrary new GEF.\\n\\nContinue?")
+            if not proceed:return
+            target=filedialog.asksaveasfilename(defaultextension=".pdf",
+                    initialfile=str(ref)+"_Original_Excel_Report.pdf",
+                    filetypes=[("PDF report","*.pdf")])
+            if not target:return
+            result,_=export_original_excel_pdf(source,target,expected_cpt=ref)
+            messagebox.showinfo("Original Excel PDF saved",
+                    "Printed by Microsoft Excel using the source workbook chart geometry:\\n"+
+                    str(result))
+        except Exception as exc:
+            messagebox.showerror("Original XLSB print not available",str(exc))
 
     def compare_pdf_layout(self):
         paths=filedialog.askopenfilenames(title="Choose TWO PDFs: reference then generated",
