@@ -70,6 +70,9 @@ def analyze_original_xlsb(path):
         largest=max((s["thickness_raw"] for s in intervals),default=0)
         total=sum(s["thickness_raw"] for s in intervals)
         final=max(intervals,key=lambda r:r["end_raw"],default=None)
+        all_valid_depths=[float(elev)-float(point_elev) for point_elev,_,zone in profile
+                          if isinstance(point_elev,(int,float))]
+        tested=max((d for d in all_valid_depths if math.isfinite(d) and d>=0),default=0.0)
         analyses.append({
            "reference":ref,"easting":summary.get("Easting"),
            "northing":summary.get("Norting"),"ground_elevation":elev,
@@ -80,6 +83,7 @@ def analyze_original_xlsb(path):
            "first_silt_screen_m":first,"silt_layer_count":len(intervals),
            "all_intervals":intervals,"brief_exceedances":spikes,
            "qc_data_count":len(profile),
+           "test_depth_m":tested,
            "settlement_mm":summary.get("Settlement (mm)"),
            "minimum_liquefaction_fos":summary.get("min. FOS"),
            "robertson_bc_kpa":summary.get("Robertson Ultimate BC [kPa]"),
