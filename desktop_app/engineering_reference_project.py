@@ -90,8 +90,8 @@ def analyze_original_xlsb(path):
     return meta,analyses,project
 
 
-def export_original_project(path,folder):
-    """Export a self-contained ORIGINAL XLSB project Excel, full zone archive & maps."""
+def export_original_project(path,folder,site_boundary=None):
+    """Export original cached project results with embedded map images and QA."""
     import xlsxwriter
     import numpy as np
     from matplotlib.figure import Figure
@@ -161,8 +161,12 @@ def export_original_project(path,folder):
             ("IMPORTANT","Values originate from original workbook CACHED results; VBA and native engineering formulas are not independently executed."),
             ("Thickness convention","Observed layer boundaries are derived from 0.01 m SBT cells; reported values use 0.1 m HALF_UP rounding. Borderline/thin layers require review.") ]
     sheet("Source Model Parameters",["Parameter","Value"],inputs)
-    wb.close()
     map_paths=[]
+    maps_sheet=wb.add_worksheet("Project Maps")
+    maps_sheet.set_column(0,0,3)
+    maps_sheet.set_column(1,13,12)
+    maps_sheet.write(0,1,"Original XLSB Project Coordinate Maps",head)
+    maps_sheet.write(1,1,"Cached engineering values only; outlying survey coordinates excluded, not corrected.")
     for key,title in [("max_contiguous_silt_screen_m","Thickest fine-grained-like layer"),
                       ("cumulative_silt_screen_m","Cumulative fine-grained-like intervals"),
                       ("settlement_mm","Original raft settlement (mm)"),
@@ -177,10 +181,21 @@ def export_original_project(path,folder):
             sc=ax.scatter([r["easting"] for r in located],[r["northing"] for r in located],
                        c=[r[key] for r in located],cmap="viridis",s=18)
             fig.colorbar(sc,ax=ax,label=title)
+        if site_boundary is not None:
+            polygon=np.asarray(site_boundary,dtype=float)
+            if polygon.ndim==2 and polygon.shape[1]==2 and len(polygon)>=3 and np.isfinite(polygon).all():
+                closed=np.vstack([polygon,polygon[0]])
+                ax.plot(closed[:,0],closed[:,1],linewidth=1.5,label="Imported site limits")
+                ax.legend(fontsize=8)
         ax.set_title(title+" — ORIGINAL XLSB CACHED RESULTS (%d coordinates withheld)"%len(withheld))
         ax.set_xlabel("Project Easting");ax.set_ylabel("Project Northing")
         ax.set_aspect("equal",adjustable="datalim");ax.grid(alpha=.15)
         fig.tight_layout()
         p=folder/(key+".png");fig.savefig(p,dpi=150);map_paths.append(p)
+        map_index=len(map_paths)-1
+        excel_row=4+map_index*43
+        maps_sheet.write(excel_row-1,1,title,head)
+        maps_sheet.insert_image(excel_row,1,str(p),{"x_scale":0.34,"y_scale":0.34})
+    wb.close()
     return {"workbook":output,"maps":map_paths,"source_summary":meta,
             "project_cpt_count":len(results)}
