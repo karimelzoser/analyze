@@ -140,11 +140,17 @@ def read_summary_xlsx(path: str|Path) -> list[SummaryPoint]:
                     ground_elevation_m=_float(get(data,"Current Level"))))
     if not records:
         raise ValueError("No supported CPT Analysis, Full Analysis or Raft/Isolated Summary table found")
-    # Prefer foundation-specific sheet over generic CPT Analysis when both present,
-    # and avoid duplicate generic rows when the detailed sheet repeats the same CPT.
+    # Preserve genuinely different rows with the same CPT reference. The supplied
+    # raft/isolated source has repeated references; silently discarding them would
+    # create false coordinate matches or misleading foundation summaries.
+    # Remove only identical worksheet records, not spatially or numerically
+    # different repeated CPT observations.
     seen=set();out=[]
     for p in sorted(records,key=lambda p: {"RAFT":0,"ISOLATED":0,"CPT":1}[p.foundation]):
-        key=(p.reference,p.foundation)
+        metrics=tuple(sorted((k,None if v is None else round(v,7)) for k,v in p.metrics.items()))
+        key=(p.reference,p.foundation,p.source_sheet,
+             None if p.east is None else round(p.east,5),
+             None if p.north is None else round(p.north,5),metrics)
         if key in seen:continue
         seen.add(key);out.append(p)
     return out
@@ -161,7 +167,14 @@ def compare_summaries(pre,post,*,coordinate_tolerance:float=2.0):
     pre=list(pre);post=list(post)
     matched=[];unmatched_pre=[];unmatched_post=set(range(len(post)));ambiguous=[]
     used=set()
+    ambiguous_post=set()
     for a in pre:
+        same_pre=[p for p in pre if p is not a and p.foundation==a.foundation
+                  and _norm_ref(p.reference)==_norm_ref(a.reference)
+                  and (_distance(p,a) is None or _distance(p,a)<=coordinate_tolerance)]
+        if same_pre:
+            ambiguous.append((a,same_pre))
+            continue
         viable=[]
         for j,b in enumerate(post):
             if j in used or a.foundation!=b.foundation:continue
@@ -176,7 +189,9 @@ def compare_summaries(pre,post,*,coordinate_tolerance:float=2.0):
         if not viable:
             unmatched_pre.append(a);continue
         if len(viable)>1 and viable[0][0]==viable[1][0]:
-            ambiguous.append((a,[post[x[1]] for x in viable]));continue
+            ambiguous.append((a,[post[x[1]] for x in viable]))
+            ambiguous_post.update(v[1] for v in viable)
+            continue
         _,j,dist=viable[0]
         b=post[j];used.add(j);unmatched_post.discard(j)
         diffs={}
@@ -190,7 +205,7 @@ def compare_summaries(pre,post,*,coordinate_tolerance:float=2.0):
                                "percent":delta/before*100 if before!=0 else None}
         matched.append({"pre":a,"post":b,"distance":dist,"metrics":diffs})
     return {"matched":matched,"unmatched_pre":unmatched_pre,
-            "unmatched_post":[post[i] for i in sorted(unmatched_post)],
+            "unmatched_post":[post[i] for i in sorted(unmatched_post-ambiguous_post)],
             "ambiguous":ambiguous}
 
 
