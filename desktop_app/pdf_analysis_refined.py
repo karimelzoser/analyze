@@ -21,9 +21,11 @@ def analyze_pdf(path: str | Path):
         analysis.metadata["thin_interval_unrounded_end"]=z.end_raw
         analysis.metadata["thin_interval_unrounded_thickness"]=z.thickness_raw
         analysis.verification_note+=(
-            " REVIEW: observed PDF layer is positive but its independently rounded"
-            " boundaries coincide. Thickness cannot be inflated to 0.10 m"
-            " without a project-approved thin-layer reporting rule."
+            " OBSERVED THIN PDF INTERVAL: %.3f to %.3f m BGL;"
+            " positive measured thickness %.3f m, below 0.10 m reporting"
+            " increment. PROJECT REPORTING REVIEW is required; measured"
+            " thickness has not been inflated to 0.10 m."
+            % (z.start_raw,z.end_raw,z.thickness_raw)
         )
         analysis.status="REVIEW"
         analysis.final_interval=None
