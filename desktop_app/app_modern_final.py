@@ -119,7 +119,8 @@ def _packaged_gui_smoke():
                 with zipfile.ZipFile(latest) as book:
                     workbook=book.read("xl/workbook.xml")
                     for sheet in (b"Summary",b"CPT Analysis",b"Full Analysis",
-                                  b"All Soil Layers",b"Source Audit",b"Project Maps"):
+                                  b"All Soil Layers",b"CPT Metadata",
+                                  b"Source Audit",b"Project Maps"):
                         if sheet not in workbook:raise RuntimeError("Missing workbook sheet "+repr(sheet))
                 reports=list((destination/"PDFs").glob("*.pdf"))
                 if len(reports)!=1:raise RuntimeError("Expected exactly one generated CPT report")
