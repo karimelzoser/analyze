@@ -219,22 +219,59 @@ def risk_plan(fig:Figure, data, *,boundary=None,warning_m=.10,high_m=.30,
                 k:sum(1 for kind,_ in classes if kind==k) for k in colors}}
 
 
-def _representative_interval(point):
-    if not point.intervals:return None
-    return max(point.intervals,key=lambda ab:ab[1]-ab[0])
+def _vertical_intersections(point):
+    """All recorded qualifying intervals as absolute elevation ranges.
+
+    Several separated fine-grained-like layers may exist at one CPT. Do not
+    discard them in favor of the longest interval.
+    """
+    if point.elevation is None:
+        return []
+    bounds=[]
+    for top_depth,base_depth in point.intervals:
+        high=point.elevation-float(top_depth)
+        low=point.elevation-float(base_depth)
+        if math.isfinite(high) and math.isfinite(low) and high>low:
+            bounds.append((low,high))
+    bounds.sort()
+    merged=[]
+    for low,high in bounds:
+        if merged and low<=merged[-1][1]+1e-9:
+            merged[-1]=(merged[-1][0],max(high,merged[-1][1]))
+        else:
+            merged.append((low,high))
+    return merged
+
+
+def _common_vertical_bands(corners,min_overlap_m):
+    """Intersection of all three CPT soil-screen intervals, retaining every band."""
+    first=_vertical_intersections(corners[0])
+    second=_vertical_intersections(corners[1])
+    third=_vertical_intersections(corners[2])
+    common=[]
+    for a0,a1 in first:
+        for b0,b1 in second:
+            lower=max(a0,b0);upper=min(a1,b1)
+            if upper-lower<min_overlap_m:continue
+            for c0,c1 in third:
+                lower3=max(lower,c0);upper3=min(upper,c1)
+                if upper3-lower3>=min_overlap_m-1e-10:
+                    common.append((lower3,upper3))
+    return sorted(common)
 
 
 def interpreted_wedges(points,boundary=None,max_spacing_m=None,min_vertical_overlap_m=.05):
-    """Create narrowly supported tetrahedral-ish silt prisms, no extrapolation.
+    """Return ALL locally evidenced depth bands as separate 3D prisms.
 
-    Each prism is a 3-corner triangular vertical wedge and all three CPTs
-    must have observed/cached qualifying silt at overlapping elevations.
-    The surfaces are *interpretations* and not measured true soil contacts.
+    A prism is admitted only within a spatially supported CPT triangle AND
+    a vertical band classified at all three corner soundings. A band at 2 m
+    cannot be connected to another at 6 m. These are uncertain screening
+    visualizations, never measured contiguous geological volumes.
     """
     good=[p for p in points if p.elevation is not None and
-          p.status!="REVIEW" and _representative_interval(p) is not None]
+          p.status!="REVIEW" and _vertical_intersections(p)]
     if len(good)<3:return [],0
-    tri,idx,maxdist=_triangle_mask([(p.x,p.y) for p in good],
+    tri,idx,_=_triangle_mask([(p.x,p.y) for p in good],
                           max_spacing_m=max_spacing_m,boundary=boundary)
     if tri is None:return [],0
     aligned=[good[i] for i in idx]
@@ -242,14 +279,92 @@ def interpreted_wedges(points,boundary=None,max_spacing_m=None,min_vertical_over
     for j,face in enumerate(tri.triangles):
         if tri.mask is not None and tri.mask[j]:continue
         corners=[aligned[int(i)] for i in face]
-        intervals=[_representative_interval(p) for p in corners]
-        tops=[p.elevation-a for p,(a,b) in zip(corners,intervals)]
-        bottoms=[p.elevation-b for p,(a,b) in zip(corners,intervals)]
-        # Even for horizons at differing elevations, shared vertical range
-        # must exceed the minimum to interpret continuity.
-        if min(tops)-max(bottoms)<min_vertical_overlap_m:continue
-        wedges.append((corners,tops,bottoms))
+        for low,high in _common_vertical_bands(corners,min_vertical_overlap_m):
+            # Conservative continuous overlap of all 3 observed horizons:
+            # flat top/bottom *inside* the data envelope, not guessed contacts.
+            wedges.append((corners,[high]*3,[low]*3))
     return wedges,len(good)
+
+
+def depth_window_records(data,top_m,bottom_m,*,minimum_coverage=.8):
+    """Observed screening thickness INSIDE a vertical depth window.
+
+    Invalid/deeper unmeasured portions are REVIEW, not zero. Raw sensor
+    validity is checked independently for every window. Original saved
+    SBT series use their recorded depth coverage and are marked cached.
+    """
+    top=float(top_m);bottom=float(bottom_m)
+    if not (math.isfinite(top) and math.isfinite(bottom) and 0<=top<bottom):
+        raise ValueError("Depth window must have finite bottom > top >= 0")
+    if not (0<minimum_coverage<=1):
+        raise ValueError("Coverage fraction must be between 0 and 1")
+    output=[]
+    for item in data:
+        if isinstance(item,dict):
+            e=item.get("easting");n=item.get("northing")
+            meta=item
+            intervals=tuple((float(v["start_raw"]),float(v["end_raw"]))
+                            for v in item.get("all_intervals",[])
+                            if v.get("start_raw") is not None and v.get("end_raw") is not None)
+            max_end=_num(item.get("test_depth_m"))
+            source_quality=str(item.get("status","REFERENCE-CACHED"))
+            sufficient=max_end is not None and max_end>=bottom-0.02
+        else:
+            meta=getattr(item,"metadata",{}) or {}
+            e=meta.get("easting");n=meta.get("northing")
+            source_quality=str(getattr(item,"status","REVIEW"))
+            intervals=()
+            try:
+                from engineering_layers import from_analysis
+                intervals=from_analysis(item).silt_intervals
+            except (AttributeError,ValueError,TypeError,IndexError):pass
+            # One observation at the requested bottom does not imply coverage
+            # throughout that interval. Estimate coverage by valid adjacent
+            # sample segments; never bridge a missing sensor stretch.
+            depth=np.asarray(getattr(item,"depth",[]),float)
+            sensor=np.asarray(getattr(item,"valid_sensor",[]),bool)
+            ic=np.asarray(getattr(item,"ic",[]),float)
+            coverage=0.
+            if len(depth)>1 and len(depth)==len(sensor)==len(ic):
+                if np.all(np.diff(depth)>0):
+                    a=np.maximum(depth[:-1],top)
+                    b=np.minimum(depth[1:],bottom)
+                    valid=sensor[:-1]&sensor[1:]&np.isfinite(ic[:-1])&np.isfinite(ic[1:])
+                    valid&=(np.diff(depth)<=.06)
+                    coverage=float(np.maximum(0,b-a)[valid].sum())
+            sufficient=coverage>=minimum_coverage*(bottom-top)-1e-8
+        if _num(e) is None or _num(n) is None:continue
+        observed=max(0.,sum(max(0.,min(b,bottom)-max(a,top)) for a,b in intervals))
+        maximum=max((max(0.,min(b,bottom)-max(a,top)) for a,b in intervals),default=0.)
+        status="REVIEW" if not sufficient or source_quality=="REVIEW" else source_quality
+        output.append({
+            "reference":str(item.get("reference","")) if isinstance(item,dict) else str(item.reference),
+            "easting":float(e),"northing":float(n),
+            "ground_elevation":meta.get("ground_elevation"),
+            "test_depth_m":bottom if sufficient else None,
+            "status":status,
+            "source_window_status":"OBSERVED" if sufficient else "INSUFFICIENT DEPTH/SENSOR COVERAGE",
+            "max_contiguous_silt_screen_m":maximum if sufficient else None,
+            "cumulative_silt_screen_m":observed if sufficient else None,
+            "all_intervals":[{"start_raw":max(a,top),"end_raw":min(b,bottom)}
+                             for a,b in intervals if min(b,bottom)>max(a,top)]
+        })
+    return output
+
+
+def depth_window_plan(fig,data,*,top_m,bottom_m,boundary=None,warning_m=.10,
+                      high_m=.30,show_interpretive_surface=True,max_spacing_m=None):
+    """Risk screening PLAN for a user-selected horizontal depth band."""
+    rows=depth_window_records(data,top_m,bottom_m)
+    result=risk_plan(fig,rows,boundary=boundary,warning_m=warning_m,
+                     high_m=high_m,show_interpretive_surface=show_interpretive_surface,
+                     max_spacing_m=max_spacing_m)
+    ax=fig.axes[0]
+    ax.set_title(f"Site depth slice {top_m:.2f}–{bottom_m:.2f} m BGL | observed screening",
+                 loc="left",fontweight="bold",fontsize=12)
+    result["depth_window"]=(float(top_m),float(bottom_m))
+    result["window_records"]=rows
+    return result
 
 
 def export_interactive_3d(data,path,*,boundary=None,warning_m=.10,high_m=.30,
