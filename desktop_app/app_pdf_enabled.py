@@ -293,6 +293,10 @@ def select_project_results(analyses, all_sources=None, analysis_errors=None):
     return selected_results, audit_rows
 
 
+class AnalysisCancelled(Exception):
+    """User requested safe cancellation at a phase boundary."""
+
+
 class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
     """Production desktop shell supporting GEF, GFF and CPT PDF reports."""
 
@@ -362,6 +366,8 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
         import traceback
         try:
             return self._work_batch(out,gamma,wt,make_pdfs)
+        except AnalysisCancelled:
+            self.messages.put(("cancelled",))
         except Exception as exc:
             diagnostic=traceback.format_exc()
             log_path=Path(out)/"CPT_Processing_Failure.log"
@@ -375,6 +381,12 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
     def _work_batch(self, out: Path, gamma: float, wt: float, make_pdfs: bool):
         out.mkdir(parents=True, exist_ok=True)
         pdfs = out / "PDFs"
+        cancel=getattr(self,"cancel_event",None)
+        def guard():
+            if cancel is not None and cancel.is_set():
+                raise AnalysisCancelled()
+        generated_pdfs=[]
+        guard()
         if make_pdfs:
             pdfs.mkdir(parents=True, exist_ok=True)
 
@@ -397,6 +409,7 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
                     for p in raw_sources
                 }
                 for future in as_completed(futures):
+                    guard()
                     p = futures[future]
                     completed += 1
                     try:
@@ -413,6 +426,7 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
                         self.messages.put(("analysis_error", completed, total, p, msg))
 
         for p in pdf_sources:
+            guard()
             completed += 1
             try:
                 a = analyze_pdf(p)
@@ -427,6 +441,10 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
                     error_map[str(p)] = msg
                 self.messages.put(("analysis_error", completed, total, p, msg))
 
+        guard()
+        self.messages.put(("batch_stage",60 if make_pdfs else 90,
+                           "Verifying sources and duplicate CPT references",
+                           f"{len(candidate_results)} analyzed source(s)"))
         # Revision-aware project collapse: one final result per CPT location.
         results, audit_rows = select_project_results(candidate_results, self.files, error_map)
         self.source_audit = audit_rows
@@ -439,6 +457,7 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
 
         if make_pdfs:
             for idx, a in enumerate(results, 1):
+                guard()
                 try:
                     output_pdf = app_modern.unique_pdf_path(pdfs, a.reference)
                     if a.source_path.suffix.lower() == ".pdf":
@@ -455,11 +474,15 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
                         else:
                             app_modern.generate_pdf(a, output_pdf)
                             a.metadata["official_pdf_pairing_reason"] = reason
+                    generated_pdfs.append(output_pdf)
                     self.messages.put(("pdf_done", idx, len(results), a.reference, output_pdf))
                 except Exception as exc:
                     errors.append((a.source_path.name, f"PDF generation: {exc}"))
                     self.messages.put(("pdf_error", idx, len(results), a.reference, str(exc)))
 
+        guard()
+        self.messages.put(("batch_stage",95,"Assembling complete engineering Excel",
+                           f"{len(results)} unique CPT(s); source audit and georeferenced charts"))
         excel_path = app_modern_v2.timestamped_excel_path(out)
         # One deliverable: combine calculated CPTs, all raw points, both
         # georeferenced map views, optional XLSB reference and foundation
@@ -475,6 +498,7 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
                 original_xlsb=original,foundation_xlsx=foundation_xlsx,
                 site_boundary=getattr(self,"site_boundary",None),
                 comparison_result=getattr(self,"compare_result",None))
+            guard()
             pending.replace(excel_path)
             excel=excel_path
         finally:
