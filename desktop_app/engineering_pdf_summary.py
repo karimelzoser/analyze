@@ -64,7 +64,13 @@ def engineering_analysis_page(a):
         ("Source file",source),
         ("Source quality",_cell(md.get("source_quality") or ("RAW NUMERICAL" if source.lower().endswith((".gef",".gff")) else "VECTOR PDF / GRAPHICAL"))),
         ("Project / client",_cell(md.get("project_name") or md.get("project_id"))+" / "+_cell(md.get("client"))),
+        ("Main contractor",_cell(md.get("main_contractor"))),
+        ("CPT location / area",_cell(md.get("location"))),
+        ("Cone serial / type",_cell(md.get("cone_id"))),
+        ("Testing standard",_cell(md.get("standard"))),
         ("Test date",_cell(md.get("test_date") or md.get("file_date"))),
+        ("Processing stage",_cell(md.get("cpt_stage") or "PRE (default)")),
+        ("Smoothing window",str(md.get("analysis_smoothing_window_samples") or "N/A - PDF source") +" observations"),
         ("Ground elevation",_num(ground,3,"m RL")),
         ("Easting / Northing",_num(md.get("easting"),3)+" / "+_num(md.get("northing"),3)),
         ("Corrected test end BGL",_num(getattr(a,"test_depth_raw",None),3,"m")),
@@ -84,8 +90,8 @@ def engineering_analysis_page(a):
         ("Number of brief Ic crossings",str(len(brief))),
         ("Unclassified sensor depth",_num(unknown,3,"m")),
         ("Terminal friction dropout",_num(getattr(a,"sensor_dropout_depth",None),3,"m") if getattr(a,"sensor_dropout_depth",None) is not None else "None recorded"),
-        ("Independent first pass",_num(a.pass1.start,2)+" / "+_num(a.pass1.thickness,2) if a.pass1 else "NO PERSISTENT LAYER"),
-        ("Independent second pass",_num(a.pass2.start,2)+" / "+_num(a.pass2.thickness,2) if a.pass2 else "NO PERSISTENT LAYER"),
+        ("First sensitivity window",_num(a.pass1.start,2)+" / "+_num(a.pass1.thickness,2) if a.pass1 else "NO PERSISTENT LAYER"),
+        ("Project stage primary window",_num(a.pass2.start,2)+" / "+_num(a.pass2.thickness,2) if a.pass2 else "NO PERSISTENT LAYER"),
     ]
     fig=Figure(figsize=(8.27,11.69),dpi=150,facecolor="#ffffff")
     ax=fig.add_axes((.06,.18,.88,.69));ax.axis("off")
