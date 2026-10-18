@@ -89,6 +89,9 @@ def _packaged_gui_smoke():
                 latest=latest_excel_path(destination)
                 if latest is None or not latest.exists():
                     raise RuntimeError("Open Latest Excel could not resolve completed workbook")
+                delivered=list(destination.glob("*.xlsx"))
+                if len(delivered)!=1:
+                    raise RuntimeError("Expected ONE comprehensive XLSX per run, found "+repr([p.name for p in delivered]))
                 with zipfile.ZipFile(latest) as book:
                     workbook=book.read("xl/workbook.xml")
                     for sheet in (b"CPT Analysis",b"Full Analysis",b"All Soil Layers",
