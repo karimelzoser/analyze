@@ -1,3 +1,16 @@
+# NEW OPERATOR-UX REQUIREMENTS ADDED — 2026-10-19
+
+**Status: PLANNED / release-blocking, not yet implementation-verified.** After the operator screenshot and comments, the next build must satisfy the new [Production Closure Plan §8](PRODUCTION_CLOSURE_PLAN.md) and [Operator Acceptance Checklist](OPERATOR_ACCEPTANCE_CHECKLIST.md). GitHub tracking: [issue #9](https://github.com/karimelzoser/analyze/issues/9).
+
+- Ordinary operator must load only GEF/GFF/PDF or a folder and run; hide optional XLSB/foundation/boundary upload buttons from default setup.
+- Progress bar must remain globally visible with real stage/file counts and support Cancel/retry.
+- 3D must be navigable and meaningful for CPT depth intervals/unknown data and project coordinates; 2D map and drilldown must be usable.
+- Output must be one full XLSX with embedded maps, five-column first sheet and complete numeric/QA/foundation-source data when available; every CPT PDF populated or N/A with reason.
+- Production acceptance requires 448 actual PDFs, approved raw cases, screenshots at multiple screen sizes/DPI, full button clickthrough, failed/cancelled batch scenarios and engineering signoff.
+- **Do not interpret 104 prior tests as evidence that this new UX contract passed.**
+
+---
+
 # CURRENT STATUS — 2026-10-18 (supersedes historical snapshot below)
 
 **Engineering status:** Feature-complete in substantial areas, **not geotechnical-production validated**.
