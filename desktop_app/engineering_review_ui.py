@@ -280,6 +280,7 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
             if source["cpt_summary_count"]<1:
                 raise ValueError("No cached CPT source data available")
             self.original_model_path=Path(file)
+            if hasattr(self,"reference_status"):self.reference_status.set("XLSB: "+Path(file).name+" · source model loaded")
             self.qa_status.set("XLSB parity enabled: %d cached source points. New batches will add CPT_Reference_Parity.xlsx."%
                                source["cpt_summary_count"])
             messagebox.showinfo("Original Excel source selected",
