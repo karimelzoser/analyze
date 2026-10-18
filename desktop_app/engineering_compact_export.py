@@ -11,7 +11,7 @@ from math import isfinite
 import numpy as np
 import xlsxwriter
 
-BASE_SHEETS=("Summary","CPT Analysis","Full Analysis","All Soil Layers",
+BASE_SHEETS=("Summary","CPT Analysis","Charts","CPT Curves","Full Analysis","All Soil Layers",
              "CPT Measurements","Project Maps","Source Audit")
 
 
@@ -219,6 +219,7 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
     ws.set_row(0,36);ws.freeze_panes(1,2);ws.set_column(0,0,29)
     ws.set_column(1,8,16);ws.set_column(9,10,24)
     row=0
+    measurement_ranges=[]
     for a in analyses:
         if not hasattr(a,"depth"):continue
         try:
@@ -229,6 +230,7 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
         n=len(arrays[0])
         if any(len(x)!=n for x in arrays) or len(valid)!=n:
             raise ValueError("CPT data arrays have inconsistent depths: "+a.reference)
+        first_measurement_row=row+1
         for k in range(n):
             row+=1
             ws.write(row,0,a.reference,style["plain"])
@@ -246,6 +248,8 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
                     ws.write(row,j,"NOT MEASURED",style["small"])
             ws.write(row,9,"VALID" if valid[k] and isfinite(arrays[-1][k]) else "UNKNOWN",style["plain"])
             ws.write(row,10,str(a.source_path.suffix).upper(),style["plain"])
+        if row>=first_measurement_row:
+            measurement_ranges.append((a.reference,first_measurement_row,row))
     if row:ws.autofilter(0,0,row,len(measurement_columns)-1)
 
     # A REVIEW result must never look like an empty CPT. Keep all measured
@@ -393,6 +397,11 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
                [(p.reference,p.x,p.y,"Outlier withheld from map; original data unchanged")
                 for p in excluded])
 
+    # Restored, fully editable Excel Charts and CPT Curves worksheets.
+    # Chart objects reference these workbook cells and are not static PNGs.
+    from engineering_excel_charts import restore_project_charts
+    restore_project_charts(book,plan_points,analyses,measurement_ranges)
+
     # First sheet and clean summary display (put summary first in Excel tabs).
     summary=book.add_worksheet("Summary")
     summary.set_tab_color("#0b6b5a")
@@ -430,6 +439,10 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
     book.worksheets_objs.insert(0,quick_sheet)
     book.worksheets_objs.remove(summary)
     book.worksheets_objs.insert(1,summary)
+    for offset,name in enumerate(("Charts","CPT Curves"),2):
+        sheet=next(x for x in book.worksheets_objs if x.name==name)
+        book.worksheets_objs.remove(sheet)
+        book.worksheets_objs.insert(offset,sheet)
     quick_sheet.activate()
     quick_sheet.set_first_sheet()
     book.close()
