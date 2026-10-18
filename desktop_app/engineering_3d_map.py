@@ -21,6 +21,20 @@ def measured_3d_points(analyses):
     from engineering_maps import filter_coordinate_outliers
     points=[]
     for analysis in analyses:
+        if isinstance(analysis,dict):
+            e,n,z=[_valid_number(analysis.get(k)) for k in
+                    ("easting","northing","ground_elevation")]
+            if e is None or n is None or z is None:continue
+            intervals=analysis.get("all_intervals") or []
+            runs=tuple((float(x.get("start_raw")),float(x.get("end_raw"))) for x in intervals
+                       if x.get("start_raw") is not None and x.get("end_raw") is not None)
+            last=max((b for a,b in runs),default=0)
+            last=max(last,float(analysis.get("test_depth_m") or 0))
+            if last<=0:continue
+            points.append({"reference":str(analysis.get("reference")),"easting":e,"northing":n,
+                "ground":z,"depth":last,"layers":runs,"unknown":0,
+                "status":str(analysis.get("status","REFERENCE-CACHED"))})
+            continue
         md=getattr(analysis,"metadata",{}) or {}
         e,n,z=[_valid_number(md.get(key)) for key in ("easting","northing","ground_elevation")]
         if e is None or n is None or z is None:continue
