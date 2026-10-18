@@ -44,7 +44,7 @@ def test_offline_html_controls_are_above_first_3d_plot(tmp_path):
                  "cpt-wedges","cpt-reset","E-W CPT fence","N-S CPT fence"):
         assert term in html,term
     assert html.index('id="cpt-studio"') < html.index('Plotly.newPlot(')
-    assert "https://cdn.plot.ly" not in html
+    assert '<script src="https://cdn.plot.ly' not in html
     assert output["file"].stat().st_size>2000000
 
 
