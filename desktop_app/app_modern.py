@@ -102,8 +102,10 @@ class ModernCPTApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("CPT Analyzer Professional")
-        self.geometry("1500x930")
-        self.minsize(1180, 760)
+        self.geometry("1380x850")
+        # Windows may be 1024x768/125% DPI. Do not require a minimum window
+        # larger than the physical screen; content adapts in tab workspaces.
+        self.minsize(940, 615)
         self.configure(bg=PALETTE["bg"])
 
         self.files: list[Path] = []
