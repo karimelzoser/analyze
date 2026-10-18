@@ -17,6 +17,7 @@ from app_pdf_enabled import PDFEnabledCPTApp
 from engineering_layers import from_analysis, _smooth_contiguous
 from engineering_maps import coordinate_rows,filter_coordinate_outliers
 from engineering_3d_map import site_3d_figure
+from engineering_geo_explorer import risk_plan, export_interactive_3d
 from engineering_comparison import read_summary_xlsx, compare_summaries, export_comparison, read_site_boundary_xlsx
 from engineering_depth_comparison import compare_depth_profiles, export_depth_change
 from engineering_foundations import check_foundation_results, export_foundation_validation
@@ -130,13 +131,31 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self._source_cached_analysis=None
         self._source_cached_file=None
 
-        self.map_projection=tk.StringVar(value="2D measured plan")
+        self.map_projection=tk.StringVar(value="Risk screening plan")
         projection=ttk.Combobox(map_actions,textvariable=self.map_projection,
-                         values=["2D measured plan","3D CPT soil columns"],width=23,state="readonly")
+                         values=["Risk screening plan","2D measured plan","3D CPT soil columns"],width=23,state="readonly")
         projection.pack(side="left",padx=8)
         projection.bind("<<ComboboxSelected>>",lambda event:self.refresh_map())
         self._btn(map_actions,"SAVE SITE MAP PNG",self.save_map_image).pack(side="right")
         self._btn(map_actions,"LOAD SITE LIMIT XLSX",self.load_site_boundary).pack(side="right",padx=8)
+        riskbar=tk.Frame(self.map_tab,bg="#ffffff")
+        riskbar.pack(fill="x",padx=16,pady=(2,4))
+        tk.Label(riskbar,text="WATCH from (m)",bg="#ffffff",fg="#475569").pack(side="left")
+        self.risk_watch=tk.StringVar(value="0.10")
+        ttk.Entry(riskbar,textvariable=self.risk_watch,width=8).pack(side="left",padx=(5,10))
+        tk.Label(riskbar,text="HIGH from (m)",bg="#ffffff",fg="#475569").pack(side="left")
+        self.risk_high=tk.StringVar(value="0.30")
+        ttk.Entry(riskbar,textvariable=self.risk_high,width=8).pack(side="left",padx=(5,10))
+        self.show_interpolated=tk.BooleanVar(value=True)
+        ttk.Checkbutton(riskbar,text="Bounded indicative shading",
+                        variable=self.show_interpolated,
+                        command=self.refresh_map).pack(side="left",padx=4)
+        self._btn(riskbar,"APPLY",self.refresh_map).pack(side="left",padx=4)
+        self._btn(riskbar,"ALL HIGH CPTs",self.show_all_high_points).pack(side="right",padx=4)
+        self._btn(riskbar,"OPEN INTERACTIVE 3D GEOLOGY",self.open_interactive_3d,
+                  primary=True).pack(side="right",padx=4)
+        self._geo_risk_artists={}
+        self._geo_hotspots=[]
         self.map_status=tk.StringVar(value="Project map becomes available after analysis.")
         tk.Label(self.map_tab,textvariable=self.map_status,bg="#ffffff",fg="#64748b",
                  anchor="w").pack(fill="x",padx=18,pady=4)
@@ -496,6 +515,79 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         except Exception as exc:
             messagebox.showerror("Site boundary not available",str(exc))
 
+    def _map_dataset(self):
+        analyses=self.results
+        if self.map_data_source.get()=="Original XLSB full project":
+            source=getattr(self,"original_model_path",None)
+            if not source:raise ValueError("Select an original XLSB model in QA & Review first")
+            if self._source_cached_analysis is None or self._source_cached_file!=str(source):
+                from engineering_reference_project import analyze_original_xlsb
+                _,self._source_cached_analysis,_=analyze_original_xlsb(source)
+                self._source_cached_file=str(source)
+            analyses=self._source_cached_analysis
+        return analyses
+
+    def show_all_high_points(self):
+        from tkinter import ttk
+        if not self._geo_hotspots:
+            messagebox.showinfo("No high screening points",
+                "No locations reach the current HIGH screening thickness. "
+                "Review the threshold, data source and filter.")
+            return
+        window=tk.Toplevel(self)
+        window.title("All CPT screening hotspots — click to inspect")
+        window.geometry("900x500")
+        panel=tk.Frame(window,padx=14,pady=12);panel.pack(fill="both",expand=True)
+        ttk.Label(panel,text=f"{len(self._geo_hotspots)} CPTs meeting HIGH screening threshold — "
+                  "not engineering design failures",font=("Segoe UI Semibold",12)).pack(anchor="w",pady=(0,9))
+        cols=("ref","thick","x","y","status")
+        grid=ttk.Treeview(panel,columns=cols,show="headings",selectmode="browse")
+        for c,t,w in zip(cols,("CPT Reference","Max observed (m)","Easting","Northing",
+                               "Classification"),(235,140,150,150,145)):
+            grid.heading(c,text=t);grid.column(c,width=w)
+        grid.pack(fill="both",expand=True)
+        for p in self._geo_hotspots:
+            grid.insert("","end",values=(p.reference,
+                     "N/A" if p.maximum_m is None else f"{p.maximum_m:.3f}",
+                     f"{p.x:.3f}",f"{p.y:.3f}",p.status))
+        def open_row(_event=None):
+            item=grid.selection()
+            if not item:return
+            ref=grid.item(item[0],"values")[0]
+            self._open_map_reference(ref)
+        grid.bind("<Double-1>",open_row)
+        self._btn(panel,"OPEN SELECTED CPT",open_row).pack(anchor="e",pady=8)
+
+    def _open_map_reference(self,reference):
+        self.layer_reference.set(reference)
+        self.notebook.select(self.layers_tab)
+        self.refresh_layers()
+        self.status_var.set("Opened CPT profile: "+reference)
+
+    def open_interactive_3d(self):
+        import webbrowser
+        import tempfile
+        try:
+            dataset=self._map_dataset()
+            # A standalone HTML document contains Plotly itself; it remains
+            # usable offline and can be opened in any modern local browser.
+            if not hasattr(self,"_geo_html_dir"):
+                from tempfile import TemporaryDirectory
+                self._geo_html_dir=TemporaryDirectory(prefix="cpt_3d_explorer_")
+            target=Path(self._geo_html_dir.name)/"CPT_Interactive_3D.html"
+            result=export_interactive_3d(dataset,target,boundary=self.site_boundary,
+                         warning_m=float(self.risk_watch.get()),
+                         high_m=float(self.risk_high.get()))
+            if not webbrowser.open(target.resolve().as_uri()):
+                messagebox.showinfo("3D model created","Open this local HTML in your browser:\n"+str(target))
+            self.map_status.set(
+                f"Offline 3D explorer: {result['points']} surveyed CPTs | "
+                f"{result['wedges']} locally supported interpretation wedges | "
+                f"{result['withheld']} survey coordinate exceptions. "
+                "Rotate, zoom and toggle layer visibility in the browser.")
+        except Exception as exc:
+            messagebox.showerror("3D geology model unavailable",str(exc))
+
     def refresh_map(self):
         if not hasattr(self,"map_ax"):return
         map_analyses=self.results
@@ -519,6 +611,27 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             except Exception as exc:
                 self.map_status.set("Original XLSB project could not be read: "+str(exc))
                 return
+        if self.map_projection.get()=="Risk screening plan":
+            try:
+                watch=float(self.risk_watch.get());high=float(self.risk_high.get())
+                summary=risk_plan(self.map_fig,map_analyses,boundary=self.site_boundary,
+                        warning_m=watch,high_m=high,
+                        show_interpretive_surface=self.show_interpolated.get())
+            except Exception as exc:
+                self.map_status.set("Risk plan cannot be displayed: "+str(exc))
+                return
+            self.map_ax=self.map_fig.axes[0]
+            self._geo_risk_artists=summary["artists"]
+            self._geo_hotspots=summary["high"]
+            self._mapped_points=[]
+            self.map_status.set(
+                f"{len(summary['points'])} CPT locations • "
+                f"{len(summary['high'])} HIGH screening points (all inspectable) • "
+                f"{summary['supported_triangles']} locally supported surface triangles • "
+                f"{len(summary['outliers'])} coordinate QA exceptions. "
+                "Click a pin for full CPT details; toolbar pan/zoom supported.")
+            self.map_canvas.draw_idle()
+            return
         if self.map_projection.get()=="3D CPT soil columns":
             fig,summary=site_3d_figure(map_analyses,self.site_boundary,figure=self.map_fig)
             self.map_ax=self.map_fig.axes[0]
@@ -572,6 +685,12 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.map_canvas.draw_idle()
 
     def _pick_map_point(self,event):
+        points=getattr(self,"_geo_risk_artists",{}).get(getattr(event,"artist",None))
+        if points is not None:
+            indices=getattr(event,"ind",[])
+            if len(indices) and 0<=int(indices[0])<len(points):
+                self._open_map_reference(points[int(indices[0])].reference)
+            return
         if not getattr(self,"_mapped_points",None):return
         indices=getattr(event,"ind",[])
         if not len(indices):return
