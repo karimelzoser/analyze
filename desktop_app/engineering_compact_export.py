@@ -233,6 +233,12 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
             row+=1
             ws.write(row,0,a.reference,style["plain"])
             for j,arr in enumerate(arrays,1):
+                # u2=0 is an internal qt fallback when the GEF lacks pore
+                # pressure column code 6. It must never be shown as if it were
+                # a directly measured pore-pressure value in the audit XLSX.
+                if j==4 and (getattr(a,"metadata",{}) or {}).get("pore_pressure_measured") is False:
+                    ws.write(row,j,"NOT MEASURED — 0 ASSUMED FOR qt",style["small"])
+                    continue
                 v=float(arr[k])
                 if isfinite(v):
                     ws.write_number(row,j,v,style["number"])
