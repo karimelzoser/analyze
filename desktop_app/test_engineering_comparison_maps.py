@@ -98,3 +98,32 @@ def test_coordinate_only_rejects_two_pre_competing_for_same_post():
     x=compare_summaries(pre,post,allow_coordinate_only=True)
     assert not x["matched"]
     assert x["ambiguous"]
+
+
+def test_project_coordinate_outlier_is_flagged_not_mapped():
+    from engineering_maps import filter_coordinate_outliers
+    regular=[("CPT-"+str(i),420500+i*12,2927800+i*9,"VERIFIED")
+             for i in range(30)]
+    typo=("CPT-BAD",420600,29278000,"VERIFIED")
+    good,bad=filter_coordinate_outliers(regular+[typo])
+    assert len(good)==30
+    assert len(bad)==1
+    assert bad[0][0]=="CPT-BAD"
+
+
+def test_site_map_contains_warning_without_enlarging_to_invalid_coordinate(tmp_path):
+    from engineering_maps import render_site_map
+    from types import SimpleNamespace
+    import numpy as np
+    data=[]
+    depth=np.arange(0,1.01,.01)
+    for i in range(30):
+        e=420500+i*12
+        n=2927800+i*9
+        if i==29:n=29278000
+        data.append(SimpleNamespace(reference="CPT-"+str(i),
+             metadata={"easting":e,"northing":n},depth=depth,
+             ic=np.full(len(depth),2.7),valid_sensor=np.ones(len(depth),bool),
+             status="VERIFIED",test_depth_raw=1.0))
+    out=render_site_map(data,tmp_path/"map.png")
+    assert out.stat().st_size>5000
