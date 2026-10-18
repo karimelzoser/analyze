@@ -1,3 +1,21 @@
+# LATEST VALIDATED BUILD — 2026-10-19
+
+**Source commit:** `6e7ce69c2da0ebaeced10801b18f0111dab78580`  
+**Successful Windows Actions:** [run 39171022430](https://github.com/karimelzoser/analyze/actions/runs/39171022430).  
+**Validation:** 109 automated tests passed; eight desktop tabs tested; packaged Windows EXE startup and double-click startup path passed; simulated 400-CPT batch completed; source GEF → generated CPT PDF + unified XLSX with embedded 2D/3D maps tested.  
+**Published:** `release/CPT_Silt_Analyzer_Latest.zip` (~85 MB).
+
+Additional corrections since the previous snapshot:
+- **CPT Analysis** is again the **FIRST/default five-column Excel worksheet**; project Summary is second. Full original headers, numerical measurements, source QA, all layers and embedded maps remain in the same workbook.
+- Original GEF/GFF `#HEADER` key/value entries are fully preserved in `Original GEF Headers` for engineering audit.
+- When source data lack a measured u2 column, the engine flags the internal `u2 = 0` fallback in metadata, the PDF analysis page and the Excel measurements sheet; assumed zero is never silently presented as an observed pore-pressure reading.
+- Exact tested source from the Windows Actions artifact was also run **offline** on six provided real source examples without uploading private GFF data to public GitHub: all annotated classification statuses and silt thicknesses aligned with the examples (B04/B18/B19 = 0.20/0.20/0.30 m; B05/B07 = no sustained qualifying silt) and A1-292 = 6.20/0.10 m. B04 start remains reported 4.20 m, not automatically altered to an approximate 4.30 m.
+- A consolidated example workbook was generated and structurally verified locally: first sheets `CPT Analysis`, `Summary`, `CPT Metadata`, `Original GEF Headers`; nine worksheets overall; two embedded project-map images.
+
+**Still not signed off:** native numerical parity with every formula/VBA dependency in the original XLSB, native independent raft/isolated-footing design calculation parity, exact Excel-only PDF appearance for arbitrary raw CPTs, survey-coordinate CRS signoff and a fully executed 448-real-PDF project campaign. The build is an **engineering preview**, not certified project design acceptance.
+
+---
+
 # NEW OPERATOR-UX REQUIREMENTS ADDED — 2026-10-19
 
 **Status: PLANNED / release-blocking, not yet implementation-verified.** After the operator screenshot and comments, the next build must satisfy the new [Production Closure Plan §8](PRODUCTION_CLOSURE_PLAN.md) and [Operator Acceptance Checklist](OPERATOR_ACCEPTANCE_CHECKLIST.md). GitHub tracking: [issue #9](https://github.com/karimelzoser/analyze/issues/9).
