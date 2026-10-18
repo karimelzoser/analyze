@@ -181,3 +181,23 @@ def test_conclusive_revision_thickness_conflict_is_review_not_silent_precedence(
     assert len(rows)==1
     assert rows[0].status=="REVIEW"
     assert rows[0].metadata["source_revision_conflict"] is True
+
+
+def test_descriptive_gff_filenames_use_embedded_testid_for_one_project_row():
+    from types import SimpleNamespace
+    import numpy as np
+    from cpt_core import SiltInterval
+    def analysis(filename,ref,start=.0):
+        silt=SiltInterval(4.3,4.5,.2,4.31,4.49,.18,4.49)
+        return SimpleNamespace(
+            source_path=Path(filename),reference=ref,status="VERIFIED",
+            final_interval=silt,verification_note="Verified",
+            metadata={"easting":420514.101,"northing":2927805.939,
+                      "ground_elevation":3.79})
+    raw=analysis("here the silt is 0.2 depth.gff","CPT-A1-B18-100")
+    pdf=analysis("P261074_CPT-A1-B18-100.pdf","CPT-A1-B18-100")
+    selected,audit=select_project_results([raw,pdf],[raw.source_path,pdf.source_path])
+    assert len(selected)==1
+    assert selected[0].reference=="CPT-A1-B18-100"
+    assert selected[0].source_path==raw.source_path
+    assert sum(r["selected"]=="YES" for r in audit)==1
