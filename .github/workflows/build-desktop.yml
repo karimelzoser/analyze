@@ -47,7 +47,7 @@ jobs:
         shell: pwsh
         working-directory: desktop_app
         run: |
-          python app_modern_final.py --smoke-test
+          python app_modern_final.py --integration-smoke
 
       - name: Build executable
         shell: pwsh
