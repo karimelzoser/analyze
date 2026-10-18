@@ -135,4 +135,4 @@ if __name__ == "__main__":
     import sys
     if "--smoke-test" in sys.argv or "--integration-smoke" in sys.argv:
         raise SystemExit(_packaged_gui_smoke())
-    engineering_workspace.EngineeringWorkspaceApp().mainloop()
+    engineering_review_ui.EngineeringReviewApp().mainloop()
