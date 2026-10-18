@@ -58,3 +58,23 @@ def test_3d_map_accepts_real_survey_levels_without_interpolated_surface(tmp_path
     p=tmp_path/"only_when_requested.png"
     fig.savefig(p)
     assert p.stat().st_size>5000
+
+
+def test_original_source_reference_and_all_cached_depths_are_inside_same_output(tmp_path):
+    from test_engineering_xlsb_reference import make_reference_fixture
+    from engineering_unified_excel import extend_project_workbook
+    source=tmp_path/"reference.xlsb"
+    make_reference_fixture(source)
+    raw=tmp_path/"input.GEF"
+    make_synthetic_gef(raw,23)
+    sounding=analyze_gef(raw,water_table_depth=2.0)
+    result=export_excel([sounding],tmp_path/"single_output.xlsx",
+                        original_xlsb=source)
+    with zipfile.ZipFile(result) as book:
+        named=book.read("xl/workbook.xml")
+        for title in (b"Original XLSB Foundation",b"Original SBT Intervals",
+                      b"Original SBT Curves",b"Native vs Source XLSB",
+                      b"Project Maps",b"CPT Measurements",b"CPT Analysis"):
+            assert title in named, title
+        assert len([s for s in book.namelist() if s.startswith("xl/media/image")])>=2
+    assert len(list(tmp_path.glob("*.xlsx")))==1
