@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import math
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -176,8 +177,39 @@ def select_project_results(analyses, all_sources=None, analysis_errors=None):
 
         signatures = {_result_signature(a) for a in conclusive}
         conflict = len(signatures) > 1
-        if conflict:
-            reason += " Earlier conclusive revisions differ; revision precedence was applied and all versions remain in Source Audit."
+        # Different report versions can use the same nominal CPT identifier
+        # while referring to different physical tests. These must not be
+        # collapsed into a seemingly verified single engineering location.
+        points=[]
+        levels=[]
+        for item in items:
+            try:
+                x=float(item.metadata.get("easting"))
+                y=float(item.metadata.get("northing"))
+                if math.isfinite(x) and math.isfinite(y):
+                    points.append((x,y,item.source_path.name))
+            except (TypeError,ValueError,AttributeError):
+                pass
+            try:
+                level=float(item.metadata.get("ground_elevation"))
+                if math.isfinite(level):
+                    levels.append((level,item.source_path.name))
+            except (TypeError,ValueError,AttributeError):
+                pass
+        spatial_conflict=any(
+            math.hypot(x-points[0][0],y-points[0][1])>.50
+            for x,y,_ in points[1:]) if len(points)>1 else False
+        datum_conflict=any(
+            abs(z-levels[0][0])>.08 for z,_ in levels[1:]) if len(levels)>1 else False
+        if conflict or spatial_conflict or datum_conflict:
+            reason += (" SOURCE CONFLICT: revisions disagree in final engineering"
+                       " classification, measured coordinates, or ground elevation."
+                       " No verified project value was selected; manual reconciliation required.")
+            selected.status="REVIEW"
+            selected.final_interval=None
+            selected.verification_note=(str(selected.verification_note or "")+
+                 " Project source revisions conflict. Resolve original test identity,"
+                 " survey coordinates, ground datum and selected report before approval.")
 
         original_ref = selected.reference
         selected.metadata = dict(selected.metadata)
@@ -188,6 +220,8 @@ def select_project_results(analyses, all_sources=None, analysis_errors=None):
             "source_selection_reason": reason,
             "source_family_count": len(family_sources.get(family, items)),
             "source_revision_conflict": conflict,
+            "source_spatial_conflict": spatial_conflict,
+            "source_datum_conflict": datum_conflict,
         })
         selected.reference = family
         selected_results.append(selected)
