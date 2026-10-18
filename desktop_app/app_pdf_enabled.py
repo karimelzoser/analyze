@@ -144,13 +144,22 @@ def select_project_results(analyses, all_sources=None, analysis_errors=None):
     all_sources = list(all_sources or [a.source_path for a in analyses])
     analysis_errors = dict(analysis_errors or {})
 
+    # The TESTID embedded in the data or official PDF metadata—not an arbitrary
+    # descriptive upload filename—is the authoritative physical CPT identifier.
+    # Preserve the original source filename separately for exact provenance.
+    def key_for_file(path):
+        try:return str(Path(path).resolve()).lower()
+        except Exception:return str(Path(path).absolute()).lower()
+    source_identity={key_for_file(a.source_path):canonical_reference(a.reference)
+                     for a in analyses}
     family_sources: dict[str, list[Path]] = {}
     for p in all_sources:
-        family_sources.setdefault(source_reference_key(p), []).append(Path(p))
+        family=source_identity.get(key_for_file(p),source_reference_key(p))
+        family_sources.setdefault(family, []).append(Path(p))
 
     grouped: dict[str, list] = {}
     for a in analyses:
-        grouped.setdefault(source_reference_key(a.source_path), []).append(a)
+        grouped.setdefault(canonical_reference(a.reference), []).append(a)
 
     selected_results = []
     selected_by_family: dict[str, object] = {}
@@ -239,7 +248,7 @@ def select_project_results(analyses, all_sources=None, analysis_errors=None):
         analyzed_by_path[key] = a
 
     for p in sorted(all_sources, key=lambda q: (app_modern.natural_ref_key(source_reference_key(q)), source_revision(q), q.name.lower())):
-        family = source_reference_key(p)
+        family = source_identity.get(key_for_file(p), source_reference_key(p))
         try:
             pkey = str(Path(p).resolve()).lower()
         except Exception:
