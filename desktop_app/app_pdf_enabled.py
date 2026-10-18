@@ -377,7 +377,8 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
             workers = max(1, min(8, os.cpu_count() or 4, len(raw_sources)))
             with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="cpt-raw") as pool:
                 futures = {
-                    pool.submit(app_modern.analyze_gef, p, gamma_soil=gamma, water_table_depth=wt): p
+                    pool.submit(app_modern.analyze_gef, p, gamma_soil=gamma, water_table_depth=wt,
+                                stage=getattr(self,"analysis_stage_value","PRE")): p
                     for p in raw_sources
                 }
                 for future in as_completed(futures):
