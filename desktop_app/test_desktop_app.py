@@ -46,7 +46,7 @@ def test_natural_sort_and_output_helper(tmp_path):
 def test_end_to_end_outputs(tmp_path):
     gef = tmp_path / "test.GEF"
     write_synthetic_gef(gef)
-    a = analyze_gef(gef)
+    a = analyze_gef(gef, water_table_depth=0.0)
     assert a.status == "VERIFIED"
     assert a.final_interval is not None and a.final_interval.thickness > 0
     assert a.sensor_dropout_depth is not None
