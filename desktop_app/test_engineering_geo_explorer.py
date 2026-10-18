@@ -75,9 +75,14 @@ def test_full_3d_html_is_genuinely_offline_and_rotatable(tmp_path):
 
 
 def test_original_survey_outlier_does_not_expand_model_bounds():
-    erroneous={**_project_points()[0],"reference":"BAD-CPT","northing":999999.}
-    pts,bad=spatial_points(_project_points()+[erroneous])
-    assert len(pts)==6 and len(bad)==1
+    original=_project_points()
+    for j in range(3):
+        new={**original[0],"reference":f"EXTRA-{j}",
+             "easting":170.0+j*20.0,"northing":105.0+j*7}
+        original.append(new)
+    erroneous={**original[0],"reference":"BAD-CPT","northing":999999.}
+    pts,bad=spatial_points(original+[erroneous])
+    assert len(pts)==9 and len(bad)==1
 
 
 def test_help_is_comprehensive_and_contains_the_actual_formulas():
