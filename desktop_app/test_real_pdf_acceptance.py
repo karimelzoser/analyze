@@ -48,6 +48,32 @@ def test_actual_pdf_acceptance_has_100_percent_source_manifest_and_one_workbook(
         assert b'tabSelected="1"' in selected
         assert len([n for n in archive.namelist()
                     if n.startswith("xl/media/image")])>=2
+        # Source Audit must refer to actual physical PDFs. Historically the
+        # exporter looked up 'reference'/'source' instead of 'family'/
+        # 'source_file' and wrote NOT RECORDED in both audit columns.
+        sheets={item.get("name"):item.get(
+            "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
+            for item in parsed.findall(".//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}sheet")}
+        relroot=ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+        rels={entry.get("Id"):entry.get("Target")
+              for entry in relroot.findall(
+                "{http://schemas.openxmlformats.org/package/2006/relationships}Relationship")}
+        target=rels[sheets["Source Audit"]].lstrip("/")
+        if not target.startswith("xl/"):target="xl/"+target
+        audit=ET.fromstring(archive.read(target))
+        row2=audit.find(
+           "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}sheetData/"
+           "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}row[@r='2']")
+        assert row2 is not None
+        values={}
+        for cell in row2:
+            location=cell.get("r")
+            text="".join(t.text or "" for t in cell.iter(
+              "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}t"))
+            values[location]=text
+        assert values["A2"].startswith("CPT-A1-B")
+        assert values["B2"].startswith("P261074_CPT-A1-B")
+        assert values["C2"]=="PDF"
 
 
 def test_acceptance_rejects_unexpected_source_count_without_partial_outputs(tmp_path):
