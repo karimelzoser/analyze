@@ -774,7 +774,11 @@ class ModernCPTApp(tk.Tk):
         thick = f"{r['thickness']:.2f}" if isinstance(r["thickness"], (int, float)) else "—"
         sand = f"{r['sand']:.2f}" if isinstance(r["sand"], (int, float)) else "REVIEW"
         tag = "verified" if a.status == "VERIFIED" else "nosilt" if a.status == "NO SILT" else "review"
-        self.tree.insert("", "end", values=(a.reference, sand, start, end, thick, f"{r['test_depth']:.2f}", a.status), tags=(tag,))
+        test_depth=r.get("test_depth")
+        depth_label=(f"{float(test_depth):.2f}" if isinstance(test_depth,(int,float))
+                     and float(test_depth)>0 else "NOT MEASURED")
+        self.tree.insert("", "end", values=(a.reference, sand, start, end, thick,
+                                             depth_label, a.status), tags=(tag,))
 
     def render_results(self):
         for i in self.tree.get_children():
