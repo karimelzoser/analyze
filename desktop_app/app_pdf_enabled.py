@@ -389,7 +389,17 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
                     if a.source_path.suffix.lower() == ".pdf":
                         append_pdf_analysis(a.source_path, a, output_pdf)
                     else:
-                        app_modern.generate_pdf(a, output_pdf)
+                        from engineering_report_sources import choose_official_pdf
+                        official, reason = choose_official_pdf(a, candidate_results)
+                        if official is not None:
+                            # Use RAW source for every calculation and the verified
+                            # official PDF solely for its original reference graphics.
+                            append_pdf_analysis(official.source_path, a, output_pdf)
+                            a.metadata["official_pdf_visual_source"] = official.source_path.name
+                            a.metadata["official_pdf_pairing_reason"] = reason
+                        else:
+                            app_modern.generate_pdf(a, output_pdf)
+                            a.metadata["official_pdf_pairing_reason"] = reason
                     self.messages.put(("pdf_done", idx, len(results), a.reference, output_pdf))
                 except Exception as exc:
                     errors.append((a.source_path.name, f"PDF generation: {exc}"))
