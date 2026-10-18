@@ -5,6 +5,9 @@ A raw qualifying graphical layer must not be made thicker just to avoid a
 """
 from __future__ import annotations
 from pathlib import Path
+import pdf_analysis as _pdf_base
+from engineering_pdf_summary import engineering_analysis_page
+_pdf_base._pdf_analysis_figure = engineering_analysis_page
 from pdf_analysis import append_pdf_analysis as _append_pdf_analysis
 from pdf_analysis import analyze_pdf as _analyze_pdf
 
