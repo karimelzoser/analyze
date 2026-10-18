@@ -202,3 +202,20 @@ def test_descriptive_gff_filenames_use_embedded_testid_for_one_project_row():
     assert selected[0].reference=="CPT-A1-B18-100"
     assert selected[0].source_path==raw.source_path
     assert sum(r["selected"]=="YES" for r in audit)==1
+
+
+def test_recursive_project_intake_does_not_reanalyze_its_own_old_pdf_reports(tmp_path):
+    from app_pdf_enabled import collect_project_folder
+    source=tmp_path/"P261074_CPT-A1-292-100.GEF"
+    source.write_text("#GEFID= 1, 1, 0\n#EOH=\n")
+    generated=tmp_path/"CPT_Output"/"PDFs"
+    generated.mkdir(parents=True)
+    (generated/"CPT-A1-292-100.pdf").write_bytes(b"generated app report")
+    (tmp_path/"CPT_Output_2026"/"PDFs").mkdir(parents=True)
+    (tmp_path/"CPT_Output_2026"/"PDFs"/"CPT-A1-292-100__2.pdf").write_bytes(b"old app output")
+    # A legitimate original PDF next to the GEF must still be discovered.
+    original=tmp_path/"P261074_CPT-A1-292-100.pdf"
+    original.write_bytes(b"official source")
+    selected,_=collect_project_folder(tmp_path)
+    assert selected==sorted([source,original],key=lambda p:(p.suffix.lower()==".pdf",p.name)) or set(selected)=={source,original}
+    assert all("CPT_Output" not in str(p) for p in selected)
