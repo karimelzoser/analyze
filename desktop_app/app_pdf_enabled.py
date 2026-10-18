@@ -430,6 +430,9 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
         # Revision-aware project collapse: one final result per CPT location.
         results, audit_rows = select_project_results(candidate_results, self.files, error_map)
         self.source_audit = audit_rows
+        if not results:
+            detail="; ".join(f"{name}: {problem}" for name,problem in errors[:3])
+            raise RuntimeError("No CPT source could be analyzed. Check file formats, sensor data and permissions. "+detail)
 
         # 2D and 3D project maps are now embedded inside ONE comprehensive XLSX.
         # Explicit Save PNG remains available from the interactive Site Map tab.
