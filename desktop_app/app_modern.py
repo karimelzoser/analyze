@@ -601,12 +601,16 @@ class ModernCPTApp(tk.Tk):
                     _, i, total, a = m
                     pct = int((i / max(total, 1)) * (60 if self.generate_pdfs.get() else 90))
                     self._set_progress(pct, f"Analyzing CPTs — {i}/{total}")
-                    self._insert_result(a)
+                    # Candidates can be PDF and raw revisions of the same CPT.
+                    # Do not show duplicate provisional project rows: the
+                    # source-selection audit runs before the final table.
+                    self.status_var.set(f"Read {a.reference} ({i}/{total}); reconciling source versions...")
                 elif kind == "analysis_error":
                     _, i, total, p, err = m
                     pct = int((i / max(total, 1)) * (60 if self.generate_pdfs.get() else 90))
                     self._set_progress(pct, f"Analyzing CPTs — {i}/{total}")
-                    self.tree.insert("", "end", values=(p.stem, "—", "REVIEW", "—", "—", "—", "ERROR"), tags=("error",))
+                    # Error will appear in the single workbook Processing Errors
+                    # and Source Audit sheets, not as a fake CPT point with 0 m depth.
                     self.status_var.set(f"Error in {p.name}: {err}")
                 elif kind == "pdf_done":
                     _, i, total, ref, pdf = m
