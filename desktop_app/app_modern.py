@@ -689,7 +689,7 @@ class ModernCPTApp(tk.Tk):
                     self.status_var.set("Analysis stopped safely: "+str(detail))
                     self.errors.append(("Batch fatal error",str(detail)))
                     messagebox.showerror("CPT batch could not be completed",
-                        "The app is still running. No incomplete workbook was published.\n\n"+
+                        "The batch stopped safely. No incomplete workbook was published.\n\n"+
                         str(detail)+"\n\nDiagnostics:\n"+str(log_path))
                 elif kind == "done":
                     _, out, pdfs, excel, results, errors = m
