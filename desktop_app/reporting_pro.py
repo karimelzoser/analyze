@@ -100,7 +100,7 @@ def analysis_record(a: CPTAnalysis) -> dict:
         "project": md.get("project_name") or md.get("project_id") or "", "contractor": md.get("main_contractor", ""),
         "location": md.get("location", ""), "cone_id": md.get("cone_id", ""), "standard": md.get("standard", ""),
         "records": md.get("records", len(a.depth)), "ground": ground, "easting": md.get("easting"), "northing": md.get("northing"),
-        "area_ratio": md.get("area_ratio"), "gamma": md.get("gamma_soil", 18.0), "water_table": md.get("water_table_depth", 0.0),
+        "area_ratio": md.get("area_ratio"), "gamma": md.get("analysis_gamma_soil_kn_m3", md.get("gamma_soil", 18.0)), "water_table": md.get("analysis_water_table_bgl_m", md.get("water_table_depth", None)),
         "test_depth": a.test_depth, "test_depth_raw": a.test_depth_raw, "test_end_rl": test_end_rl,
         "sand": a.sand_layer_thickness,
         "start": z.start if z else ("NO SILT" if a.status == "NO SILT" else "REVIEW"),
