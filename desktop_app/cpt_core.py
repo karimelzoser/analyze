@@ -410,8 +410,9 @@ def _detect_interval(depth, ic, sensor_valid, test_end, dropout_start, threshold
     runs = []
     for a, b in raw_runs:
         observed = float(depth[b] - depth[a])
-        terminal_extendable = dropout_start is not None and dropout_start >= float(depth[b]) - 0.03 and (test_end - dropout_start) <= TERMINAL_DROPOUT_MAX and (test_end - float(depth[a])) >= min_thickness
-        if observed >= min_thickness or terminal_extendable:
+        # Require sustained thickness on valid, observed measurements.
+        # Terminal zero-fs dropout is UNKNOWN; never infer silt to sounding end.
+        if observed >= min_thickness:
             runs.append((a, b))
     all_intervals = [(float(depth[a]), float(depth[b])) for a, b in runs]
     if not runs:
@@ -419,11 +420,8 @@ def _detect_interval(depth, ic, sensor_valid, test_end, dropout_start, threshold
     a, b = runs[-1]
     start_raw = _interpolate_crossing(depth, work_ic, a, threshold)
     source_end = float(depth[b])
+    # End at LAST VALID Ic observation only; do not silently extrapolate.
     end_raw = source_end
-    if dropout_start is not None and dropout_start >= source_end - 0.03 and (test_end - dropout_start) <= TERMINAL_DROPOUT_MAX:
-        end_raw = test_end
-    elif test_end - source_end <= 0.08:
-        end_raw = test_end
     return _make_interval(start_raw, end_raw, source_end), all_intervals
 
 
@@ -472,6 +470,6 @@ def analyze_gef(path: str | Path, gamma_soil: float = DEFAULT_GAMMA, water_table
             else:
                 final, status, note = None, "REVIEW", "Independent analyses did not converge. Manual review required."
     if dropout_start is not None:
-        note += f" Terminal sleeve-friction dropout detected from {dropout_start:.3f} m and excluded from Ic calculation."
+        note += f" Terminal sleeve-friction dropout detected from {dropout_start:.3f} m; this UNKNOWN tail is NOT counted as measured silt."
 
     return CPTAnalysis(Path(path), str(gef.metadata.get("reference") or Path(path).stem), gef.metadata, calc["depth"], calc["qc"], calc["fs"], calc["u2"], calc["qt"], calc["fr"], calc["qtn"], calc["ic"], sensor_valid, list(calc["labels"]), p1, p2, final, status, note, intervals1, dropout_start)
