@@ -150,3 +150,20 @@ def test_bad_slice_settings_rejected():
     from engineering_geo_explorer import depth_window_records
     with pytest.raises(ValueError):
         depth_window_records([],5.,4.)
+
+
+def test_source_xlsb_depth_coverage_gaps_are_unknown_not_clean_soil():
+    from engineering_geo_explorer import depth_window_records
+    reference={"reference":"CPT-REF","easting":421000.,"northing":2928000.,
+        "ground_elevation":3.5,"test_depth_m":6.,
+        "status":"REFERENCE-CACHED",
+        "source_classified_depths_m":[round(x*.01,3) for x in range(0,450)]+[
+            round(x*.01,3) for x in range(550,601)],
+        "all_intervals":[{"start_raw":4.3,"end_raw":4.6},
+                         {"start_raw":5.7,"end_raw":5.9}]}
+    missing=depth_window_records([reference],4.6,5.4)[0]
+    assert missing["status"]=="REVIEW"
+    assert missing["max_contiguous_silt_screen_m"] is None
+    measured=depth_window_records([reference],5.6,6.0)[0]
+    assert measured["status"]=="REFERENCE-CACHED"
+    assert measured["max_contiguous_silt_screen_m"]>.19
