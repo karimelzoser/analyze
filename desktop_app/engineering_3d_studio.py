@@ -277,8 +277,21 @@ def export_professional_3d(data,path,*,boundary=None,warning_m=.10,
     found=re.search(r'Plotly\.newPlot\(\s*"([^"]+)"',source)
     if not found:
         raise ValueError("Expected offline Plotly scene missing from source exporter")
-    injected=PANEL_CSS+_control_html(segments,outliers)+_script(segments,found.group(1))
-    source=source.replace("</body>",injected+"</body>",1)
+    controls=PANEL_CSS+_control_html(segments,outliers)
+    # Put controls immediately below the short source legend, ABOVE the
+    # primary 3D canvas. Appending below both fence charts makes them invisible
+    # to most people until they scroll several screens.
+    opening=re.search(r"<body[^>]*>",source,re.IGNORECASE)
+    if not opening:
+        raise ValueError("Expected HTML body missing")
+    anchor=source.find("</div>",opening.end())
+    if anchor>=0:
+        cut=anchor+len("</div>")
+        source=source[:cut]+controls+source[cut:]
+    else:
+        cut=opening.end()
+        source=source[:cut]+controls+source[cut:]
+    source=source.replace("</body>",_script(segments,found.group(1))+"</body>",1)
     output.write_text(source,encoding="utf-8")
     return {**base,"observed_segments":len(segments),
             "categories":{k:sum(x["category"]==k for x in segments) for k in GROUPS}}
