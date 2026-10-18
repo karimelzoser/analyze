@@ -127,3 +127,19 @@ def test_site_map_contains_warning_without_enlarging_to_invalid_coordinate(tmp_p
              status="VERIFIED",test_depth_raw=1.0))
     out=render_site_map(data,tmp_path/"map.png")
     assert out.stat().st_size>5000
+
+
+def test_dense_3d_overview_avoids_overlapping_cpt_text_labels():
+    from engineering_3d_map import site_3d_figure
+    points=[
+        {"reference":f"CPT-A1-B{idx}-100",
+         "easting":421000+idx%10*8,
+         "northing":2928000+idx//10*8,
+         "ground_elevation":3.5,
+         "test_depth_m":5.0,
+         "all_intervals":[{"start_raw":4.2,"end_raw":4.5}]}
+        for idx in range(40)]
+    figure,info=site_3d_figure(points)
+    assert info["plotted"]==40
+    assert not figure.axes[0].texts, (
+        "Dense Excel 3D preview should not overlay dozens of unreadable CPT labels")
