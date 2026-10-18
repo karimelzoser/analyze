@@ -117,8 +117,12 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                     "First qualifying silt-screen depth","Sounding test depth"])
         self.map_metric_picker.pack(side="left",padx=8)
         self.map_metric_picker.bind("<<ComboboxSelected>>",lambda event:self.refresh_map())
+        map_actions=tk.Frame(self.map_tab,bg="#ffffff")
+        map_actions.pack(fill="x",padx=16,pady=(1,5))
+        tk.Label(map_actions,text="DATASET",fg="#64748b",bg="#ffffff",
+                 font=("Segoe UI Semibold",9)).pack(side="left",padx=(0,7))
         self.map_data_source=tk.StringVar(value="Current CPT batch")
-        source_picker=ttk.Combobox(ctrl,textvariable=self.map_data_source,
+        source_picker=ttk.Combobox(map_actions,textvariable=self.map_data_source,
            values=["Current CPT batch","Original XLSB full project"],
            width=23,state="readonly")
         source_picker.pack(side="left",padx=6)
@@ -127,12 +131,12 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self._source_cached_file=None
 
         self.map_projection=tk.StringVar(value="2D measured plan")
-        projection=ttk.Combobox(ctrl,textvariable=self.map_projection,
+        projection=ttk.Combobox(map_actions,textvariable=self.map_projection,
                          values=["2D measured plan","3D CPT soil columns"],width=23,state="readonly")
         projection.pack(side="left",padx=8)
         projection.bind("<<ComboboxSelected>>",lambda event:self.refresh_map())
-        self._btn(ctrl,"SAVE SITE MAP PNG",self.save_map_image).pack(side="right")
-        self._btn(ctrl,"LOAD SITE LIMIT XLSX",self.load_site_boundary).pack(side="right",padx=8)
+        self._btn(map_actions,"SAVE SITE MAP PNG",self.save_map_image).pack(side="right")
+        self._btn(map_actions,"LOAD SITE LIMIT XLSX",self.load_site_boundary).pack(side="right",padx=8)
         self.map_status=tk.StringVar(value="Project map becomes available after analysis.")
         tk.Label(self.map_tab,textvariable=self.map_status,bg="#ffffff",fg="#64748b",
                  anchor="w").pack(fill="x",padx=18,pady=4)
