@@ -228,6 +228,7 @@ class ModernCPTApp(tk.Tk):
             ("Review", self.kpi_review, PALETTE["warning"]),
             ("Max Silt", self.kpi_max, PALETTE["purple"]),
         ]
+        self.kpi_cards=cards
         for idx, (title, var, color) in enumerate(specs):
             c = self._card(cards, title, var, color)
             c.grid(row=0, column=idx, sticky="nsew", padx=(0 if idx == 0 else 5, 0 if idx == len(specs)-1 else 5))
@@ -235,8 +236,9 @@ class ModernCPTApp(tk.Tk):
 
         # Global progress remains visible while the Results, Map, or QA tabs are open.
         activity=tk.Frame(main,bg="#eaf0f7",highlightthickness=1,highlightbackground="#d9e4ef")
-        activity.pack(fill="x",padx=24,pady=(0,7))
-        bar=tk.Frame(activity,bg="#eaf0f7");bar.pack(fill="x",padx=10,pady=(5,1))
+        activity.pack(fill="x",padx=24,pady=(0,4))
+        self.global_activity=activity
+        bar=tk.Frame(activity,bg="#eaf0f7");bar.pack(fill="x",padx=10,pady=(2,0))
         self.stage_var=tk.StringVar(value="Ready to analyze")
         self.progress_text=tk.StringVar(value="0%")
         self.current_file_var=tk.StringVar(value="Select CPT files or folder")
@@ -248,9 +250,9 @@ class ModernCPTApp(tk.Tk):
                  fg="#164f80",font=("Segoe UI Semibold",10)).pack(side="right")
         self.progress=ttk.Progressbar(activity,style="Modern.Horizontal.TProgressbar",
                                      mode="determinate",maximum=100)
-        self.progress.pack(fill="x",padx=10,pady=(2,2))
+        self.progress.pack(fill="x",padx=10,pady=(1,0))
         tk.Label(activity,textvariable=self.current_file_var,bg="#eaf0f7",
-                 fg="#64748b",font=("Segoe UI",8),anchor="w").pack(fill="x",padx=10,pady=(0,5))
+                 fg="#64748b",font=("Segoe UI",8),anchor="w").pack(fill="x",padx=10,pady=(0,2))
         self.notebook = ttk.Notebook(main)
         self.notebook.pack(fill="both", expand=True, padx=24, pady=(0, 14))
         self.dashboard = tk.Frame(self.notebook, bg=PALETTE["surface"])
@@ -262,12 +264,26 @@ class ModernCPTApp(tk.Tk):
         self._build_dashboard()
         self._build_results()
         self._build_charts()
+        self.notebook.bind("<<NotebookTabChanged>>",self._adapt_visual_workspace,add="+")
 
         self.status_var = tk.StringVar(value="Ready — select GEF/GFF files or a project folder.")
         statusbar = tk.Frame(main, bg="#E7EDF5", height=30)
         statusbar.pack(fill="x", side="bottom")
         statusbar.pack_propagate(False)
         tk.Label(statusbar, textvariable=self.status_var, bg="#E7EDF5", fg="#475569", font=("Segoe UI", 8), anchor="w").pack(fill="both", padx=12)
+
+    def _adapt_visual_workspace(self,event=None):
+        """Keep setup KPIs, but reclaim their screen height for charts/maps."""
+        if not hasattr(self,"kpi_cards") or not self.notebook.tabs():
+            return
+        name=self.notebook.tab(self.notebook.select(),"text").strip()
+        if name in ("Setup","Results"):
+            if not self.kpi_cards.winfo_manager():
+                self.kpi_cards.pack(fill="x",padx=24,pady=(4,12),
+                                    before=self.global_activity)
+        else:
+            if self.kpi_cards.winfo_manager():
+                self.kpi_cards.pack_forget()
 
     def _surface_panel(self, parent, title, subtitle=None):
         panel = tk.Frame(parent, bg=PALETTE["surface"], highlightthickness=1, highlightbackground=PALETTE["border"])
