@@ -73,6 +73,13 @@ def analyze_original_xlsb(path):
         all_valid_depths=[float(elev)-float(point_elev) for point_elev,_,zone in profile
                           if isinstance(point_elev,(int,float))]
         tested=max((d for d in all_valid_depths if math.isfinite(d) and d>=0),default=0.0)
+        # Cache the actual measured categorical-zone sample depths, not only
+        # the sounding end. Spatial slices may not infer classification across
+        # unrecorded or invalid cells in the source Excel.
+        classified_depths=sorted(set(round(float(elev)-float(point_elev),5)
+            for point_elev,_,zone in profile if isinstance(point_elev,(int,float))
+            and isinstance(zone,(int,float)) and math.isfinite(float(point_elev))
+            and 1<=int(zone)<=9 and float(elev)-float(point_elev)>=0))
         analyses.append({
            "reference":ref,"easting":summary.get("Easting"),
            "northing":summary.get("Norting"),"ground_elevation":elev,
@@ -84,6 +91,7 @@ def analyze_original_xlsb(path):
            "all_intervals":intervals,"brief_exceedances":spikes,
            "qc_data_count":len(profile),
            "test_depth_m":tested,
+           "source_classified_depths_m":classified_depths,
            "settlement_mm":summary.get("Settlement (mm)"),
            "minimum_liquefaction_fos":summary.get("min. FOS"),
            "robertson_bc_kpa":summary.get("Robertson Ultimate BC [kPa]"),
