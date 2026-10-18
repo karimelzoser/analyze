@@ -47,7 +47,17 @@ jobs:
         shell: pwsh
         working-directory: desktop_app
         run: |
+          $env:CPT_SCREENSHOT_DIR = "$PWD/gui-screenshots"
           python app_modern_final.py --integration-smoke
+
+      - name: Upload GUI visual test screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CPT-Windows-Visual-QA
+          path: desktop_app/gui-screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Build executable
         shell: pwsh
