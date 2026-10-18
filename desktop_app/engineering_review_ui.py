@@ -430,15 +430,8 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
         except Exception as exc:messagebox.showerror("PDF audit failed",str(exc))
 
     def _show_help(self):
-        messagebox.showinfo("CPT Engineering Studio — Guide",
-            "SETUP: Choose raw GEF/GFF or compatible PDF files; choose output and run.\n"
-            "SOIL LAYERS: Inspect observed Ic and all layers; UNKNOWN is never presumed sand or silt.\n"
-            "SITE MAP: Map measured point coordinates only; import Site Limit for the boundary.\n"
-            "FOUNDATIONS: Imported settlement/FOS values are REFERENCE ONLY until approved formulas and limits are verified.\n"
-            "PRE/POST: Match source reports or raw profiles; differences may reflect processing settings.\n"
-            "QA & REVIEW: Inspect flags, original files, source-workbook inventory and PDF layout differences.\n\n"
-            "Shortcuts: Ctrl+O file · Ctrl+Shift+O folder · Ctrl+R analyze · Ctrl+E latest Excel · Ctrl+M map · Ctrl+Q QA · F1 help.\n\n"
-            "Engineering caution: Ic is a behavior indicator, not a laboratory USCS soil classification.")
+        from engineering_help import show_help
+        show_help(self)
 
     def update_kpis(self):
         super().update_kpis()
