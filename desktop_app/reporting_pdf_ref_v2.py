@@ -139,7 +139,9 @@ def draw_reference_sbtn(ax, a):
 _base.draw_reference_sbtn = draw_reference_sbtn
 
 report_page = _base.report_page
-analysis_page = _base.analysis_page
+from engineering_pdf_summary import engineering_analysis_page
+_base.analysis_page = engineering_analysis_page
+analysis_page = engineering_analysis_page
 
 
 def generate_pdf(*args, **kwargs):
