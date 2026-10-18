@@ -51,6 +51,24 @@ def _packaged_gui_smoke():
                 name="".join(ch if ch.isalnum() else "_" for ch in root.notebook.tab(index,"text").strip())
                 ImageGrab.grab(bbox=(x,y,x+w,y+h),all_screens=True).save(
                     screenshot_dir/f"{index+1:02d}_{name}.png")
+        # Also validate the *offline* 3D viewer in both the source GUI and
+        # the frozen Windows EXE; PyInstaller must include local Plotly.js.
+        import tempfile
+        from engineering_geo_explorer import export_interactive_3d
+        with tempfile.TemporaryDirectory(prefix="cpt_3d_bundle_smoke_") as scene_dir:
+            points=[
+                {"reference":f"CPT-3D-{i}","easting":float(e),"northing":float(n),
+                 "ground_elevation":3.5,"test_depth_m":5.4,
+                 "max_contiguous_silt_screen_m":.22,
+                 "cumulative_silt_screen_m":.22,
+                 "status":"REFERENCE-CACHED",
+                 "all_intervals":[{"start_raw":4.70,"end_raw":4.92}]}
+                for i,(e,n) in enumerate([(0,0),(20,0),(0,20),(20,20)])
+            ]
+            html=export_interactive_3d(points,Path(scene_dir)/"offline_3d.html",
+                                       max_spacing_m=40)
+            if html["file"].stat().st_size<1_000_000 or html["wedges"]<1:
+                raise RuntimeError("Offline 3D bundled Plotly mesh has no local assets or supported layer wedges")
         if "--integration-smoke" in sys.argv:
             import tempfile
             import zipfile
