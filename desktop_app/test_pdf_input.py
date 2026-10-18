@@ -147,3 +147,37 @@ def test_source_audit_sheet_is_written(tmp_path):
         assert b"Source Audit" in workbook
         assert b"CPT Analysis" in workbook
         assert b"Summary" in workbook
+
+
+def test_revisions_with_different_surveyed_coordinates_are_review_not_merged():
+    from types import SimpleNamespace
+    p0=Path("P261074_CPT-A1-B84-100.GEF")
+    p1=Path("P261074_CPT-A1-B84-100-1.GEF")
+    def analysis(path,x):
+        interval=SimpleNamespace(start=5.0,thickness=.3)
+        return SimpleNamespace(source_path=path,reference="CPT-A1-B84-100",
+            status="VERIFIED",final_interval=interval,
+            verification_note="Two passes agree",metadata={
+                "easting":x,"northing":2928000,"ground_elevation":3.7})
+    rows,audit=select_project_results([analysis(p0,420000),analysis(p1,420004)],
+                                      [p0,p1])
+    assert len(rows)==1
+    assert rows[0].status=="REVIEW"
+    assert rows[0].final_interval is None
+    assert rows[0].metadata["source_spatial_conflict"] is True
+    assert "SOURCE CONFLICT" in rows[0].metadata["source_selection_reason"]
+
+
+def test_conclusive_revision_thickness_conflict_is_review_not_silent_precedence():
+    from types import SimpleNamespace
+    p0=Path("P261074_CPT-A1-B93-100.GEF")
+    p1=Path("P261074_CPT-A1-B93-100-1.GEF")
+    def a(path,d):
+        return SimpleNamespace(source_path=path,reference="CPT-A1-B93-100",
+            status="VERIFIED",final_interval=SimpleNamespace(start=5.,thickness=d),
+            verification_note="conclusive",metadata={
+                "easting":420000.0,"northing":2928000.0,"ground_elevation":3.7})
+    rows,_=select_project_results([a(p0,.2),a(p1,.4)],[p0,p1])
+    assert len(rows)==1
+    assert rows[0].status=="REVIEW"
+    assert rows[0].metadata["source_revision_conflict"] is True
