@@ -88,7 +88,105 @@ Software engineers implement with fixed fixtures; geotechnical reviewer owns acc
 - **Windows gate:** frozen EXE installed/started on a real Windows machine, file-open dialogs/associations tested, UI accessible on 1024px and high-DPI, stress batch tested, delivery ZIP checksum verified.
 - **Production release:** immutable versioned ZIP + release note linking methodology, source SHA, run IDs, exception register, coverage table and authorized signoffs. Keep today's successful build classified **ENGINEERING PREVIEW** until then.
 
-## 8. Immediate backlog (start in this order)
+## 8. Operator-first UX and full-output acceptance addendum (2026-10-19)
+
+**This addendum is a binding part of the 12-work-package production contract, not a feature wish list.** It supersedes any earlier setup-screen design that expects the operator to select source XLSB, Raft / Isolated Summary XLSX or Site Limit / Coordinates separately before analysing CPTs. It also overrides any assumption that an existing progress bar, 3D widget, or XLSX drawing constitutes an accepted usable feature.
+
+### 8.1 One-step default workflow — W10, W04, W07
+
+The nontechnical operator interface must start with a **single dominant input path**:
+
+```text
+OPEN CPT FILES     or     OPEN CPT FOLDER
+               ↓
+Automatically inventory GEF / GFF / supported PDF inputs
+               ↓
+START FULL ANALYSIS
+               ↓
+Persistent real progress + source-level warnings
+               ↓
+Results, 2D/3D site map, all-depth layers, maximum silt, full XLSX, source PDFs
+```
+
+- Input accepts `.gef`, `.gff`, `.pdf` individually, mixed batches and folders (including case-insensitive extensions, predictable recursion, hidden/irrelevant file filtering). File drag-and-drop may be provided if reliable. **No mandatory XLSB, foundation workbook, project boundary, coordinate upload, test-stage or engineering-parameter form** for normal use.
+- **Remove the three visible source-asset buttons from the main setup**: `SOURCE CALCULATION XLSB`, `RAFT / ISOLATED SUMMARY XLSX`, `SITE LIMIT / COORDINATES`. Put optional reference/advanced engineering inputs inside a clearly named **Advanced / QA → Reference Data** section, collapsed by default. The normal workflow must have no dead, decorative or confusing buttons.
+- **Automatic discovery** in the selected directory tree is allowed for an approved original XLSB, summary and boundary; never silently choose between competing matches or execute XLSB macros. Attach provenance and source fingerprints; if no trusted optional model exists, still complete all measurements and SBT screening possible from the input and mark missing foundation/survey fields `NOT AVAILABLE — no approved source`, not fabricated zeros or invented PASS.
+- Settings such as groundwater, soil unit weight, cone area ratio, PRE/POST rolling rules and Ic persistence are configurable in Advanced Settings with visible source/method badges in QA; safe defaults must be labeled *assumptions*. Automatically read per-source cone factors and coordinates where present. Unknown PRE/POST stage must not be guessed as PRE when it affects an engineering comparison.
+- On completion, **one primary 'Open Complete Excel' button, one 'Open PDF Reports' button, one 'View Site Map' button** and an optional 'Review Exceptions' action. Excel must resolve to **that run's verified completed output**, never an old file or partial workbook.
+- One input folder + one `CPT_Output` folder by default. No required manual destination selection and no sidecar PNG/duplicate XLSX by default. Explicit exports may still produce separate PNG/PDF/CSV if the operator asks.
+- If source quality is insufficient, display `REVIEW` with the **specific reason, measured ranges, missing-data ranges and reference alternative where authorized**. Do not remove REVIEW by inventing silt or changing thresholds; report `NO QUALIFYING OBSERVED INTERVAL` separately from `UNKNOWN BELOW TEST`.
+
+**Acceptance UX-01:** On a clean Windows workstation, an operator can launch maximized, choose a GFF/GEF/PDF file or a folder, press **Start Full Analysis** and access Excel, PDF and maps **without ever seeing or clicking a source XLSB/summary/site-limit button**. Run separate scenarios for GFF-only, PDF-only, mixed, single file, folder, empty folder, unsupported files, duplicate revisions and cancellation.
+
+### 8.2 Real, persistent and accurate analysis progress — W10, W11
+
+- A high-contrast, **always visible** progress component must remain visible on Setup and Results while a job is running; include percent, current stage, `processed / total`, elapsed time, current CPT filename, success/failed/review counts and last diagnostic message. A simple bar elsewhere in a hidden tab does **not** pass.
+- Progress stages are **Discover/Validate → Parse/Analyze → Resolve Versions/QA → Generate PDFs → Build Complete XLSX/Maps → Verify/Publish**. Report weighted stage progress based on actual completed files/units. Progress must be monotonic to 100% for successful completion and must not jump to 100% before the XLSX has been atomically finalized.
+- Worker threads/processes must not mutate Tk widgets directly. Use a thread-safe event queue with UI-mainloop consumption. The analysis must remain navigable, even for a 400+ physical-file batch; log parse/PDF/Excel errors individually.
+- Support safe **Cancel** (cooperative cancellation, worker teardown, partial results clearly marked), retry of failed files and restart after crash. Never promote a partial XLSX as latest. Keep an attempt log and deterministic manifest. An overall status `Completed with N exceptions` is distinct from `Success`.
+- Display stage-time and estimated remaining time only when defensible. No fake completion percentages or ETA when workload is unknown.
+
+**Acceptance PROG-01:** Automated UI observation and Windows human testing show at least one visible progress change for each stage, periodic updates throughout a 400+ input batch, Cancel and retry tested, 100% shown only after verified output, UI remains responsive; simulated file/permission errors do not freeze the app.
+
+### 8.3 Subsurface 2D/3D is an analysis tool, not decoration — W08, W07, W09
+
+- Start with **real measured coordinates** from GEF/GFF headers or trusted vector-PDF metadata and the confirmed source project grid/CRS. Mark coordinates with disputed identity, missing ground RL or gross errors as `QA / not mappable` and list them in the workbook; do not distort map bounds by including them.
+- A usable **2D plan** must plot every accepted CPT, label/search point, show site outline (when known), display metric legend, zoom/pan, filter by region/test stage/status, highlight maximum individual and cumulative silt, open the chosen sounding profile/PDF by click, and export the current view.
+- A performant **rotatable/zoomable 3D subsurface view** must show the surveyed XY, true ground elevations and corrected depth/vertical observed segments. Display separate sand-like, fines-screened, clay-like/transition and UNKNOWN layers with stable legends. Preserve true axis units; where vertical exaggeration is used, label factor explicitly and allow true scale.
+- Provide a **depth-window slider / depth-slice plan**, vertical section/cross-section from user-selected CPTs, orientation and coordinate readout, isolate/hide category toggles, and point hover/click tooltips with CPT reference, XY, test depth, valid/unknown spans, layer thicknesses and source-quality status.
+- Add **maximum silt point** highlight, thickest continuous vs cumulative silt distinction, and optional PRE/POST comparison overlay; do not presume Ic>2.60 uniquely means laboratory USCS silt.
+- Distinguish observed CPT columns from any **inferred 3D wedges/contours**, with visible estimate legend, support radius/hull and uncertainty; default to actual measured columns. No fabricated continuous underground surfaces or auto-interpolation across missing survey coverage.
+- Full-project performance target shall be defined and measured with the 400+ real points: opening/rotating/filtering a dense 3D scene cannot block other controls. Provide adjustable quality and fallback to observed 2D if GPU/WebView/Plotly is unavailable.
+
+**Acceptance MAP-01:** Verified CRS/coordinate datasets produce correctly oriented plots and well-scaled 3D columns, with map-to-profile drilldown; missing CRS and outliers generate explicit QA. Test 1, 2, 100 and 400+ points; all-UNKNOWN layers, multiple intermediate silt bands, 9 known source coordinate anomalies, invalid elevations, depth slices, cross-sections, toggles, and screenshots.
+
+### 8.4 ONE complete, auditable XLSX — W07, W09, W11
+
+- Deliver one completed `CPT_Analysis_<run-id>.xlsx` per analysis. **First sheet retains five columns**: SI.No; CPT REFERENCE; Silt start depth after (m); silt depth (m); sand layer thickness before silt (m). Its selection/status conventions must match approved engineering rules, including `REVIEW` and `NO QUALIFYING OBSERVED INTERVAL`.
+- Additional tabs in **the same physical XLSX**: Project Dashboard; Full CPT Analysis; Raw/Normalized Depth Measurements (qc, fs, u2, qt, Fr, Qtn, Ic with corrected depth and data-validity reason); Every Soil Layer/Isolated Excursion; Source/Revisions Audit; Methodology & Parameters; Data Quality/REVIEW; Coordinate QA; Raft Summary, Isolated Summary and Liquefaction **only when computed from approved design equations or clearly labeled as imported cached references**; Project Charts; **embedded usable 2D site plan and 3D overview**; Pre/Post Changes and Pairing QA if applicable.
+- Every supported CPT and all samples must be present; do not silently truncate above Excel's **1,048,576 rows per worksheet** (split measurements into consecutive numbered sheets and maintain a point index). Preserve raw depths and measured thickness separately from rounded display thickness. No invisible missing CPTs, stale versions or aggregate summaries that disagree with individual sheets.
+- Plots should be actual embedded worksheet charts/images, searchable/selectable where technically possible, never dependencies on external PNGs. Coordinate site limits and explicit QA/exceptions must be included in the XLSX.
+- Use atomic write/validate/rename, validate no corrupt ZIP, verify actual header order, dimensions, schema, measurement row counts, image/chart objects, formulas (when used), and source manifest after export. `Open Excel` must open the latest **successful** run.
+
+**Acceptance XLSX-01:** 400+ genuine CPT files generate exactly one complete and reopenable XLSX with every accepted CPT, all valid/invalid observed measurements, both map views, reference values clearly labeled, correct dashboard maximum and source audit; deliberately large simulated data exercise multiple measurement sheets; output missing required data must fail QA rather than appear blank.
+
+### 8.5 PDF report completeness and original fidelity — W06, W11
+
+- Each CPT PDF must contain populated project/test identity, test date when known, coordinates, RL, cone ID and area ratio, correct depth range and units, qc/fs/u2/Ic, Qtn–Fr SBT graph with real measured points, legend and method details; any value genuinely absent is printed as **`N/A — reason`**, not an empty row or zero.
+- Include a complete appendix: all qualifying layers, measured vs unknown depths, layer start/end/thickness, source QC, verified/reference status, assumptions, and links/keys to the XLSX/project audit. Native raw-only PDFs must be compared with approved Excel-produced pages for geometry and numerical parity.
+- If an authoritative original PDF matches the physical raw sounding, preserve its pages unchanged and append a coherent analysis report; never pair by filename alone. Refuse an ambiguous or wrong-location PDF with QA reason.
+- User may request full PDF batch, Excel-only mode or report regeneration. By default, produce each accepted CPT PDF once, not duplicates for revised sources.
+
+**Acceptance PDF-01:** PDF text extraction and rendered page screenshots verify **zero unexplained empty mandatory fields**, correct coordinates and reference identity, valid Qtn-Fr points, no overlapping labels/logos/legends, correct pagination and original-page preservation. Test the five annotated raw CPTs plus at least 10 reference PDFs and representative different original export templates.
+
+### 8.6 Professional minimalist visual design — W10
+
+- Visual hierarchy: (1) Project input card with **Open files / Open folder**, (2) large Start button and always-visible progress, (3) preview/result summary, (4) simple **View Excel / View PDFs / View Map**. All engineering complexity moves into optional Expert/QA screens. Remove duplicate/technical launch buttons and gratuitous control rows.
+- Cohesive accessible button geometry (consistent min height, hover/focus/disabled/loading states), readable labels, keyboard shortcuts, error/success feedback, sensible empty-state guidance. No controls styled like plain text or cropped at narrow widths.
+- Minimal navigation: **Analyze**, **Results**, **Site & 3D**, **All Layers**, **Compare**, **Reports**, **Review / Advanced**; hide charts/tools within the appropriate section rather than a crowded set of competing tabs. No empty pages or technical settings needed to see core results.
+- Validate Windows **1024×697 (the user's screenshot size)**, 1366×768, 1920×1080 and 125%, 150%, 200% DPI; use responsive/split/switchable panels. Test long filenames, Arabic/English pathnames, 400+ CPT lists, navigation through chart/3D and dialogs.
+- The UI must not depend on Microsoft Excel, internet, CRS discovery, private workbooks or a 3D web backend simply to analyze raw GEF/GFF/PDF and export basic truthful project outputs.
+
+**Acceptance UX-02:** Side-by-side before/after screenshots and automated control inventory prove technical source buttons absent from default screen; every clickable control exercises the advertised action (dialogs included by interactive test), primary buttons always visible, no clipping, no horizontal overflow, and 3D/progress/outputs readily discoverable.
+
+### 8.7 Required cross-workstream test matrix and final release blocker
+
+| Test group | Scenarios | Required evidence / exit |
+|---|---|---|
+| Input-only user journeys | Single GFF, single GEF, single vector PDF, folder GFF, folder PDF, mixed files, duplicate/revised source, unsupported/raster PDF | Ingested, documented REVIEW or explicit failure for every source; no XLSB reference input required |
+| Engine truth | B04/B05/B07/B18/B19, A1-292, B342/B343/B355/B356, missing fs/u2, false starts, thin layer, final dropout, multiple strata | Convergence to approved source interpretation or case-specific REVIEW with reproducible calculations; no fabricated thickness |
+| Unified workbook | All five quick columns, all raw samples, all-layer table, embedded maps, detailed QA, imported cached fields labelled, 400+ sources and >1,048,576 rows | One reopenable XLSX per run; every source accounted for, no missing rows or misleading blank fields |
+| PDF completeness | Source metadata available/missing, vector plots, Qtn–Fr points, imported original PDFs, all review statuses | Mandatory fields filled or clear N/A reasons; visual regression on ≥10 approved reports |
+| Maps and 3D | 1–400+ CPT XY/RL, verified site limits/CRS, 9 outliers, 3D rotate/zoom, depth window, cross-sections, map-to-profile, unknown bands | Correct coordinates and geometry; controls visible, responsive and screenshots reviewed |
+| Progress and cancellation | 1 source, 448 PDFs, 400 synthetic, corruption, permission denied, cancel/retry/restart | Monotonic progress, visible stages, UI responsive, partial outputs never published as complete |
+| Usability | Normal and high DPI, 1024-wide, 1366, 1920, all buttons and menu shortcuts, original source buttons hidden | Screenshot audit + human Windows full clickthrough; no unresponsive/inert control |
+| Repeatability & release | Two re-runs of same real batch, project max calculation, audit logs, output hash, EXE on Windows | Same numerical results and disposition; CI and manual approvals recorded |
+
+**Release rule for this addendum:** Passing only the synthetic benchmark or executable smoke test does not close this work. The product remains **ENGINEERING PREVIEW** until UX-01/UX-02, PROG-01, MAP-01, XLSX-01, PDF-01 and all existing W01–W12 engineering gates are evidenced and approved.
+
+---
+
+## 9. Immediate backlog (start in this order)
 1. Fix stale status docs and retire unreachable/competing exporter and analysis paths after parity regression.
 2. Implement real 448-PDF batch acceptance runner (reuse `main` PDFs; do not mix with `analysis-work` legacy logic) with a machine-readable per-source exception manifest; baseline without weakening `REVIEW`.
 3. Extract/validate source XLSB formula/VBA and run golden real annotated raw soundings; produce a difference matrix and approved algorithm configuration.
