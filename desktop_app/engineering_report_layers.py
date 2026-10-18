@@ -47,7 +47,11 @@ def full_layer_pages(analysis,*,page_size=23):
         headings=["#","SBT interpretation","Start BGL","End BGL",
                   "Thickness","Mean Ic","Data quality"]
         rows_all=[headings]+part
-        tb=Table(ax,bbox=[0,0,1,1])
+        # A one-row table must not expand to a half-page height. Use a
+        # consistent ~0.035 figure-height per row, anchored to the top.
+        table_height=min(.61,max(.073,.036*len(rows_all)))
+        relative_height=table_height/.615
+        tb=Table(ax,bbox=[0,1-relative_height,1,relative_height])
         widths=[.05,.27,.12,.12,.13,.10,.21]
         for i,row in enumerate(rows_all):
             for j,item in enumerate(row):
