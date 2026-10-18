@@ -144,5 +144,16 @@ _base.analysis_page = engineering_analysis_page
 analysis_page = engineering_analysis_page
 
 
-def generate_pdf(*args, **kwargs):
-    return _base.generate_pdf(*args, **kwargs)
+def generate_pdf(a, output_path):
+    """Source-template CPT page, a full QA summary, and all observed SBT layers."""
+    from pathlib import Path
+    from matplotlib.backends.backend_pdf import PdfPages
+    from engineering_report_layers import full_layer_pages
+    dest=Path(output_path)
+    dest.parent.mkdir(parents=True,exist_ok=True)
+    with PdfPages(dest) as writer:
+        figure=report_page(a);writer.savefig(figure);figure.clear()
+        figure=analysis_page(a);writer.savefig(figure);figure.clear()
+        for figure in full_layer_pages(a):
+            writer.savefig(figure);figure.clear()
+    return dest
