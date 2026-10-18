@@ -94,6 +94,8 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.map_fig=Figure(figsize=(10,6),dpi=100,facecolor="#ffffff")
         self.map_ax=self.map_fig.add_subplot(111)
         self.map_canvas=self._plot(self.map_tab,self.map_fig)
+        self._mapped_points=[]
+        self.map_canvas.mpl_connect("pick_event",self._pick_map_point)
         self.refresh_map()
 
     def _add_foundation_tab(self):
@@ -259,9 +261,11 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         rows=coordinate_rows(self.results,option) if self.results else []
         data=[r for r in rows if math.isfinite(r[3]) and r[4]!="REVIEW"]
         review=[r for r in rows if r not in data]
+        self._mapped_points=data
         if data:
             scat=ax.scatter([r[1] for r in data],[r[2] for r in data],
-                  c=[r[3] for r in data],cmap="viridis",s=43,edgecolors="white",linewidths=.5)
+                  c=[r[3] for r in data],cmap="viridis",s=43,edgecolors="white",linewidths=.5,
+                  picker=8)
             cb=self.map_fig.colorbar(scat,ax=ax,shrink=.8);cb.set_label(option.replace("_"," ")+" (m)")
             if len(data)<75:
                 for ref,e,n,v,status in data:ax.annotate(ref,(e,n),xytext=(3,3),textcoords="offset points",fontsize=6)
@@ -279,6 +283,18 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         if review:ax.legend()
         self.map_fig.tight_layout()
         self.map_canvas.draw_idle()
+
+    def _pick_map_point(self,event):
+        if not getattr(self,"_mapped_points",None):return
+        indices=getattr(event,"ind",[])
+        if not len(indices):return
+        i=int(indices[0])
+        if i<0 or i>=len(self._mapped_points):return
+        ref=self._mapped_points[i][0]
+        self.layer_reference.set(ref)
+        self.notebook.select(self.layers_tab)
+        self.refresh_layers()
+        self.status_var.set("Opened full measured layer profile for "+ref)
 
     def _update_analysis_options(self):
         if hasattr(self,"layer_picker"):
