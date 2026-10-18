@@ -25,6 +25,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.title("CPT Engineering Studio | Analyses • Layers • Maps • Pre/Post")
         self._add_layer_tab()
         self._add_map_tab()
+        self._add_foundation_tab()
         self._add_compare_tab()
 
     def _tab_top(self,frame,title,subtitle):
@@ -94,6 +95,69 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.map_ax=self.map_fig.add_subplot(111)
         self.map_canvas=self._plot(self.map_tab,self.map_fig)
         self.refresh_map()
+
+    def _add_foundation_tab(self):
+        self.foundation_tab=tk.Frame(self.notebook,bg="#ffffff")
+        self.notebook.add(self.foundation_tab,text="  Foundations  ")
+        self._tab_top(self.foundation_tab,"Raft & isolated foundation reference results",
+            "Read approved external summary tables. New settlement/FOS design equations are NOT yet validated.")
+        controls=tk.Frame(self.foundation_tab,bg="#ffffff")
+        controls.pack(fill="x",padx=16,pady=6)
+        self._btn(controls,"LOAD FOUNDATION SUMMARY",self.load_foundation_summary,primary=True).pack(side="left")
+        self.foundation_metric=tk.StringVar(value="Settlement (mm)")
+        c=ttk.Combobox(controls,textvariable=self.foundation_metric,state="readonly",width=20,
+                        values=["Settlement (mm)","Minimum FOS"])
+        c.pack(side="left",padx=8)
+        c.bind("<<ComboboxSelected>>",lambda e:self.refresh_foundations())
+        self._btn(controls,"SAVE FOUNDATION MAP",lambda:self._save_figure(
+            self.foundation_fig,"CPT_Foundation_Reference_Map.png")).pack(side="right")
+        self.foundation_note=tk.StringVar(value="REFERENCE ONLY — Load the original raft / isolated summary XLSX.")
+        tk.Label(self.foundation_tab,textvariable=self.foundation_note,bg="#ffffff",
+                 fg="#9a3412",anchor="w").pack(fill="x",padx=16,pady=5)
+        self.foundation_fig=Figure(figsize=(10,6),dpi=100,facecolor="#ffffff")
+        self.foundation_ax=self.foundation_fig.add_subplot(111)
+        self.foundation_canvas=self._plot(self.foundation_tab,self.foundation_fig)
+        self.foundation_points=[]
+
+    def load_foundation_summary(self):
+        path=filedialog.askopenfilename(title="Select foundation reference summary",
+               filetypes=[("Excel workbook","*.xlsx")])
+        if not path:return
+        try:
+            values=read_summary_xlsx(path)
+            self.foundation_points=[v for v in values if v.foundation in ("RAFT","ISOLATED")]
+            if not self.foundation_points:raise ValueError("No Raft Summary or Isolated Summary values found.")
+            self.foundation_note.set("%d reference values loaded — not independently validated; no new PASS is inferred." %
+                                     len(self.foundation_points))
+            self.refresh_foundations()
+        except Exception as exc:messagebox.showerror("Foundation import failed",str(exc))
+
+    def refresh_foundations(self):
+        if not hasattr(self,"foundation_ax"):return
+        self.foundation_fig.clear()
+        ax=self.foundation_fig.add_subplot(111);self.foundation_ax=ax
+        key="settlement_mm" if self.foundation_metric.get()=="Settlement (mm)" else "fos"
+        cases={"RAFT":[v for v in self.foundation_points if v.foundation=="RAFT"],
+               "ISOLATED":[v for v in self.foundation_points if v.foundation=="ISOLATED"]}
+        marks={"RAFT":"s","ISOLATED":"o"}
+        all_vals=[v.metrics.get(key) for v in self.foundation_points if v.metrics.get(key) is not None]
+        import matplotlib.colors as colors
+        norm=colors.Normalize(vmin=min(all_vals),vmax=max(all_vals)+1e-9) if all_vals else None
+        last=None
+        for typ,items in cases.items():
+            rows=[v for v in items if v.east is not None and v.north is not None and v.metrics.get(key) is not None]
+            if not rows:continue
+            last=ax.scatter([v.east for v in rows],[v.north for v in rows],
+                            c=[v.metrics[key] for v in rows],marker=marks[typ],
+                            cmap="viridis",norm=norm,edgecolor="white",s=43,label=typ)
+        if last:self.foundation_fig.colorbar(last,ax=ax,label=self.foundation_metric.get())
+        if all_vals:ax.legend()
+        if not self.foundation_points:ax.text(.5,.5,"Load an approved foundation summary",transform=ax.transAxes,ha="center")
+        ax.set_xlabel("Easting");ax.set_ylabel("Northing");ax.grid(alpha=.13)
+        ax.set_aspect("equal",adjustable="datalim")
+        ax.set_title("IMPORTED "+self.foundation_metric.get()+" — REFERENCE ONLY",loc="left",fontsize=11)
+        self.foundation_fig.tight_layout()
+        self.foundation_canvas.draw_idle()
 
     def _add_compare_tab(self):
         self.compare_tab=tk.Frame(self.notebook,bg="#ffffff")
