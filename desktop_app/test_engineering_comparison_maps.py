@@ -48,3 +48,16 @@ def test_map_and_layer_profile_can_export(tmp_path):
     assert coordinate_rows([a])[0][0]=="CPT-A1-B1-100"
     assert render_site_map([a],tmp_path/"map.png").stat().st_size>5000
     assert render_layer_profile(a,tmp_path/"profile.png").stat().st_size>5000
+
+
+def test_ambiguous_duplicate_reference_preserved_not_silently_merged():
+    from engineering_comparison import SummaryPoint, compare_summaries
+    a=SummaryPoint("CPT-A1-B55-100","RAFT",421000,2928000,
+                   {"settlement_mm":65.0},"Raft Summary")
+    b=SummaryPoint("CPT-A1-B55-100","RAFT",421000.05,2928000.01,
+                   {"settlement_mm":115.0},"Raft Summary")
+    post=SummaryPoint("CPT-A1-B55-100","RAFT",421000.02,2928000.00,
+                      {"settlement_mm":80.0},"Raft Summary")
+    result=compare_summaries([a,b],[post])
+    assert not result["matched"]
+    assert len(result["ambiguous"])==2
