@@ -54,6 +54,14 @@ def test_missing_u2_is_declared_not_called_measured(tmp_path):
         assert b"Original GEF Headers" in catalog
         assert b"CPT Measurements" in catalog
         assert b"Project Maps" in catalog
+        # The operator's five-column quick sheet must be FIRST, not hidden
+        # behind a dashboard or source-metadata worksheet.
+        import xml.etree.ElementTree as ET
+        xml=ET.fromstring(catalog)
+        ns={"m":"http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+        sheet_names=[x.get("name") for x in xml.findall(".//m:sheets/m:sheet",ns)]
+        assert sheet_names[0]=="CPT Analysis"
+        assert sheet_names[1]=="Summary"
         assert sum(s.startswith("xl/media/image") for s in z.namelist())>=2
         texts="".join(z.read(name).decode("utf-8","replace") for name in z.namelist()
                       if name.startswith("xl/worksheets/sheet") and name.endswith(".xml"))
