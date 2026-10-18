@@ -1,6 +1,20 @@
 # CPT Engineering Platform — Master Implementation Plan
 **State:** Engineering work in progress. CI passing is not proof of validated geotechnical design or parity with proprietary Excel/VBA calculations.
 
+## Operator experience addendum — binding requirements (2026-10-19)
+
+**The authoritative, testable plan is [PRODUCTION_CLOSURE_PLAN.md](PRODUCTION_CLOSURE_PLAN.md), section 8**, which is part of W04/W06/W07/W08/W10/W11/W12. These commitments supersede earlier setup controls and any assumption that existing features have passed acceptance just because they appear in screenshots.
+
+- **No technical input selection in normal workflow.** User chooses only **Open CPT Files** or **Open CPT Folder** (GEF/GFF/PDF), then **Start Full Analysis**. The screenshot's separate `SOURCE CALCULATION XLSB`, `RAFT / ISOLATED SUMMARY XLSX`, `SITE LIMIT / COORDINATES` buttons must be removed from the default Analyze screen. Optional approved reference assets may be discovered automatically or supplied within collapsed Expert/QA settings; never block the core analysis when absent.
+- **Persistent, truthful progress** with real phases (source discovery, per-file analysis, revision verification, PDF generation, single-XLSX/maps assembly, atomic final verification), processed/total counts, current filename, review/error count, safe Cancel and restart. It must be visible while navigating, not hidden in the Results tab.
+- **Professional 2D + real 3D engineering explorer** using actual XY, RL and classified observed depth intervals, with zoom/rotation, depth slices, profile drilldown, site boundaries where verified, max individual/cumulative silt layers, unknown sensor spans, and no misrepresented continuous inferred volumes. 400+ CPT navigation needs measured responsive performance and documented coordinate exceptions.
+- **Exactly one comprehensive XLSX** per successful run. Five-column first sheet plus all numerical samples, all layers, foundation/reference provenance, full site summary, QC, comparison results when supplied, and embedded 2D/3D views. No extra PNG or second XLSX by default. Excel row-limit overflow requires split and an index.
+- **Complete PDF output** with no unexplained empty client/site/date/coordinate/unit/test columns, correct plots, all-layer/QC appendix, and verified official-page preservation where available; missing fields explicitly N/A with reason.
+- **UI acceptance before release:** simple Analyze/Results/Site & 3D/All Layers/Compare/Reports/Review hierarchy, visible primary actions, working Open Latest Excel/PDF, no inactive buttons, screenshots at 1024×697, 1366×768, 1920×1080 and DPI-scaled layouts. Full input/mapping/progress/cancellation/workbook/PDF Windows functional and visual test matrix is mandatory.
+- **No false engineering signoff:** generic source-batch data can run without the original XLSB, but unvalidated raft/isolated/liquefaction results may only be shown as imported/cached and labelled reference-only. REVIEW must carry a specific reason rather than be auto-converted to success.
+
+**Do not mark these complete or publish a certified build without the new numbered checks** `UX-01`, `UX-02`, `PROG-01`, `MAP-01`, `XLSX-01`, `PDF-01` in the authoritative closure plan.
+
 ## Mission
 Offline Windows desktop application for raw GEF/GFF and supported PDF inputs, with validated CPT measurements, complete SBT layer segmentation, georeferenced charts/maps, raft/isolated-footing summaries, auditable Pre/Post comparisons, Excel and PDF outputs.
 
