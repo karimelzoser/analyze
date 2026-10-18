@@ -532,6 +532,7 @@ class ModernCPTApp(tk.Tk):
             messagebox.showerror("Invalid engineering settings", "Soil unit weight must be positive and groundwater depth cannot be negative.")
             return
 
+        self.analysis_stage_value=self.cpt_stage.get()
         self.running = True
         self.output_dir = Path(out)
         self.results = []
