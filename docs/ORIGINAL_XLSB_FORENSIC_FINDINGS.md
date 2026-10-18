@@ -50,3 +50,31 @@ The differences should be reconciled to the 0.1m reporting convention and the re
 - If Microsoft Excel is not installed, exact *newly calculated* XLSB report print is unavailable; original saved PDFs can instead be preserved verbatim. Native generated PDFs remain reference-style, not pixel-identical.
 
 **Never assert the entire production engineering model is validated merely because the synthetic and Windows CI tests pass.**
+
+## Coordinate and reference-map audit (source XLSB)
+
+Nine original source Summary entries contain project-grid coordinates far outside the separately supplied Site Limit boundary. These values were **not** automatically modified:
+
+- CPT-A1-B120-100: Easting 42,734.485
+- CPT-A1-B143-100: Northing 29,277,781.43
+- CPT-A1-B209-100: Northing 29,258,431.406
+- CPT-A1-B238-100: Northing 9,228,231.076
+- CPT-A1-B239-100: Northing 9,228,255.005
+- CPT-A1-B277-100-1: Easting 4,210,463.727
+- CPT-A1-B291-100: Easting 4,521,085.133
+- CPT-A1-B299-100: Northing 9,228,161.506
+- CPT-A2-B162-100: Easting 42,145.728
+
+The original workbook project contains 447 unique reference profile series; after withholding these nine anomalies, **438 CPT locations** can be plotted on the project-grid map with the actual Site Limit polygon. Their values remain in Source Audit / Coordinate QA and must be verified against survey records. Neither the centroid filter nor the polygon changes original coordinates.
+
+## Reference workbook audit delivered
+
+An independent analysis workbook extracted from the supplied XLSB has:
+- Five-column quick CPT table for 447 CPT references.
+- Original cached raft settlement and FOS outputs, source values and geometry.
+- 778 fine-grained-like qualifying SBT intervals (including intermediate depths) under a provisional zone-screening rule, not certified laboratory USCS.
+- Specific comparison with approved A1-292/B342/B343/B355/B356 examples, exposing 0.10m discrepancies in B342, B343 and B355 rather than overwriting them.
+- Nine explicit Coordinate QA exceptions.
+- Four site-boundary-overlaid spatial scatter maps, without unverified interpolation.
+
+The source Excel COM route can optionally calculate a new GEF with the workbook's real formulas and print its original CPT graph on a Microsoft Excel-equipped Windows workstation. It is **not** verified by the GitHub-hosted Windows runner, which has no validated source-model Microsoft Excel environment.
