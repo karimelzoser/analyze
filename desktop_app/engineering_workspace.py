@@ -212,6 +212,9 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         actions=tk.Frame(self.compare_tab,bg="#ffffff")
         actions.pack(fill="x",padx=16,pady=6)
         self._btn(actions,"RUN COMPARISON",self.run_summary_comparison,primary=True).pack(side="left")
+        self.allow_coordinate_only=tk.BooleanVar(value=False)
+        ttk.Checkbutton(actions,text="Allow unique coordinate-only pairing (review)",
+                        variable=self.allow_coordinate_only).pack(side="left",padx=8)
         self.comparison_view=tk.StringVar(value="Change bars")
         cv=ttk.Combobox(actions,textvariable=self.comparison_view,state="readonly",
                         width=22,values=["Change bars","Coordinate delta map"])
@@ -412,7 +415,8 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         try:
             pre=read_summary_xlsx(self._comparison_inputs["pre"])
             post=read_summary_xlsx(self._comparison_inputs["post"])
-            self.compare_result=compare_summaries(pre,post)
+            self.compare_result=compare_summaries(pre,post,
+                allow_coordinate_only=self.allow_coordinate_only.get())
         except Exception as exc:
             messagebox.showerror("Comparison input problem",str(exc));return
         result=self.compare_result
