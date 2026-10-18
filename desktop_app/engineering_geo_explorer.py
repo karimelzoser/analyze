@@ -499,12 +499,29 @@ def export_interactive_3d(data,path,*,boundary=None,warning_m=.10,high_m=.30,
              hovertemplate=[tool(p) for p in subset]))
     # Crisp dark stem lines and full-depth measured/cached silt intervals.
     stems_x=[];stems_y=[];stems_z=[]
+    sand_x=[];sand_y=[];sand_z=[]
     silt_x=[];silt_y=[];silt_z=[]
     for p in valid:
         top=p.elevation
         depth=p.depth if p.depth is not None else max(b for a,b in p.intervals)
         stems_x.extend([p.x-east0,p.x-east0,None]);stems_y.extend([p.y-north0,p.y-north0,None])
         stems_z.extend([top,top-depth,None])
+        # Display sand-dominant/other measured portions separately from
+        # positive SBT-screen segments. The gold trace is an unclassified
+        # complement, NOT a laboratory-confirmed clean sand description.
+        active=sorted((max(0.0,a),min(depth,b)) for a,b in p.intervals
+                      if b>a and a<depth)
+        prev=0.0
+        for start,end in active:
+            if start>prev:
+                sand_x.extend([p.x-east0,p.x-east0,None])
+                sand_y.extend([p.y-north0,p.y-north0,None])
+                sand_z.extend([top-prev,top-start,None])
+            prev=max(prev,end)
+        if depth>prev:
+            sand_x.extend([p.x-east0,p.x-east0,None])
+            sand_y.extend([p.y-north0,p.y-north0,None])
+            sand_z.extend([top-prev,top-depth,None])
         for start,end in p.intervals:
             silt_x.extend([p.x-east0,p.x-east0,None])
             silt_y.extend([p.y-north0,p.y-north0,None])
@@ -513,6 +530,10 @@ def export_interactive_3d(data,path,*,boundary=None,warning_m=.10,high_m=.30,
         fig.add_trace(go.Scatter3d(x=stems_x,y=stems_y,z=stems_z,mode="lines",
                  name="Measured sounding depth",line={"color":"#8f9eab","width":2},
                  hoverinfo="skip",legendgroup="survey"))
+    if sand_x:
+        fig.add_trace(go.Scatter3d(x=sand_x,y=sand_y,z=sand_z,mode="lines",
+               name="Other observed CPT behavior",line={"color":"#e3aa3a","width":5},
+               hoverinfo="skip",legendgroup="sand"))
     if silt_x:
         fig.add_trace(go.Scatter3d(x=silt_x,y=silt_y,z=silt_z,mode="lines",
                 name="Observed SBT-screen layers",line={"color":"#c3423b","width":7},
@@ -547,15 +568,16 @@ def export_interactive_3d(data,path,*,boundary=None,warning_m=.10,high_m=.30,
         legend={"orientation":"h","y":-.07,"x":.02},
         scene={"xaxis_title":f"Easting offset from {east0:.2f} m",
                "yaxis_title":f"Northing offset from {north0:.2f} m",
-               "zaxis_title":"Elevation RL (m)","aspectmode":"data",
+               "zaxis_title":"Elevation RL (m)","aspectmode":"manual",
+               "aspectratio":{"x":1.45,"y":1.25,"z":.75},
                "camera":{"eye":{"x":1.65,"y":-1.65,"z":1.18}}},
         updatemenus=[{"type":"buttons","x":.02,"y":1.06,"direction":"right",
                       "buttons":[
-                        {"label":"Normal scale","method":"relayout",
+                        {"label":"True XY/RL scale","method":"relayout",
                           "args":[{"scene.aspectmode":"data"}]},
-                        {"label":"Vertical emphasis","method":"relayout",
+                        {"label":"Readable depth / 3D","method":"relayout",
                           "args":[{"scene.aspectmode":"manual",
-                                   "scene.aspectratio":{"x":1.35,"y":1.25,"z":.65}}]},
+                                   "scene.aspectratio":{"x":1.45,"y":1.25,"z":.75}}]},
                         {"label":"Top / plan","method":"relayout",
                          "args":[{"scene.camera.eye":{"x":0.01,"y":0.01,"z":2.3}}]},
                         {"label":"Isometric","method":"relayout",
@@ -567,7 +589,9 @@ def export_interactive_3d(data,path,*,boundary=None,warning_m=.10,high_m=.30,
       f"<b>{len(points)} surveyed CPT locations</b> &nbsp;·&nbsp; "
       f"<b>{len(wedges)} supported 3-point overlap wedges</b> &nbsp;·&nbsp; "
       f"<b>{len(excluded)} coordinate outliers withheld</b><br>"
-      f"<span style='font-size:12px'>Transparent solids show <b>interpreted screening continuity only where"
+      f"<span style='font-size:12px'>Gold = other observed CPT behavior; red = fine-grained-like Ic screen; gray = sounding depth. "
+      f"Vertical axis is visually EXAGGERATED by default; use True XY/RL scale for actual proportions.<br>"
+      f"Transparent solids show <b>interpreted screening continuity only where"
       f" three neighboring observed intervals overlap.</b> Not certified stratigraphy or foundation risk."
       f" Click a legend label to hide layers. Rotate, pan and scroll to zoom.</span></div>")
     html=pio.to_html(fig,include_plotlyjs=True,full_html=True,
