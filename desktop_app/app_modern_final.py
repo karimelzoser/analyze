@@ -95,8 +95,11 @@ def _packaged_gui_smoke():
                     "#MEASUREMENTVAR= 3, 0.75, -, area ratio",
                     "#TESTID= CPT-A1-SMOKE-100","#EOH=",
                 ]
-                for i in range(65):
-                    z=i*.1
+                # The reference project's CPT series has ~0.01 m sampling.
+                # Use realistic resolution to exercise all-layer interpretation
+                # rather than converting every 0.10 m gap to UNKNOWN.
+                for i in range(641):
+                    z=i*.01
                     qc,fs=(10.,.10) if z<6. else ((.5,.15) if z<=6.3 else (.5,0.))
                     rows.append(f"{z:.3f} {qc:.5f} {fs:.5f} {z:.3f}")
                 sample.write_text("\n".join(rows),encoding="ascii")
