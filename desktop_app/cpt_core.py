@@ -469,6 +469,24 @@ def analyze_gef(path: str | Path, gamma_soil: float = DEFAULT_GAMMA, water_table
                 final, status, note = _make_interval(sr, er, float(np.median([z.source_end_raw for z in silt_candidates]))), "VERIFIED", "Detailed checks agreed within one 0.10 m interval; median raw boundaries used."
             else:
                 final, status, note = None, "REVIEW", "Independent analyses did not converge. Manual review required."
+    # Censored terminal crossing: a thin observed above-threshold tail may
+    # continue beyond the last valid sensor record, but its extent is UNKNOWN.
+    # Do not turn this into NO SILT or measured full-terminal silt.
+    if status == "NO SILT" and dropout_start is not None:
+        good_idx = np.flatnonzero(sensor_valid & np.isfinite(ic))
+        if len(good_idx):
+            i_last = int(good_idx[-1])
+            if (float(depth[-1])-float(depth[i_last])<=TERMINAL_DROPOUT_MAX
+                    and float(ic[i_last])>=SILT_IC_THRESHOLD):
+                status="REVIEW"
+                note="Last valid Ic is above 2.60 but the observed terminal interval is shorter than the minimum persistence criterion; classification after fs dropout is unknown."
+    # Do not emit a verified 0.00 m thickness for a measured positive interval.
+    if status == "VERIFIED" and final is not None and final.thickness_raw>0 and final.thickness==0:
+        status="REVIEW"
+        note += (" Raw qualifying thickness is positive but rounded start and end"
+                 " are equal; no minimum 0.10 m was fabricated. Engineering"
+                 " reporting-precision review required.")
+        final=None
     if dropout_start is not None:
         note += f" Terminal sleeve-friction dropout detected from {dropout_start:.3f} m; this UNKNOWN tail is NOT counted as measured silt."
 
