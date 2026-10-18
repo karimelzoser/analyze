@@ -442,6 +442,21 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
         excel_path = app_modern_v2.timestamped_excel_path(out)
         excel = reporting_export_v2.export_excel(results, excel_path, errors=errors, source_audit=audit_rows)
         app_modern_v2.update_latest_excel_alias(Path(excel), out)
+        # Optional original XLSB parity check is an ADDITIONAL QA output, not a
+        # silent replacement of the calculated native engineering results.
+        original=getattr(self,"original_model_path",None)
+        if original:
+            try:
+                from engineering_reference_parity import compare_against_xlsb
+                parity_path,parity_rows=compare_against_xlsb(
+                     results,original,out/"CPT_Reference_Parity.xlsx",
+                     water_table=wt)
+                if any("MISMATCH" in row["status"] for row in parity_rows):
+                    self.messages.put(("reference_parity_warning",
+                        str(parity_path),
+                        sum("MISMATCH" in row["status"] for row in parity_rows)))
+            except Exception as exc:
+                errors.append(("Original XLSB comparison",str(exc)))
         self.messages.put(("done", out, pdfs if make_pdfs else None, excel, results, errors))
 
 
