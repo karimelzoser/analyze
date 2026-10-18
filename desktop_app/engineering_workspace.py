@@ -68,14 +68,19 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.layer_status=tk.StringVar(value="Select a CPT after analysis to view all layers.")
         tk.Label(self.layers_tab,textvariable=self.layer_status,bg="#ffffff",fg="#475569",
                  anchor="w",font=("Segoe UI",9)).pack(fill="x",padx=18,pady=4)
-        # Keep a compact, sortable-seeming engineering layer table alongside
-        # the visual profile. UNKNOWN intervals remain visible rather than
-        # silently being added to sand or silt.
-        table_wrap=tk.Frame(self.layers_tab,bg="#ffffff")
-        table_wrap.pack(fill="x",padx=16,pady=(0,5))
+        # An inner view switcher gives the chart its full plotting area on
+        # small displays instead of squeezing it under a permanent table.
+        self.layer_views=ttk.Notebook(self.layers_tab)
+        self.layer_views.pack(fill="both",expand=True,padx=16,pady=(0,8))
+        self.layer_chart_view=tk.Frame(self.layer_views,bg="#ffffff")
+        self.layer_table_view=tk.Frame(self.layer_views,bg="#ffffff")
+        self.layer_views.add(self.layer_chart_view,text="  Ic Profile & Colored Intervals  ")
+        self.layer_views.add(self.layer_table_view,text="  All Layer Depths & Thicknesses  ")
         colnames=("number","type","from","to","thickness","ic","quality")
-        self.layer_table=ttk.Treeview(table_wrap,columns=colnames,show="headings",
-                                       height=5,selectmode="browse")
+        frame=tk.Frame(self.layer_table_view,bg="#ffffff")
+        frame.pack(fill="both",expand=True,padx=8,pady=8)
+        self.layer_table=ttk.Treeview(frame,columns=colnames,show="headings",
+                                       height=10,selectmode="browse")
         for key,label,width in [
             ("number","LAYER",65),("type","CPT SBT INTERPRETATION",260),
             ("from","START (m)",95),("to","END (m)",95),
@@ -86,10 +91,13 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                        anchor="w" if key in ("type","quality") else "center")
         self.layer_table.tag_configure("UNKNOWN",background="#fff4ed",foreground="#92400e")
         self.layer_table.tag_configure("MEASURED",background="#f0f7ff",foreground="#1e3a5f")
-        self.layer_table.pack(fill="x")
+        table_scroll=ttk.Scrollbar(frame,orient="vertical",command=self.layer_table.yview)
+        self.layer_table.configure(yscrollcommand=table_scroll.set)
+        table_scroll.pack(side="right",fill="y")
+        self.layer_table.pack(side="left",fill="both",expand=True)
         self.layer_fig=Figure(figsize=(10,6),dpi=100,facecolor="#ffffff")
         self.layer_ax=self.layer_fig.add_subplot(111)
-        self.layer_canvas=self._plot(self.layers_tab,self.layer_fig)
+        self.layer_canvas=self._plot(self.layer_chart_view,self.layer_fig)
         self.refresh_layers()
 
     def _add_map_tab(self):
@@ -218,45 +226,62 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.notebook.add(self.compare_tab,text="  Pre / Post  ")
         self._tab_top(self.compare_tab,"Pre/Post CPT and foundation-summary comparison",
            "Pair by CPT identity and coordinates. Show unmatched results and signed changes, not assumed improvement.")
-        row=tk.Frame(self.compare_tab,bg="#ffffff")
-        row.pack(fill="x",padx=16,pady=10)
-        self.pre_path=tk.StringVar(value="No PRE summary selected")
-        self.post_path=tk.StringVar(value="No POST summary selected")
-        self._btn(row,"SELECT PRE XLSX",lambda:self._select_summary("pre")).pack(side="left")
+        # Two task-focused control pages instead of a single crowded
+        # toolbar. Chart stays below, accessible from either workflow.
+        self.compare_controls=ttk.Notebook(self.compare_tab)
+        self.compare_controls.pack(fill="x",padx=16,pady=(5,4))
+        self.compare_summary_controls=tk.Frame(self.compare_controls,bg="#ffffff")
+        self.compare_raw_controls=tk.Frame(self.compare_controls,bg="#ffffff")
+        self.compare_controls.add(self.compare_summary_controls,text="  Compare Summary Workbooks  ")
+        self.compare_controls.add(self.compare_raw_controls,text="  Compare Raw Depth Profiles  ")
+
+        row=tk.Frame(self.compare_summary_controls,bg="#ffffff")
+        row.pack(fill="x",padx=8,pady=(6,2))
+        self.pre_path=tk.StringVar(value="No PRE summary")
+        self.post_path=tk.StringVar(value="No POST summary")
+        self._btn(row,"CHOOSE PRE XLSX",lambda:self._select_summary("pre")).pack(side="left")
         tk.Label(row,textvariable=self.pre_path,bg="#ffffff",fg="#475569",
-                 width=36,anchor="w").pack(side="left",padx=8)
-        self._btn(row,"SELECT POST XLSX",lambda:self._select_summary("post")).pack(side="left",padx=(12,0))
+                 width=21,anchor="w").pack(side="left",padx=6)
+        self._btn(row,"CHOOSE POST XLSX",lambda:self._select_summary("post")).pack(side="left",padx=(8,0))
         tk.Label(row,textvariable=self.post_path,bg="#ffffff",fg="#475569",
-                 width=36,anchor="w").pack(side="left",padx=8)
-        actions=tk.Frame(self.compare_tab,bg="#ffffff")
-        actions.pack(fill="x",padx=16,pady=6)
-        self._btn(actions,"RUN COMPARISON",self.run_summary_comparison,primary=True).pack(side="left")
+                 width=21,anchor="w").pack(side="left",padx=6)
+
+        actions=tk.Frame(self.compare_summary_controls,bg="#ffffff")
+        actions.pack(fill="x",padx=8,pady=3)
+        self._btn(actions,"RUN SUMMARY COMPARISON",self.run_summary_comparison,primary=True).pack(side="left")
         self.allow_coordinate_only=tk.BooleanVar(value=False)
-        ttk.Checkbutton(actions,text="Allow unique coordinate-only pairing (review)",
-                        variable=self.allow_coordinate_only).pack(side="left",padx=8)
+        ttk.Checkbutton(actions,text="Match distinct IDs by unique coordinates (needs review)",
+                        variable=self.allow_coordinate_only).pack(side="left",padx=10)
         self.comparison_view=tk.StringVar(value="Change bars")
         cv=ttk.Combobox(actions,textvariable=self.comparison_view,state="readonly",
-                        width=22,values=["Change bars","Coordinate delta map"])
-        cv.pack(side="left",padx=8)
-        cv.bind("<<ComboboxSelected>>",lambda event:self.run_summary_comparison() if self.compare_result else None)
-        self._btn(actions,"EXPORT COMPARISON XLSX",self.export_summary_comparison).pack(side="left",padx=8)
-        self._btn(actions,"SAVE COMPARISON PNG",self.save_comparison_image).pack(side="left")
-        rawbar=tk.Frame(self.compare_tab,bg="#ffffff")
-        rawbar.pack(fill="x",padx=16,pady=(4,10))
-        self._btn(rawbar,"PRE RAW GEF/GFF",lambda:self._choose_raw_pair("pre")).pack(side="left")
-        self.raw_pre_label=tk.StringVar(value="Select PRE raw sounding")
+                        width=21,values=["Change bars","Coordinate delta map"])
+        cv.pack(side="left",padx=4)
+        cv.bind("<<ComboboxSelected>>",
+                lambda event:self.run_summary_comparison() if self.compare_result else None)
+        summary_exports=tk.Frame(self.compare_summary_controls,bg="#ffffff")
+        summary_exports.pack(fill="x",padx=8,pady=(1,7))
+        self._btn(summary_exports,"EXPORT CHANGES XLSX",self.export_summary_comparison).pack(side="left")
+        self._btn(summary_exports,"SAVE COMPARISON PNG",self.save_comparison_image).pack(side="left",padx=8)
+
+        rawbar=tk.Frame(self.compare_raw_controls,bg="#ffffff")
+        rawbar.pack(fill="x",padx=8,pady=(8,3))
+        self._btn(rawbar,"CHOOSE PRE GEF/GFF",lambda:self._choose_raw_pair("pre")).pack(side="left")
+        self.raw_pre_label=tk.StringVar(value="No PRE source")
         tk.Label(rawbar,textvariable=self.raw_pre_label,bg="#ffffff",fg="#475569",
-                 width=29,anchor="w").pack(side="left",padx=8)
-        self._btn(rawbar,"POST RAW GEF/GFF",lambda:self._choose_raw_pair("post")).pack(side="left")
-        self.raw_post_label=tk.StringVar(value="Select POST raw sounding")
+                 width=20,anchor="w").pack(side="left",padx=6)
+        self._btn(rawbar,"CHOOSE POST GEF/GFF",lambda:self._choose_raw_pair("post")).pack(side="left",padx=(8,0))
+        self.raw_post_label=tk.StringVar(value="No POST source")
         tk.Label(rawbar,textvariable=self.raw_post_label,bg="#ffffff",fg="#475569",
-                 width=29,anchor="w").pack(side="left",padx=8)
-        self._btn(rawbar,"COMPARE RAW DEPTH PROFILES",self.run_raw_depth_comparison,primary=True).pack(side="right")
+                 width=20,anchor="w").pack(side="left",padx=6)
+        raw_actions=tk.Frame(self.compare_raw_controls,bg="#ffffff")
+        raw_actions.pack(fill="x",padx=8,pady=(2,8))
         self.depth_pair={}
         self.raw_compare_mode=tk.StringVar(value="Harmonized (3 / 3)")
-        modes=ttk.Combobox(rawbar,textvariable=self.raw_compare_mode,state="readonly",
-              values=["Harmonized (3 / 3)","Workbook reference (3 / 10)"],width=25)
-        modes.pack(side="right",padx=8)
+        modes=ttk.Combobox(raw_actions,textvariable=self.raw_compare_mode,state="readonly",
+              values=["Harmonized (3 / 3)","Workbook reference (3 / 10)"],width=27)
+        modes.pack(side="left",padx=(0,9))
+        self._btn(raw_actions,"ANALYZE DEPTH CHANGES & EXPORT",self.run_raw_depth_comparison,
+                  primary=True).pack(side="left")
         self.comparison_status=tk.StringVar(value="Select both PRE and POST workbooks.")
         tk.Label(self.compare_tab,textvariable=self.comparison_status,bg="#ffffff",fg="#475569",
                  anchor="w").pack(fill="x",padx=16,pady=5)
