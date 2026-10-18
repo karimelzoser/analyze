@@ -18,6 +18,7 @@ from engineering_workspace import EngineeringWorkspaceApp
 from engineering_reference_audit import audit_to_json
 from engineering_pdf_parity import pdf_visual_regression
 from engineering_excel_pdf import export_original_excel_pdf
+from engineering_reference_project import export_original_project
 
 
 def qa_record(analysis):
@@ -133,12 +134,17 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
         tools.pack(fill="x",padx=18,pady=(0,12))
         self._btn(tools,"AUDIT ORIGINAL XLSB",self.audit_reference_excel).pack(side="left")
         self._btn(tools,"COMPARE PDF LAYOUTS",self.compare_pdf_layout).pack(side="left",padx=8)
-        self._btn(tools,"EXPORT ORIGINAL EXCEL PDF",self.print_original_xlsb_pdf).pack(side="left",padx=7)
+
         self._btn(tools,"ENGINEERING GUIDE  F1",self._show_help).pack(side="right")
         self.qa_status=tk.StringVar()
         self.qa_note=tk.Label(tools,textvariable=self.qa_status,bg="#ffffff",fg="#64748b",
                   font=("Segoe UI",8),anchor="w")
         self.qa_note.pack(side="left",padx=12)
+        reference_actions=tk.Frame(self.qa_tab,bg="#ffffff")
+        reference_actions.pack(fill="x",padx=18,pady=(0,5))
+        self._btn(reference_actions,"ANALYZE COMPLETE ORIGINAL XLSB PROJECT",self.export_full_reference_project,
+                  primary=True).pack(side="left")
+        self._btn(reference_actions,"PRINT EXACT ORIGINAL XLSB PDF",self.print_original_xlsb_pdf).pack(side="left",padx=8)
         board=tk.Frame(self.qa_tab,bg="#f1f5f9")
         board.pack(fill="x",padx=18,pady=(4,10))
         self.qa_counts=tk.StringVar(value="NO RESULTS  |  Choose a source folder and run analysis")
@@ -253,6 +259,43 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
                 "The read-only XLSB chart/formula reference inventory was exported.\n\n"
                 "This does not certify cell formulas or VBA calculations.")
         except Exception as exc:messagebox.showerror("Source-model audit failed",str(exc))
+
+    def export_full_reference_project(self):
+        from threading import Thread
+        source=filedialog.askopenfilename(title="Choose original project XLSB calculation workbook",
+                         filetypes=[("Original Excel calculation XLSB","*.xlsb")])
+        if not source:return
+        target=filedialog.askdirectory(title="Save original model full-project Excel and coordinate maps")
+        if not target:return
+        if getattr(self,"reference_export_busy",False):
+            messagebox.showinfo("Reference analysis already running",
+                                "The source workbook is being processed.")
+            return
+        self.reference_export_busy=True
+        self.qa_status.set("Reading original XLSB caches, soil-zone profiles and 448 foundation rows...")
+        def _run():
+            try:
+                exports=export_original_project(source,target)
+            except Exception as exc:
+                message=str(exc)
+                self.after(0,lambda:self._finish_original_project_export(error=message))
+            else:
+                self.after(0,lambda:self._finish_original_project_export(export=exports))
+        Thread(target=_run,daemon=True,name="xlsb-reference-project").start()
+
+    def _finish_original_project_export(self,export=None,error=None):
+        self.reference_export_busy=False
+        if error:
+            self.qa_status.set("Original XLSB export failed — see error")
+            messagebox.showerror("Original project export failed",error)
+            return
+        self.qa_status.set("%d original cached CPT profiles exported with 4 maps."%
+                           export["project_cpt_count"])
+        messagebox.showinfo("Original workbook project analysis complete",
+             "Saved actual reference workbook foundation values, soil zone intervals,"
+             " and four project coordinate maps.\\n\\n"+
+             str(export["workbook"])+
+             "\\n\\nThese are SAVED original XLSB values; Excel/VBA formulas have not been recalculated.")
 
     def print_original_xlsb_pdf(self):
         source=filedialog.askopenfilename(title="Select original CPT calculation XLSB",
