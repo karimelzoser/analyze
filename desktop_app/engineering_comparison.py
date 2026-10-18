@@ -228,3 +228,35 @@ def export_comparison(results,output_path: str|Path) -> Path:
     summary.set_column(0,0,100);summary.set_column(1,1,22)
     book.close()
     return dest
+
+
+def read_site_boundary_xlsx(path: str|Path):
+    """Load ordered main-site limit Easting/Northing points (not geographical CRS)."""
+    with zipfile.ZipFile(path) as z:
+        strings=[]
+        if "xl/sharedStrings.xml" in z.namelist():
+            s=ET.fromstring(z.read("xl/sharedStrings.xml"))
+            strings=["".join(t.text or "" for t in el.findall(".//m:t",NS)) for el in s.findall("m:si",NS)]
+        wb=ET.fromstring(z.read("xl/workbook.xml"))
+        rel=ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))
+        paths={el.get("Id"):el.get("Target") for el in rel.findall("p:Relationship",NS)}
+        for sh in wb.findall(".//m:sheets/m:sheet",NS):
+            if sh.get("name")!="Site Limit":continue
+            key=sh.get("{"+NS["r"]+"}id")
+            target=(paths.get(key) or "").lstrip("/")
+            if not target.startswith("xl/"):target="xl/"+target
+            if target not in z.namelist():break
+            rows=_sheet_rows(z,target,strings)
+            xy=[]
+            for row in rows[2:]:
+                # Existing site workbook main setting-out polygon in C/D.
+                # Stop at first non-coordinate line after the started polygon.
+                east=_float(row[2] if len(row)>2 else None)
+                north=_float(row[3] if len(row)>3 else None)
+                if east is None or north is None:
+                    if xy:break
+                    continue
+                xy.append((east,north))
+            if len(xy)>=3:return xy
+            break
+    raise ValueError("No suitable ordered main boundary found in Site Limit worksheet")
