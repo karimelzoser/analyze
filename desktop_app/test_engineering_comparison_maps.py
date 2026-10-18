@@ -61,3 +61,40 @@ def test_ambiguous_duplicate_reference_preserved_not_silently_merged():
     result=compare_summaries([a,b],[post])
     assert not result["matched"]
     assert len(result["ambiguous"])==2
+
+
+def test_coordinates_only_matching_is_explicit_and_audited():
+    from engineering_comparison import SummaryPoint, compare_summaries
+    pre=SummaryPoint("CPT-A1-B101-100","RAFT",420111.01,2928111.01,
+                     {"settlement_mm":75},"Raft Summary")
+    post=SummaryPoint("POST-CPT-77","RAFT",420111.10,2928111.08,
+                      {"settlement_mm":45},"Raft Summary")
+    blocked=compare_summaries([pre],[post])
+    assert len(blocked["matched"])==0
+    result=compare_summaries([pre],[post],allow_coordinate_only=True)
+    assert len(result["matched"])==1
+    assert result["matched"][0]["matching_method"]=="COORDINATE-ONLY REVIEW"
+    assert result["matched"][0]["metrics"]["settlement_mm"]["delta"]==-30
+
+
+def test_coordinate_only_does_not_guess_when_two_post_sources_within_tolerance():
+    from engineering_comparison import SummaryPoint, compare_summaries
+    pre=SummaryPoint("BASELINE-1","CPT",420111,2928111,
+                     {"silt_thickness_m":.3},"CPT Analysis")
+    post=[SummaryPoint("POST-1","CPT",420111.2,2928111,
+                       {"silt_thickness_m":.2},"CPT Analysis"),
+          SummaryPoint("POST-2","CPT",420111.4,2928111,
+                       {"silt_thickness_m":.5},"CPT Analysis")]
+    result=compare_summaries([pre],post,allow_coordinate_only=True)
+    assert len(result["matched"])==0
+    assert len(result["ambiguous"])==1
+
+
+def test_coordinate_only_rejects_two_pre_competing_for_same_post():
+    from engineering_comparison import SummaryPoint,compare_summaries
+    pre=[SummaryPoint("A","CPT",420111,2928111,{"silt_thickness_m":.3},"CPT Analysis"),
+         SummaryPoint("B","CPT",420111.8,2928111,{"silt_thickness_m":.1},"CPT Analysis")]
+    post=[SummaryPoint("POST","CPT",420111.4,2928111,{"silt_thickness_m":.2},"CPT Analysis")]
+    x=compare_summaries(pre,post,allow_coordinate_only=True)
+    assert not x["matched"]
+    assert x["ambiguous"]
