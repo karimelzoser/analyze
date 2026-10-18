@@ -26,6 +26,15 @@ def export_excel(
     ``source_audit`` may contain every physical GEF/GFF/PDF revision considered
     during source selection so project rows stay clean without losing traceability.
     """
+    # The prior exporter produced 20+ redundant tabs, including instruction-only
+    # sheets. The project now uses one concise engineering workbook with all
+    # numerical values, site maps, reference cases and source QA.
+    from engineering_compact_export import export_excel as compact_export
+    return compact_export(
+        analyses,output_path,errors=errors,source_audit=source_audit,
+        original_xlsb=original_xlsb,foundation_xlsx=foundation_xlsx,
+        site_boundary=site_boundary,comparison_result=comparison_result)
+
     analyses = sorted(list(analyses), key=lambda a: natural_ref_key(a.reference))
     recs = [analysis_record(a) for a in analyses]
     errors = list(errors or [])
