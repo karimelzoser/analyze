@@ -41,9 +41,10 @@ def measured_3d_points(analyses):
     return [p[3] for p in accepted],[p[3] for p in excluded]
 
 
-def site_3d_figure(analyses,site_boundary=None,*,max_labels=12):
+def site_3d_figure(analyses,site_boundary=None,*,max_labels=12,figure=None):
     points,withheld=measured_3d_points(analyses)
-    fig=Figure(figsize=(11.8,8.2),dpi=120,facecolor="#ffffff")
+    fig=Figure(figsize=(11.8,8.2),dpi=120,facecolor="#ffffff") if figure is None else figure
+    fig.clear()
     ax=fig.add_subplot(111,projection="3d")
     if not points:
         ax.text2D(.24,.50,"No CPTs with confirmed coordinates and ground levels",
