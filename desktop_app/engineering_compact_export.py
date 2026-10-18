@@ -256,19 +256,41 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
     # Audit source conflicts, unclassified tails and processing exceptions
     audit_rows=[]
     for r in audits:
-        audit_rows.append((r.get("reference"),r.get("source"),r.get("selected"),
-           r.get("status"),r.get("selection_reason") or r.get("reason"),
-           r.get("verification_note") or r.get("verification"),r.get("source_quality")))
-    for name,note in errors:audit_rows.append(("PROCESSING ERROR",name,"NO","REVIEW",note,"",""))
-    for a in analyses:
-        if a.status=="REVIEW":
-            audit_rows.append((a.reference,a.source_path.name,"YES",a.status,
-                              "Engineering interpretation requires review",
-                              a.verification_note,""))
+        # select_project_results returns physical source keys
+        # 'family'/'source_file', not the old 'reference'/'source' aliases.
+        # Preserve one identifiable row for every physical original file.
+        audit_rows.append((
+           r.get("family") or r.get("reference"),
+           r.get("source_file") or r.get("source"),
+           r.get("source_type"),r.get("revision"),r.get("selected"),
+           r.get("status"),r.get("silt_start"),r.get("silt_thickness"),
+           r.get("selection_reason") or r.get("reason"),
+           r.get("verification_note") or r.get("verification"),
+           r.get("source_quality")))
+    # When called directly from CLI with no multi-source audit, selected
+    # results are still individually documented with exact input filenames.
+    if not audits:
+        for a in analyses:
+            z=getattr(a,"final_interval",None)
+            audit_rows.append((a.reference,a.source_path.name,
+                 a.source_path.suffix.upper().lstrip("."),
+                 (getattr(a,"metadata",{}) or {}).get("source_revision",0),
+                 "YES",a.status,z.start if z else None,
+                 z.thickness if z else None,
+                 (getattr(a,"metadata",{}) or {}).get("source_selection_reason") or
+                 "Analyzed selected input source.",
+                 getattr(a,"verification_note",""),
+                 (getattr(a,"metadata",{}) or {}).get("source_quality")))
+    for name,note in errors:
+        if not any(str(r[1])==str(name) for r in audit_rows):
+            audit_rows.append(("PROCESSING ERROR",name,None,None,"NO","ERROR",
+                               None,None,note,note,"UNREADABLE SOURCE"))
     _sheet(book,style,"Source Audit",
-           ["CPT REFERENCE","Input file","Selected","Status",
-            "Why this source/result","Verification and data-quality notes","Source quality"],
-          audit_rows,{0:30,1:44,4:80,5:100})
+           ["CPT REFERENCE","Physical input filename","Source type",
+            "Revision","Selected","Status","Selected silt start BGL (m)",
+            "Selected silt thickness (m)","Source decision / conflict reason",
+            "Verification and data-quality evidence","Source quality"],
+          audit_rows,{0:30,1:48,2:14,3:12,4:13,5:19,6:21,7:22,8:83,9:115,10:24})
 
     # Optional user-provided engineering data; no empty foundation tabs.
     cached=[]
