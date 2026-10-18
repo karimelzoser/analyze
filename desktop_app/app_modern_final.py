@@ -1,5 +1,5 @@
 import app_modern
-import app_pdf_enabled
+import engineering_workspace
 import reporting_export_v2
 
 # Production wiring:
@@ -12,4 +12,4 @@ app_modern.export_excel = reporting_export_v2.export_excel
 
 
 if __name__ == "__main__":
-    app_pdf_enabled.PDFEnabledCPTApp().mainloop()
+    engineering_workspace.EngineeringWorkspaceApp().mainloop()
