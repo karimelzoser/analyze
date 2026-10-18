@@ -60,10 +60,15 @@ def render_site_map(analyses, output_path: str | Path, metric="maximum_silt", ti
         art=ax.scatter(xs,ys,c=val,cmap="viridis",s=45,edgecolor="white",linewidth=.6,zorder=3)
         cb=fig.colorbar(art,ax=ax,fraction=.035,pad=.02);cb.set_label(metric.replace("_"," ").title()+" (m)")
         top=max(val)
-        for ref,e,n,v,_ in conclusive:
-            if abs(v-top)<1e-9:
+        leaders=[(ref,e,n) for ref,e,n,v,_ in conclusive if abs(v-top)<1e-9]
+        if len(leaders)<=20:
+            for ref,e,n in leaders:
                 ax.annotate(ref,(e,n),xytext=(6,8),textcoords="offset points",fontsize=7,
                             color="#111827",fontweight="bold")
+        else:
+            ax.text(.02,.02,f"{len(leaders)} CPTs share the maximum. Use the Excel ranking for references.",
+                    ha="left",va="bottom",transform=ax.transAxes,fontsize=8,
+                    color="#0f172a",bbox={"facecolor":"white","alpha":.85,"edgecolor":"none","pad":5})
     if uncertain:
         ax.scatter([r[1] for r in uncertain],[r[2] for r in uncertain],marker="x",
                    s=42,color="#be123c",label="REVIEW / unavailable")
