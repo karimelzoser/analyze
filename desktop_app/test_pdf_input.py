@@ -47,9 +47,10 @@ def test_pdf_output_preserves_source_pages_and_appends_analysis(tmp_path):
     a = analyze_pdf(source)
     out = append_pdf_analysis(source, a, tmp_path / "B355_analyzed.pdf")
     with fitz.open(source) as src, fitz.open(out) as dst:
-        assert dst.page_count == src.page_count + 1
+        assert dst.page_count >= src.page_count + 2
         assert dst[0].get_text("text") == src[0].get_text("text")
-        assert "CPT PDF ANALYSIS SUMMARY" in dst[-1].get_text("text")
+        assert "CPT PDF ANALYSIS SUMMARY" in dst[src.page_count].get_text("text")
+        assert "CPT FULL SOIL-BEHAVIOR DEPTH PROFILE" in dst[src.page_count+1].get_text("text")
 
 
 def test_scanned_or_unsupported_pdf_is_review_not_guess(tmp_path):
