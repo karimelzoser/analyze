@@ -42,8 +42,8 @@ def report_page(a: CPTAnalysis) -> Figure:
     fig=Figure(figsize=(8.27,11.69),dpi=150)
     gs=fig.add_gridspec(30,14,left=.035,right=.975,top=.952,bottom=.035,hspace=.82,wspace=.95)
     md=a.metadata
-    fig.text(.04,.976,"Client     :",fontsize=8.5,weight="bold",va="top"); fig.text(.125,.976,str(md.get("client") or ""),fontsize=8.5,weight="bold",va="top")
-    fig.text(.04,.957,"Project   :",fontsize=8.5,weight="bold",va="top"); fig.text(.125,.957,str(md.get("project_name") or md.get("project_id") or ""),fontsize=8.5,weight="bold",va="top")
+    fig.text(.04,.976,"Client     :",fontsize=8.5,weight="bold",va="top"); fig.text(.125,.976,str(md.get("client") or "N/A - not supplied"),fontsize=8.5,weight="bold",va="top")
+    fig.text(.04,.957,"Project   :",fontsize=8.5,weight="bold",va="top"); fig.text(.125,.957,str(md.get("project_name") or md.get("project_id") or "N/A - not supplied"),fontsize=8.5,weight="bold",va="top")
     fig.text(.965,.976,"SGP    CTSG    CTS GULF    TERRA FIRMA",ha="right",va="top",fontsize=8.8,weight="bold")
     fig.lines.extend([
         matplotlib.lines.Line2D([.03,.98],[.985,.985],transform=fig.transFigure,color="black",lw=.8),matplotlib.lines.Line2D([.03,.98],[.944,.944],transform=fig.transFigure,color="black",lw=.8),
