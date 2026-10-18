@@ -43,6 +43,18 @@ jobs:
         run: |
           python -m py_compile app_modern.py app_modern_v2.py app_pdf_enabled.py app_modern_final.py pdf_analysis.py pdf_analysis_refined.py reporting_export_v2.py reporting_pro.py reporting_pdf_ref.py reporting_pdf_ref_v2.py cpt_core.py engineering_layers.py engineering_maps.py engineering_comparison.py engineering_depth_comparison.py engineering_pdf_parity.py engineering_reference_audit.py engineering_workspace.py
 
+      - name: Verify normal user startup path from source
+        shell: pwsh
+        working-directory: desktop_app
+        run: |
+          $env:CPT_STARTUP_SMOKE_OUT = "$PWD/normal-startup-source.txt"
+          python app_modern_final.py --normal-startup-smoke
+          $status = Get-Content $env:CPT_STARTUP_SMOKE_OUT -Raw -ErrorAction Stop
+          Write-Host $status
+          if (-not $status.StartsWith("PASS:")) {
+            throw "The real normal startup path did not start successfully."
+          }
+
       - name: Launch and inspect all GUI workspaces from source
         shell: pwsh
         working-directory: desktop_app
@@ -102,6 +114,25 @@ jobs:
           Write-Host $content
           if (-not $content.StartsWith("PASS:")) {
             throw "Packaged GUI smoke did not report PASS."
+          }
+
+      - name: Verify real double-click startup path in packaged EXE
+        shell: pwsh
+        working-directory: desktop_app
+        run: |
+          $env:CPT_STARTUP_SMOKE_OUT = "$PWD/normal-startup-executable.txt"
+          $app = Start-Process -FilePath "$PWD/dist/CPT_Silt_Analyzer.exe" -ArgumentList "--normal-startup-smoke" -PassThru
+          if (-not $app.WaitForExit(90000)) {
+            Stop-Process -Id $app.Id -Force
+            throw "Packaged normal startup timed out."
+          }
+          if ($app.ExitCode -ne 0) {
+            throw "Packaged normal startup crashed with exit code $($app.ExitCode)"
+          }
+          $status = Get-Content $env:CPT_STARTUP_SMOKE_OUT -Raw -ErrorAction Stop
+          Write-Host $status
+          if (-not $status.StartsWith("PASS:")) {
+            throw "Packaged normal startup did not report PASS."
           }
 
       - name: Package repository download ZIP
