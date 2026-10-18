@@ -18,6 +18,7 @@ from engineering_layers import from_analysis, _smooth_contiguous
 from engineering_maps import coordinate_rows
 from engineering_comparison import read_summary_xlsx, compare_summaries, export_comparison, read_site_boundary_xlsx
 from engineering_depth_comparison import compare_depth_profiles, export_depth_change
+from engineering_foundations import check_foundation_results, export_foundation_validation
 
 
 class EngineeringWorkspaceApp(PDFEnabledCPTApp):
@@ -114,6 +115,15 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         c.bind("<<ComboboxSelected>>",lambda e:self.refresh_foundations())
         self._btn(controls,"SAVE FOUNDATION MAP",lambda:self._save_figure(
             self.foundation_fig,"CPT_Foundation_Reference_Map.png")).pack(side="right")
+        limits=tk.Frame(self.foundation_tab,bg="#ffffff")
+        limits.pack(fill="x",padx=16,pady=(0,8))
+        tk.Label(limits,text="Engineer-approved allowable settlement (mm)",bg="#ffffff").pack(side="left")
+        self.allowable_settlement=tk.StringVar(value="")
+        ttk.Entry(limits,textvariable=self.allowable_settlement,width=10).pack(side="left",padx=(8,15))
+        tk.Label(limits,text="Minimum FOS",bg="#ffffff").pack(side="left")
+        self.minimum_fos=tk.StringVar(value="")
+        ttk.Entry(limits,textvariable=self.minimum_fos,width=9).pack(side="left",padx=8)
+        self._btn(limits,"EXPORT CRITERIA QA",self.export_foundation_criteria).pack(side="right")
         self.foundation_note=tk.StringVar(value="REFERENCE ONLY — Load the original raft / isolated summary XLSX.")
         tk.Label(self.foundation_tab,textvariable=self.foundation_note,bg="#ffffff",
                  fg="#9a3412",anchor="w").pack(fill="x",padx=16,pady=5)
@@ -134,6 +144,28 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                                      len(self.foundation_points))
             self.refresh_foundations()
         except Exception as exc:messagebox.showerror("Foundation import failed",str(exc))
+
+    def export_foundation_criteria(self):
+        if not self.foundation_points:
+            messagebox.showwarning("No foundation summary","Import a raft/isolated summary first.")
+            return
+        try:
+            allowable=float(self.allowable_settlement.get()) if self.allowable_settlement.get().strip() else None
+            fos=float(self.minimum_fos.get()) if self.minimum_fos.get().strip() else None
+            if allowable is None and fos is None:
+                messagebox.showwarning("Criteria required","Enter at least one approved engineering limit. No defaults will be assumed.")
+                return
+            rows=check_foundation_results(self.foundation_points,
+                    allowable_settlement_mm=allowable,minimum_fos=fos)
+            target=filedialog.asksaveasfilename(defaultextension=".xlsx",
+                   initialfile="CPT_Foundation_Criteria_QA.xlsx",filetypes=[("Excel workbook","*.xlsx")])
+            if not target:return
+            export_foundation_validation(rows,target)
+            discrepancies=sum(bool(row.discrepancy) for row in rows)
+            self.foundation_note.set("%d reference rows checked; %d source/criterion conflicts; imported settlement/FOS still NOT independently validated." % (len(rows),discrepancies))
+            self.status_var.set("Foundation QA exported to "+target)
+        except Exception as exc:
+            messagebox.showerror("Foundation validation failed",str(exc))
 
     def refresh_foundations(self):
         if not hasattr(self,"foundation_ax"):return
