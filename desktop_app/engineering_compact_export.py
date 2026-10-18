@@ -174,6 +174,38 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
             ws.write(row,10,str(a.source_path.suffix).upper(),style["plain"])
     if row:ws.autofilter(0,0,row,len(measurement_columns)-1)
 
+    # A REVIEW result must never look like an empty CPT. Keep all measured
+    # candidate intervals as EVIDENCE ONLY, separate from reportable VERIFIED
+    # thickness. Where a PDF has no usable vector trace, explain that explicitly.
+    reviews=[]
+    for a in analyses:
+        if a.status!="REVIEW":continue
+        evidence=[]
+        try:
+            observation=from_analysis(a)
+            evidence=[("SUSTAINED - UNVERIFIED",x,y,y-x)
+                      for x,y in observation.silt_intervals]
+            evidence.extend(("BRIEF BELOW PERSISTENCE",x,y,y-x)
+                            for x,y in observation.brief_exceedances)
+        except (AttributeError,TypeError,ValueError,IndexError):
+            pass
+        if not evidence:
+            evidence=[("NO RELIABLE NUMERICAL INTERVAL",None,None,None)]
+        for kind,start,end,thickness in evidence:
+            reviews.append((a.reference,kind,start,end,thickness,
+                getattr(a,"sensor_dropout_depth",None),
+                getattr(a,"test_depth_raw",None),a.source_path.name,
+                str(getattr(a,"verification_note","") or
+                    "See Source Audit; input data do not establish a reportable layer."),
+                "PRELIMINARY ONLY — NOT VERIFIED FOR DESIGN"))
+    if reviews:
+        _sheet(book,style,"Review Evidence",
+               ["CPT REFERENCE","Observed interval evidence","Top BGL (m)",
+                "Base BGL (m)","Measured candidate thickness (m)",
+                "Terminal sensor dropout (m)","Sounding depth (m)",
+                "Original file","Reason analysis was not verified","Use limitation"],
+                reviews,{0:29,1:34,7:44,8:105,9:55})
+
     # Audit source conflicts, unclassified tails and processing exceptions
     audit_rows=[]
     for r in audits:
