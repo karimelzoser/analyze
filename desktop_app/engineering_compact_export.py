@@ -217,10 +217,21 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
     for a in analyses:
         if a.status!="REVIEW":continue
         evidence=[]
+        metadata=getattr(a,"metadata",{}) or {}
+        # A verified graphical Ic crossing may be thinner than the 0.1 m
+        # project reporting increment. Do not erase measured data just
+        # because it is not yet approved for rounding in the summary.
+        observed_start=num(metadata.get("thin_interval_unrounded_start"))
+        observed_end=num(metadata.get("thin_interval_unrounded_end"))
+        observed_thickness=num(metadata.get("thin_interval_unrounded_thickness"))
+        if (observed_start is not None and observed_end is not None and
+             observed_thickness is not None and observed_thickness>0):
+            evidence.append(("OBSERVED THIN LAYER - reporting convention needs approval",
+                         observed_start,observed_end,observed_thickness))
         try:
             observation=from_analysis(a)
-            evidence=[("SUSTAINED - UNVERIFIED",x,y,y-x)
-                      for x,y in observation.silt_intervals]
+            evidence.extend(("SUSTAINED - UNVERIFIED",x,y,y-x)
+                            for x,y in observation.silt_intervals)
             evidence.extend(("BRIEF BELOW PERSISTENCE",x,y,y-x)
                             for x,y in observation.brief_exceedances)
         except (AttributeError,TypeError,ValueError,IndexError):
