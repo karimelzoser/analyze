@@ -379,8 +379,64 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             self._comparison_inputs[stage]=Path(path)
             (self.pre_path if stage=="pre" else self.post_path).set(Path(path).name)
 
+    def _render_original_source_profile(self,reference):
+        """Drill from project map to ORIGINAL SAVED SBT zones, never fake Ic."""
+        source=getattr(self,"original_model_path",None)
+        selected=next((x for x in (self._source_cached_analysis or [])
+                       if x["reference"]==reference),None)
+        if not source or selected is None:return False
+        try:
+            if getattr(self,"_source_cached_curves_file",None)!=str(source):
+                from engineering_xlsb_reference import ReferenceWorkbookCache
+                with ReferenceWorkbookCache(source) as source_book:
+                    self._source_cached_curves=source_book.mapped_profiles()
+                self._source_cached_curves_file=str(source)
+            raw=self._source_cached_curves.get(reference,[])
+            ground=float(selected["ground_elevation"])
+            values=sorted([(ground-float(rl),int(zone)) for rl,qc,zone in raw
+                        if isinstance(zone,(int,float)) and float(rl)<=ground],
+                        key=lambda x:x[0])
+            self.layer_ax.clear()
+            for iid in self.layer_table.get_children():self.layer_table.delete(iid)
+            if values:
+                depths=np.asarray([x[0] for x in values],float)
+                zones=np.asarray([x[1] for x in values],int)
+                self.layer_ax.step(zones,depths,where="post",linewidth=1.0,color="#17416e")
+                self.layer_ax.axvspan(.5,4.5,color="#ffc2b8",alpha=.25)
+                self.layer_ax.set_xlim(.5,9.5)
+                self.layer_ax.set_xticks(list(range(1,10)))
+                self.layer_ax.set_ylim(float(np.max(depths))+.05,-.05)
+            for index,layer in enumerate(selected.get("all_intervals",[]),1):
+                self.layer_ax.axhspan(layer["start_raw"],layer["end_raw"],
+                                      color="#dd5344",alpha=.19)
+                self.layer_table.insert("","end",values=(
+                    index,"ORIGINAL SBT ZONES "+",".join(map(str,layer["zone_codes"])),
+                    f'{layer["start_raw"]:.3f}',f'{layer["end_raw"]:.3f}',
+                    f'{layer["thickness_raw"]:.3f}',"—",
+                    "XLSB CACHED; NOT NUMERICAL Ic"),tags=("MEASURED",))
+            self.layer_ax.set_xlabel("Original XLSB categorical SBT zone (1–9), NOT Ic")
+            self.layer_ax.set_ylabel("Depth BGL (m)")
+            self.layer_ax.set_title(reference+" — original saved zone sequence",
+                                    loc="left",fontsize=11)
+            self.layer_ax.grid(alpha=.12)
+            self.layer_status.set(
+                f"{reference}: {len(raw)} cached points | {len(selected.get('all_intervals',[]))} "
+                "qualifying intervals | original zone classes, not continuous Ic. "
+                "See Original SBT Curves sheet in Excel.")
+            self.layer_fig.tight_layout()
+            self.layer_canvas.draw_idle()
+            return True
+        except Exception as exc:
+            self.layer_status.set("Original source profile unavailable: "+str(exc))
+            return False
+
     def refresh_layers(self):
         if not hasattr(self,"layer_ax"):return
+        if (getattr(self,"map_data_source",None) is not None
+             and self.map_data_source.get()=="Original XLSB full project"
+             and self.layer_reference.get()
+             and self._render_original_source_profile(self.layer_reference.get())):
+            return
         a=next((v for v in self.results if v.reference==self.layer_reference.get()),None)
         self.layer_ax.clear()
         if hasattr(self,"layer_table"):
