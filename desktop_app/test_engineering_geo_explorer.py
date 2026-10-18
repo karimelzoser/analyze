@@ -72,6 +72,9 @@ def test_full_3d_html_is_genuinely_offline_and_rotatable(tmp_path):
     assert "No network" not in page
     assert "Interpreted silt-like wedge" in page
     assert "vertical" in page.lower()
+    assert "E-W CPT fence" in page and "N-S CPT fence" in page
+    assert len(result["fence_sections"])==2
+    assert result["fence_sections"][0]["points"]>=2
 
 
 def test_original_survey_outlier_does_not_expand_model_bounds():
