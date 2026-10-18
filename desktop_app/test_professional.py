@@ -25,7 +25,7 @@ def write_gef(path: Path):
 
 
 def test_professional_end_to_end(tmp_path):
-    gef=tmp_path/'sample.GEF'; write_gef(gef); a=analyze_gef(gef)
+    gef=tmp_path/'sample.GEF'; write_gef(gef); a=analyze_gef(gef, water_table_depth=0.0)
     assert a.status=='VERIFIED' and a.final_interval is not None
     rec=analysis_record(a); assert rec['sand'] is not None; assert rec['interval_count']>=1
     pdf=generate_pdf(a,tmp_path/'PDFs'/'sample.pdf'); assert pdf.exists() and pdf.stat().st_size>15000; assert pdf.read_bytes().count(b'/Type /Page')>=2
