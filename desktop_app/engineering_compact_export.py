@@ -162,6 +162,29 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
          "Engineering status","Verification notes","Revision/source decision",
          "Source quality"],meta_rows,{0:27,1:44,7:36,8:35,31:92,32:92})
 
+    # Raw GEF/GFF headers are contractual input evidence. Keep every original
+    # key and value in this SAME workbook, not merely the selected fields in
+    # the concise CPT Metadata tab. Never pretend that missing u2 was measured.
+    full_headers=[]
+    for a in analyses:
+        meta=getattr(a,"metadata",{}) or {}
+        for order,part in enumerate(meta.get("source_header_entries",[]) or [],1):
+            try:
+                key,value=part
+            except (TypeError,ValueError):
+                continue
+            full_headers.append((a.reference,a.source_path.name,order,key,value))
+        if getattr(a.source_path,"suffix","").lower() in (".gef",".gff"):
+            full_headers.append((a.reference,a.source_path.name,
+                   len(meta.get("source_header_entries",[]) or [])+1,
+                   "PORE_PRESSURE_CALCULATION_SOURCE",
+                   meta.get("pore_pressure_source","NOT DETERMINED")))
+    if full_headers:
+        _sheet(book,style,"Original GEF Headers",
+               ["CPT REFERENCE","Input file","Header order","Original GEF field",
+                "Original GEF value / declared assumption"],full_headers,
+               {0:28,1:46,3:34,4:105})
+
     # Main deliverable: the user's original five columns; no extra fields here.
     _sheet(book,style,"CPT Analysis",
            ["SI.No","CPT REFERENCE","Silt start depth after (m)","silt depth (m)",
