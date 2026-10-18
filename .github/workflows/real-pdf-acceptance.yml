@@ -6,7 +6,18 @@ on:
     paths:
       - "desktop_app/real_pdf_acceptance.py"
       - "desktop_app/test_real_pdf_acceptance.py"
+      - "desktop_app/engineering_compact_export.py"
+      - "desktop_app/engineering_3d_map.py"
+      - "desktop_app/engineering_excel_charts.py"
+      - "desktop_app/engineering_excel_paging.py"
+      - "desktop_app/engineering_geo_explorer.py"
+      - "desktop_app/pdf_analysis_refined.py"
+      - "desktop_app/app_pdf_enabled.py"
       - ".github/workflows/real-pdf-acceptance.yml"
+
+concurrency:
+  group: real-cpt-pdf-acceptance
+  cancel-in-progress: true
 
 permissions:
   contents: read
