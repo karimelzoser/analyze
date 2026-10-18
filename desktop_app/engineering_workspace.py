@@ -602,10 +602,16 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         try:
             dataset=self._map_dataset()
             figure=Figure(figsize=(13,8.5),dpi=110,facecolor="white")
-            drawn=risk_plan(figure,dataset,boundary=self.site_boundary,
-                     warning_m=float(self.risk_watch.get()),
-                     high_m=float(self.risk_high.get()),
-                     show_interpretive_surface=self.show_interpolated.get())
+            settings={"boundary":self.site_boundary,
+                      "warning_m":float(self.risk_watch.get()),
+                      "high_m":float(self.risk_high.get()),
+                      "show_interpretive_surface":self.show_interpolated.get()}
+            if self.map_projection.get()=="Depth slice plan":
+                drawn=depth_window_plan(figure,dataset,
+                    top_m=float(self.slice_top.get()),
+                    bottom_m=float(self.slice_bottom.get()),**settings)
+            else:
+                drawn=risk_plan(figure,dataset,**settings)
         except Exception as exc:
             messagebox.showerror("Full-screen plan unavailable",str(exc))
             return
