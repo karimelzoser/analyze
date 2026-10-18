@@ -186,6 +186,8 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                 values=read_summary_xlsx(path)
                 detail="%d summary reference rows loaded" % len(values)
                 self.foundation_reference_path=None
+            if hasattr(self,"reference_status"):
+                self.reference_status.set("Foundation summary: "+Path(path).name+" · "+str(len(values))+" reference records")
             self.foundation_points=[v for v in values if v.foundation in ("RAFT","ISOLATED")]
             if not self.foundation_points:raise ValueError("No Raft Summary or Isolated Summary results found.")
             self.foundation_note.set(detail+"  •  SAVED SOURCE RESULTS; formula recalculation NOT CERTIFIED.")
