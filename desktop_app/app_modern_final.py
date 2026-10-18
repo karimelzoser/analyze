@@ -137,6 +137,14 @@ def _packaged_gui_smoke():
                             raise RuntimeError("Unified Excel lacks "+str(name))
                     if len([n for n in book.namelist() if n.startswith("xl/media/image")])<2:
                         raise RuntimeError("Unified Excel lacks embedded 2D/3D map images")
+                # Preserve representative synthetic output for visual QA,
+                # independent of the private user project.
+                sample_dir=os.environ.get("CPT_QA_SAMPLE_DIR")
+                if sample_dir:
+                    import shutil
+                    target=Path(sample_dir);target.mkdir(parents=True,exist_ok=True)
+                    shutil.copy2(latest,target/"Synthetic_CPT_Full_Analysis.xlsx")
+                    shutil.copy2(reports[0],target/"Synthetic_CPT_Full_Analysis.pdf")
                 from threading import Event
                 root.cancel_event=Event()
                 root.cancel_event.set()
