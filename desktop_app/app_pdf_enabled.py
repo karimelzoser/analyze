@@ -454,7 +454,9 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
             original_xlsb=original,foundation_xlsx=foundation_xlsx,
             site_boundary=getattr(self,"site_boundary",None),
             comparison_result=getattr(self,"compare_result",None))
-        app_modern_v2.update_latest_excel_alias(Path(excel), out)
+        # Preserve ONE workbook per run. The UI already knows the exact
+        # completed timestamped path; duplicating it as *_Latest.xlsx
+        # created an unnecessary second Excel deliverable.
         self.messages.put(("done", out, pdfs if make_pdfs else None, excel, results, errors))
 
 
