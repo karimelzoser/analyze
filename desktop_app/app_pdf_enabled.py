@@ -372,6 +372,16 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
         results, audit_rows = select_project_results(candidate_results, self.files, error_map)
         self.source_audit = audit_rows
 
+        # Project-wide measured-coordinate maps are saved even in Analyze Only
+        # mode; missing CRS remains visibly unverified.
+        try:
+            from engineering_maps import render_site_map
+            chart_dir=out / "Charts"
+            for metric in ("maximum_silt","cumulative_silt","silt_start","test_depth"):
+                render_site_map(results,chart_dir / ("CPT_Site_"+metric+".png"),metric=metric)
+        except Exception as exc:
+            errors.append(("Project coordinate charts",str(exc)))
+
         if make_pdfs:
             for idx, a in enumerate(results, 1):
                 try:
