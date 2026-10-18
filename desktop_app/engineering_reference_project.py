@@ -51,6 +51,41 @@ def _segments(profile,ground_elevation, min_m=.05):
     return runs,brief
 
 
+def _zone_segments(profile,ground_elevation,max_depth_gap_m=.035):
+    """Observed original categorical SBT zone runs; don't bridge missing cells.
+
+    Important: the workbook field labelled Ic is an integer *zone*, not
+    continuous numerical Ic. Source data only are shown here.
+    """
+    samples=[]
+    for elevation,_,zone in profile:
+        try:
+            d=float(ground_elevation)-float(elevation)
+            z=int(zone)
+        except (TypeError,ValueError):continue
+        if not math.isfinite(d) or d<-.02 or z not in range(1,10):continue
+        samples.append((max(0,d),z))
+    samples.sort(key=lambda item:item[0])
+    out=[]
+    if len(samples)<2:return out
+    start=samples[0][0]
+    last,prev_zone=samples[0]
+    for depth,zone in samples[1:]:
+        if depth-last>max_depth_gap_m or zone!=prev_zone:
+            # The boundary is observed at the first new sample only when
+            # adjacent readings are present. Never bridge large gaps.
+            end=depth if depth-last<=max_depth_gap_m else last
+            if end-start>1e-6:
+                out.append({"start":round(start,5),"end":round(end,5),
+                            "zone":prev_zone,"provenance":"CACHED SBT ZONE"})
+            start=depth
+        last,prev_zone=depth,zone
+    if last-start>1e-6:
+        out.append({"start":round(start,5),"end":round(last,5),
+                    "zone":prev_zone,"provenance":"CACHED SBT ZONE"})
+    return out
+
+
 def analyze_original_xlsb(path):
     from engineering_xlsb_reference import ReferenceWorkbookCache
     with ReferenceWorkbookCache(path) as model:
@@ -92,6 +127,7 @@ def analyze_original_xlsb(path):
            "qc_data_count":len(profile),
            "test_depth_m":tested,
            "source_classified_depths_m":classified_depths,
+           "zone_segments":_zone_segments(profile,elev),
            "settlement_mm":summary.get("Settlement (mm)"),
            "minimum_liquefaction_fos":summary.get("min. FOS"),
            "robertson_bc_kpa":summary.get("Robertson Ultimate BC [kPa]"),
