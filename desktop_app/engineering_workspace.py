@@ -136,6 +136,9 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                          values=["Risk screening plan","2D measured plan","3D CPT soil columns"],width=23,state="readonly")
         projection.pack(side="left",padx=8)
         projection.bind("<<ComboboxSelected>>",lambda event:self.refresh_map())
+        self._btn(map_actions,"MAP OPTIONS",self.show_map_options).pack(side="right",padx=3)
+        self._btn(map_actions,"FULL SCREEN PLAN",self.show_fullscreen_plan,
+                  primary=True).pack(side="right",padx=4)
         # Keep data selectors and action buttons on separate rows; this is
         # essential on 1024px displays and at 125-150% Windows DPI.
         map_files=tk.Frame(self.map_tab,bg="#ffffff")
@@ -161,6 +164,11 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self._btn(modelbar,"OPEN OFFLINE INTERACTIVE 3D SOIL MODEL",self.open_interactive_3d,
                   primary=True).pack(side="left",padx=8)
         self._btn(modelbar,"SAVE 3D HTML",self.save_interactive_3d).pack(side="left",padx=4)
+        # Keep the map as the main canvas. Advanced controls live in MAP
+        # OPTIONS instead of consuming half the screen at 1024x697.
+        map_files.pack_forget()
+        riskbar.pack_forget()
+        modelbar.pack_forget()
         self._geo_risk_artists={}
         self._geo_hotspots=[]
         self.map_status=tk.StringVar(value="Project map becomes available after analysis.")
@@ -533,6 +541,85 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                 self._source_cached_file=str(source)
             analyses=self._source_cached_analysis
         return analyses
+
+    def show_map_options(self):
+        dlg=tk.Toplevel(self)
+        dlg.title("Site Map — Settings & Actions")
+        dlg.geometry("560x370")
+        dlg.minsize(490,320)
+        dlg.transient(self)
+        root=tk.Frame(dlg,bg="#f8fafc",padx=17,pady=15)
+        root.pack(fill="both",expand=True)
+        tk.Label(root,text="Site screening map options",
+              font=("Segoe UI Semibold",14),bg="#f8fafc",fg="#17364e").pack(anchor="w")
+        tk.Label(root,text="These thresholds prioritize CPT review; they do not define engineering safety.",
+              font=("Segoe UI",9),bg="#f8fafc",fg="#64748b").pack(anchor="w",pady=(3,13))
+        settings=tk.Frame(root,bg="#f8fafc")
+        settings.pack(fill="x",pady=5)
+        tk.Label(settings,text="Watch from (m)",bg="#f8fafc").grid(row=0,column=0,sticky="w")
+        ttk.Entry(settings,textvariable=self.risk_watch,width=12).grid(row=0,column=1,padx=(7,20))
+        tk.Label(settings,text="High from (m)",bg="#f8fafc").grid(row=0,column=2,sticky="w")
+        ttk.Entry(settings,textvariable=self.risk_high,width=12).grid(row=0,column=3,padx=7)
+        ttk.Checkbutton(root,text="Show locally supported *indicative* interpolated shading",
+                        variable=self.show_interpolated).pack(anchor="w",pady=8)
+        actions=tk.Frame(root,bg="#f8fafc")
+        actions.pack(fill="x",pady=(8,0))
+        self._btn(actions,"APPLY AND REFRESH",lambda:(self.refresh_map(),dlg.lift()),
+                  primary=True).grid(row=0,column=0,sticky="ew",padx=(0,8),pady=4)
+        self._btn(actions,"ALL HIGH CPT POINTS",self.show_all_high_points).grid(
+                  row=0,column=1,sticky="ew",pady=4)
+        self._btn(actions,"LOAD SITE LIMIT",self.load_site_boundary).grid(
+                  row=1,column=0,sticky="ew",padx=(0,8),pady=4)
+        self._btn(actions,"SAVE 2D PLAN PNG",self.save_map_image).grid(
+                  row=1,column=1,sticky="ew",pady=4)
+        self._btn(actions,"OPEN INTERACTIVE 3D",self.open_interactive_3d).grid(
+                  row=2,column=0,sticky="ew",padx=(0,8),pady=4)
+        self._btn(actions,"EXPORT 3D HTML",self.save_interactive_3d).grid(
+                  row=2,column=1,sticky="ew",pady=4)
+        actions.grid_columnconfigure(0,weight=1)
+        actions.grid_columnconfigure(1,weight=1)
+        self._btn(root,"CLOSE",dlg.destroy).pack(anchor="e",pady=(8,0))
+
+    def show_fullscreen_plan(self):
+        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg,NavigationToolbar2Tk
+        from matplotlib.figure import Figure
+        try:
+            dataset=self._map_dataset()
+            figure=Figure(figsize=(13,8.5),dpi=110,facecolor="white")
+            drawn=risk_plan(figure,dataset,boundary=self.site_boundary,
+                     warning_m=float(self.risk_watch.get()),
+                     high_m=float(self.risk_high.get()),
+                     show_interpretive_surface=self.show_interpolated.get())
+        except Exception as exc:
+            messagebox.showerror("Full-screen plan unavailable",str(exc))
+            return
+        popup=tk.Toplevel(self)
+        popup.title("CPT SITE PLAN — Full-screen Engineering Review")
+        try:popup.state("zoomed")
+        except tk.TclError:popup.geometry("1360x870")
+        bar=tk.Frame(popup,bg="#f0f5fa")
+        bar.pack(fill="x",padx=8,pady=5)
+        tk.Label(bar,text=f"{len(drawn['points'])} CPT points  |  "
+              f"{len(drawn['high'])} HIGH  |  "
+              f"{len(drawn['outliers'])} survey exceptions — click CPT pins to inspect",
+              bg="#f0f5fa",fg="#18364f",
+              font=("Segoe UI Semibold",10)).pack(side="left",padx=8)
+        self._btn(bar,"ALL HIGH CPTs",self.show_all_high_points).pack(side="right",padx=5)
+        self._btn(bar,"CLOSE FULL SCREEN",popup.destroy).pack(side="right",padx=5)
+        canvas=FigureCanvasTkAgg(figure,master=popup)
+        canvas.get_tk_widget().pack(fill="both",expand=True)
+        toolbar=NavigationToolbar2Tk(canvas,popup,pack_toolbar=False)
+        toolbar.update();toolbar.pack(fill="x",padx=9,pady=3)
+        def clicked(event):
+            found=drawn["artists"].get(getattr(event,"artist",None),[])
+            indices=getattr(event,"ind",[])
+            if len(indices) and int(indices[0])<len(found):
+                self._open_map_reference(found[int(indices[0])].reference)
+        canvas.mpl_connect("pick_event",clicked)
+        canvas.draw_idle()
+        # Keep figure+canvas strongly reachable while popup is alive.
+        popup._cpt_figure=figure
+        popup._cpt_canvas=canvas
 
     def show_all_high_points(self):
         from tkinter import ttk
