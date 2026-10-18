@@ -206,6 +206,11 @@ class ModernCPTApp(tk.Tk):
         ttk.Label(left, text="Verified silt interpretation, reporting and project-wide visualization", style="Subtitle.TLabel").pack(anchor="w", pady=(2, 0))
         self.header_start_btn = self._btn(header, "START ANALYSIS", self.start, primary=True)
         self.header_start_btn.pack(side="right", pady=3)
+        self.header_help_btn=self._btn(
+            header,"HELP · EQUATIONS",
+            lambda: self._show_help() if hasattr(self,"_show_help")
+                    else __import__("engineering_help").show_help(self))
+        self.header_help_btn.pack(side="right",padx=9,pady=3)
 
         cards = tk.Frame(main, bg=PALETTE["bg"])
         cards.pack(fill="x", padx=24, pady=(4, 12))
