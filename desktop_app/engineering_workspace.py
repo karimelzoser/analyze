@@ -16,7 +16,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from app_pdf_enabled import PDFEnabledCPTApp
 from engineering_layers import from_analysis, _smooth_contiguous
 from engineering_maps import coordinate_rows
-from engineering_comparison import read_summary_xlsx, compare_summaries, export_comparison
+from engineering_comparison import read_summary_xlsx, compare_summaries, export_comparison, read_site_boundary_xlsx
 
 
 class EngineeringWorkspaceApp(PDFEnabledCPTApp):
@@ -75,6 +75,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.notebook.add(self.map_tab,text="  Site Map  ")
         self._tab_top(self.map_tab,"CPT point map — actual surveyed coordinates",
             "Offline Easting/Northing plan. No unverified coordinate conversion or interpolation.")
+        self.site_boundary=None
         ctrl=tk.Frame(self.map_tab,bg="#ffffff")
         ctrl.pack(fill="x",padx=16,pady=4)
         tk.Label(ctrl,text="Color points by",bg="#ffffff").pack(side="left")
@@ -85,6 +86,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.map_metric_picker.pack(side="left",padx=8)
         self.map_metric_picker.bind("<<ComboboxSelected>>",lambda event:self.refresh_map())
         self._btn(ctrl,"SAVE SITE MAP PNG",self.save_map_image).pack(side="right")
+        self._btn(ctrl,"LOAD SITE LIMIT XLSX",self.load_site_boundary).pack(side="right",padx=8)
         self.map_status=tk.StringVar(value="Project map becomes available after analysis.")
         tk.Label(self.map_tab,textvariable=self.map_status,bg="#ffffff",fg="#64748b",
                  anchor="w").pack(fill="x",padx=18,pady=4)
@@ -111,6 +113,11 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         actions=tk.Frame(self.compare_tab,bg="#ffffff")
         actions.pack(fill="x",padx=16,pady=6)
         self._btn(actions,"RUN COMPARISON",self.run_summary_comparison,primary=True).pack(side="left")
+        self.comparison_view=tk.StringVar(value="Change bars")
+        cv=ttk.Combobox(actions,textvariable=self.comparison_view,state="readonly",
+                        width=22,values=["Change bars","Coordinate delta map"])
+        cv.pack(side="left",padx=8)
+        cv.bind("<<ComboboxSelected>>",lambda event:self.run_summary_comparison() if self.compare_result else None)
         self._btn(actions,"EXPORT COMPARISON XLSX",self.export_summary_comparison).pack(side="left",padx=8)
         self._btn(actions,"SAVE COMPARISON PNG",self.save_comparison_image).pack(side="left")
         self.comparison_status=tk.StringVar(value="Select both PRE and POST workbooks.")
@@ -166,6 +173,17 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.layer_fig.tight_layout()
         self.layer_canvas.draw_idle()
 
+    def load_site_boundary(self):
+        path=filedialog.askopenfilename(title="Select Site Limit workbook",
+                        filetypes=[("Excel workbook","*.xlsx")])
+        if not path:return
+        try:
+            self.site_boundary=read_site_boundary_xlsx(path)
+            self.refresh_map()
+            self.status_var.set("Site limit loaded: "+Path(path).name)
+        except Exception as exc:
+            messagebox.showerror("Site boundary not available",str(exc))
+
     def refresh_map(self):
         if not hasattr(self,"map_ax"):return
         self.map_fig.clear()
@@ -184,6 +202,10 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             if len(data)<75:
                 for ref,e,n,v,status in data:ax.annotate(ref,(e,n),xytext=(3,3),textcoords="offset points",fontsize=6)
         if review:ax.scatter([r[1] for r in review],[r[2] for r in review],marker="x",color="#be123c",label="REVIEW / no metric")
+        if self.site_boundary:
+            poly=np.asarray(self.site_boundary,float)
+            poly=np.vstack([poly,poly[0]])
+            ax.plot(poly[:,0],poly[:,1],color="#475569",linewidth=1.7,label="Survey boundary")
         if not rows:ax.text(.5,.5,"No CPT locations with valid coordinates",ha="center",va="center",transform=ax.transAxes)
         ax.set_xlabel("Easting (project grid units)");ax.set_ylabel("Northing (project grid units)")
         ax.set_aspect("equal",adjustable="datalim");ax.grid(alpha=.12)
@@ -225,6 +247,32 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.comparison_status.set("Matched %d | PRE unmatched %d | POST unmatched %d | Ambiguous %d" %
           (len(result["matched"]),len(result["unmatched_pre"]),len(result["unmatched_post"]),len(result["ambiguous"])))
         ax=self.comparison_ax;ax.clear()
+        if self.comparison_view.get()=="Coordinate delta map":
+            for key,label in (("settlement_mm","Settlement delta (mm)"),
+                              ("silt_thickness_m","Silt screening thickness delta (m)")):
+                places=[m for m in result["matched"] if
+                       m["pre"].east is not None and m["pre"].north is not None
+                       and m["metrics"].get(key,{}).get("delta") is not None]
+                if places:break
+            if places:
+                sc=ax.scatter([m["pre"].east for m in places],
+                              [m["pre"].north for m in places],
+                              c=[m["metrics"][key]["delta"] for m in places],
+                              cmap="coolwarm",edgecolors="white",s=65)
+                self.comparison_fig.colorbar(sc,ax=ax,label=label)
+                if len(places)<=60:
+                    for m in places:
+                        ax.annotate(m["pre"].reference,(m["pre"].east,m["pre"].north),
+                                    xytext=(3,3),textcoords="offset points",fontsize=7)
+                ax.set_xlabel("Easting");ax.set_ylabel("Northing")
+                ax.set_aspect("equal",adjustable="datalim")
+            else:ax.text(.5,.5,"Matched points have no shared coordinate-and-metric data",
+                         transform=ax.transAxes,ha="center")
+            ax.set_title("PRE / POST DELTA MAP — measured locations only",loc="left")
+            ax.grid(alpha=.13)
+            self.comparison_fig.tight_layout()
+            self.comparison_canvas.draw_idle()
+            return
         pairs=[x for x in result["matched"] if x["metrics"].get("settlement_mm",{}).get("delta") is not None]
         label="Settlement change (POST - PRE), mm"
         if not pairs:
