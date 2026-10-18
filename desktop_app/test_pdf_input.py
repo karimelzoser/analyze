@@ -129,10 +129,12 @@ def test_verified_sub_tenth_pdf_layer_never_reports_zero_thickness():
     source = PDF_DIR / "P261074_CPT-A1-B56-100.pdf"
     assert source.exists(), f"Missing regression fixture: {source}"
     a = analyze_pdf(source)
-    assert a.status == "VERIFIED"
-    assert a.final_interval is not None
-    assert a.final_interval.thickness >= 0.10
-    assert a.final_interval.end - a.final_interval.start == pytest.approx(a.final_interval.thickness)
+    # A sub-tenth raw observed layer cannot be silently promoted to a
+    # fictitious 0.10 m measured thickness for the sake of display precision.
+    assert a.status == "REVIEW"
+    assert a.final_interval is None
+    assert 0 < a.metadata["thin_interval_unrounded_thickness"] < 0.10
+    assert "cannot be inflated" in a.verification_note
 
 
 def test_source_audit_sheet_is_written(tmp_path):
