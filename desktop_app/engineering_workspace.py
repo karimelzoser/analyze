@@ -187,8 +187,9 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         # model as a visible primary action without opening Map Options.
         visible3d=tk.Frame(self.map_tab,bg="#ffffff")
         visible3d.pack(fill="x",padx=16,pady=(2,3))
-        self._btn(visible3d,"EXPLORE INTERACTIVE 3D SOIL MODEL",
-                  self.open_interactive_3d,primary=True).pack(side="left")
+        self.map_open_3d_btn=self._btn(visible3d,"EXPLORE INTERACTIVE 3D SOIL MODEL",
+                  self.open_interactive_3d,primary=True)
+        self.map_open_3d_btn.pack(side="left")
         self._btn(visible3d,"SAVE 3D MODEL HTML",
                   self.save_interactive_3d).pack(side="left",padx=8)
         tk.Label(visible3d,text="3D shows observed CPT intervals; scale is adjustable.",
