@@ -45,6 +45,12 @@ class SummaryPoint:
     north: float|None
     metrics: dict
     source_sheet: str
+    area: str|None = None
+    footing_width_m: float|None = None
+    footing_lb_ratio: float|None = None
+    reported_fos_check: str|None = None
+    reported_settlement_check: str|None = None
+    ground_elevation_m: float|None = None
 
 
 def _sheet_rows(zf, target, shared):
@@ -125,7 +131,13 @@ def read_summary_xlsx(path: str|Path) -> list[SummaryPoint]:
                 }
                 records.append(SummaryPoint(_norm_ref(ref),foundation,
                     _float(get(data,"Easting")),_float(get(data,"Northing","Norting")),
-                    m,name))
+                    m,name,
+                    area=str(get(data,"Area") or "").strip() or None,
+                    footing_width_m=_float(get(data,"Footing Width [m]")),
+                    footing_lb_ratio=_float(get(data,"Footing L/B")),
+                    reported_fos_check=str(get(data,"FOS check") or "").strip() or None,
+                    reported_settlement_check=str(get(data,"Settlement check") or "").strip() or None,
+                    ground_elevation_m=_float(get(data,"Current Level"))))
     if not records:
         raise ValueError("No supported CPT Analysis, Full Analysis or Raft/Isolated Summary table found")
     # Prefer foundation-specific sheet over generic CPT Analysis when both present,
