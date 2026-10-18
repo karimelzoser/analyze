@@ -32,14 +32,14 @@ def latest_excel_path(output_dir: Path | None, preferred: Path | None = None) ->
     candidates: list[Path] = []
     if preferred is not None:
         p = Path(preferred)
-        if p.exists() and p.is_file() and p.suffix.lower() == ".xlsx" and not p.name.startswith("~$"):
+        if p.exists() and p.is_file() and p.suffix.lower() == ".xlsx" and not p.name.startswith("~$") and ".partial." not in p.name.lower():
             candidates.append(p)
 
     if output_dir is not None:
         root = Path(output_dir)
         if root.exists():
             for p in root.glob("CPT_Silt_Analysis*.xlsx"):
-                if p.is_file() and not p.name.startswith("~$"):
+                if p.is_file() and not p.name.startswith("~$") and ".partial." not in p.name.lower():
                     candidates.append(p)
 
     if not candidates:
