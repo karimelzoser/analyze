@@ -60,6 +60,7 @@ jobs:
         working-directory: desktop_app
         run: |
           $env:CPT_SCREENSHOT_DIR = "$PWD/gui-screenshots"
+          $env:CPT_QA_SAMPLE_DIR = "$PWD/ci-sample"
           python app_modern_final.py --integration-smoke
 
       - name: Upload GUI visual test screenshots
@@ -68,6 +69,17 @@ jobs:
         with:
           name: CPT-Windows-Visual-QA
           path: desktop_app/gui-screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload complete synthetic CPT PDF and Excel for visual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CPT-Engineering-Sample-QA
+          path: |
+            desktop_app/ci-sample/*.pdf
+            desktop_app/ci-sample/*.xlsx
           if-no-files-found: warn
           retention-days: 30
 
