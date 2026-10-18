@@ -411,6 +411,12 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
         sheet=next(x for x in book.worksheets_objs if x.name==name)
         book.worksheets_objs.remove(sheet)
         book.worksheets_objs.insert(offset,sheet)
+    # The sheet objects were deliberately reordered after they were created.
+    # XlsxWriter stores worksheet.index separately from the list order, so
+    # activate()/set_first_sheet() would otherwise write stale activeTab and
+    # firstSheet values despite the visible CPT Analysis sheet being first.
+    for zero_based_index,sheet in enumerate(book.worksheets_objs):
+        sheet.index=zero_based_index
     quick_sheet.activate()
     quick_sheet.set_first_sheet()
     book.close()
