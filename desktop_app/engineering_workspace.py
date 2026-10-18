@@ -153,7 +153,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         tk.Label(riskbar,text="HIGH from (m)",bg="#ffffff",fg="#475569").pack(side="left")
         self.risk_high=tk.StringVar(value="0.30")
         ttk.Entry(riskbar,textvariable=self.risk_high,width=8).pack(side="left",padx=(5,10))
-        self.show_interpolated=tk.BooleanVar(value=True)
+        self.show_interpolated=tk.BooleanVar(value=False)
         ttk.Checkbutton(riskbar,text="Bounded indicative shading",
                         variable=self.show_interpolated,
                         command=self.refresh_map).pack(side="left",padx=4)
@@ -182,6 +182,17 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         modelbar.pack_forget()
         self._geo_risk_artists={}
         self._geo_hotspots=[]
+        # The previous interactive 3D button lived inside modelbar, which was
+        # pack_forget()'d by default. Surface the real rotatable offline 3D
+        # model as a visible primary action without opening Map Options.
+        visible3d=tk.Frame(self.map_tab,bg="#ffffff")
+        visible3d.pack(fill="x",padx=16,pady=(2,3))
+        self._btn(visible3d,"EXPLORE INTERACTIVE 3D SOIL MODEL",
+                  self.open_interactive_3d,primary=True).pack(side="left")
+        self._btn(visible3d,"SAVE 3D MODEL HTML",
+                  self.save_interactive_3d).pack(side="left",padx=8)
+        tk.Label(visible3d,text="3D shows observed CPT intervals; scale is adjustable.",
+                 bg="#ffffff",fg="#64748b",font=("Segoe UI",8)).pack(side="right")
         self.map_status=tk.StringVar(value="Project map becomes available after analysis.")
         self.map_status_label=tk.Label(self.map_tab,textvariable=self.map_status,bg="#ffffff",fg="#64748b",
                  anchor="w")
