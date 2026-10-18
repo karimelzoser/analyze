@@ -627,6 +627,16 @@ class ModernCPTApp(tk.Tk):
                     pct = 60 + int((i / max(total, 1)) * 35)
                     self._set_progress(pct, f"Generating PDFs — {i}/{total}")
                     self.status_var.set(f"PDF generation warning for {ref}: {err}")
+                elif kind == "fatal":
+                    _, detail, log_path = m
+                    self.running=False
+                    self._set_running(False)
+                    self._set_progress(0,"Analysis stopped - check diagnostic log")
+                    self.status_var.set("Analysis stopped safely: "+str(detail))
+                    self.errors.append(("Batch fatal error",str(detail)))
+                    messagebox.showerror("CPT batch could not be completed",
+                        "The app is still running. No incomplete workbook was published.\n\n"+
+                        str(detail)+"\n\nDiagnostics:\n"+str(log_path))
                 elif kind == "done":
                     _, out, pdfs, excel, results, errors = m
                     self.results = results
@@ -650,7 +660,22 @@ class ModernCPTApp(tk.Tk):
                     )
         except queue.Empty:
             pass
-        self.after(100, self._poll)
+        except Exception as exc:
+            import traceback
+            self.running=False
+            try:
+                self._set_running(False)
+                self.status_var.set("UI event error: "+str(exc))
+                diagnostic=Path(self.output_dir or Path.home())/"CPT_UI_Error.log"
+                diagnostic.parent.mkdir(parents=True,exist_ok=True)
+                diagnostic.write_text(traceback.format_exc(),encoding="utf-8")
+            except Exception:
+                pass
+        finally:
+            try:
+                self.after(100, self._poll)
+            except tk.TclError:
+                pass
 
     def _set_progress(self, value: int, stage: str):
         value = max(0, min(100, value))
