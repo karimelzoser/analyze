@@ -91,3 +91,62 @@ def test_help_is_comprehensive_and_contains_the_actual_formulas():
     for formula in ("qt (MPa)","sigma_v0","Qtn","Fr (%)","Ic",
                     "groundwater","PRE","POST","REVIEW"):
         assert formula.lower() in alltext.lower()
+
+
+def test_multiple_separated_3d_soil_layers_both_mapped_not_only_longest():
+    from engineering_geo_explorer import spatial_points,interpreted_wedges
+    coords=[(100,100),(120,100),(100,120),(120,120)]
+    data=[{"reference":f"TEST-{i}","easting":x,"northing":y,
+        "ground_elevation":10.,"test_depth_m":8.,
+        "status":"REFERENCE-CACHED","max_contiguous_silt_screen_m":.30,
+        "cumulative_silt_screen_m":.5,
+        "all_intervals":[{"start_raw":1.0,"end_raw":1.22},
+                         {"start_raw":5.0,"end_raw":5.30}]} for i,(x,y) in enumerate(coords)]
+    points,_=spatial_points(data)
+    wedges,eligible=interpreted_wedges(points,max_spacing_m=50)
+    assert eligible==4
+    assert len(wedges)>=4   # Each supported triangle has TWO separated bands
+    tops={round(item[1][0],2) for item in wedges}
+    assert 9.0 in tops and 5.0 in tops
+
+
+def test_depth_window_only_counts_screening_inside_selected_band():
+    from engineering_geo_explorer import depth_window_records,depth_window_plan
+    base=_project_points()[0]
+    layer=depth_window_records([base],4.9,5.0)
+    assert len(layer)==1
+    assert round(layer[0]["max_contiguous_silt_screen_m"],3)==.1
+    other=depth_window_records([base],2.0,3.0)
+    assert other[0]["max_contiguous_silt_screen_m"]==0
+    beyond=depth_window_records([base],6.4,7.2)
+    assert beyond[0]["status"]=="REVIEW"  # no sounding at this depth
+    assert beyond[0]["max_contiguous_silt_screen_m"] is None
+    result=depth_window_plan(Figure(),_project_points(),
+                       top_m=4.8,bottom_m=5.10,
+                       show_interpretive_surface=False)
+    assert result["depth_window"]==(4.8,5.1)
+    assert len(result["high"])==0
+
+
+def test_depth_window_requires_measured_sensor_coverage_not_just_final_depth():
+    import numpy as np
+    from types import SimpleNamespace
+    from engineering_geo_explorer import depth_window_records
+    z=np.arange(0,6.01,.01)
+    ic=np.where(z>=4.8,2.9,2.2)
+    valid=np.ones(len(z),bool)
+    valid[(z>=4.9)&(z<5.4)]=False
+    ic[~valid]=np.nan
+    item=SimpleNamespace(reference="TEST-GAP",depth=z,ic=ic,valid_sensor=valid,
+                         test_depth_raw=6.,status="VERIFIED",
+                         metadata={"easting":100.,"northing":100.,"ground_elevation":3.5})
+    row=depth_window_records([item],4.8,5.4)[0]
+    assert row["status"]=="REVIEW"
+    assert row["max_contiguous_silt_screen_m"] is None
+
+
+def test_bad_slice_settings_rejected():
+    import pytest
+    from engineering_geo_explorer import depth_window_records
+    with pytest.raises(ValueError):
+        depth_window_records([],5.,4.)
