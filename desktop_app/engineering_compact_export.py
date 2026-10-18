@@ -212,13 +212,27 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
                      c["reference_start"],c["reference_thickness"],c["difference_start"],
                      c["difference_thickness"],c["point_offset"],c["notes"])
                     for c in checks],{9:85})
-        # Detailed saved 1-9 zone history is useful data, not instructions.
+        # Full original source series, not just precomputed intervals:
+        # every saved elevation/qc/categorical-zone sample is retained.
+        from engineering_xlsb_reference import ReferenceWorkbookCache
+        with ReferenceWorkbookCache(original_xlsb) as cache:
+            original_points=cache.mapped_profiles()
+        point_count=sum(len(curve) for curve in original_points.values())
+        if point_count>1_048_575:
+            raise ValueError("Original XLSB has more SBT samples than one Excel worksheet can hold.")
+        ground={p["reference"]:num(p.get("ground_elevation")) for p in cached}
+        def original_rows():
+            for ref,curve in original_points.items():
+                gl=ground.get(ref)
+                for elevation,qc,zone in curve:
+                    yield (ref,elevation,None if gl is None else gl-elevation,
+                           qc,zone,"ZONE 1-4 screen" if zone is not None and zone<=4
+                           else "Other SBT zone / UNKNOWN",
+                           "Original XLSB cached categorical zone, NOT numeric Ic")
         _sheet(book,style,"Original SBT Curves",
-               ["CPT","Top BGL (m)","Bottom BGL (m)","Cumulative screen (m)",
-                "Cached SBT category status"],[
-                 (p["reference"],layer["start_raw"],layer["end_raw"],
-                  layer["thickness_raw"],p["status"])
-                 for p in cached for layer in p["all_intervals"]])
+               ["CPT","Elevation RL (m)","Depth BGL (m)","Saved qc (MPa)",
+                "Saved SBT zone (1-9)","Source zone screen","Provenance"],
+               original_rows(),{0:28,5:32,6:70})
     elif foundation_xlsx:
         from engineering_comparison import read_summary_xlsx
         foundations=read_summary_xlsx(foundation_xlsx)
@@ -262,10 +276,11 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
         "image_data":map_images[1],"x_scale":.49,"y_scale":.49})
     map_sheet.write("B97",f"Observed points: {len(plan_points)} | coordinate exceptions: {len(excluded)} | "
                     "3D is a visual screening representation, not a validated geological volume.",style["small"])
-    _sheet(book,style,"Coordinate QA",
-           ["CPT","Easting (original)","Northing (original)","Survey QA"],
-           [(p.reference,p.x,p.y,"Outlier withheld from map; original data unchanged")
-            for p in excluded])
+    if excluded:
+        _sheet(book,style,"Coordinate QA",
+               ["CPT","Easting (original)","Northing (original)","Survey QA"],
+               [(p.reference,p.x,p.y,"Outlier withheld from map; original data unchanged")
+                for p in excluded])
 
     # First sheet and clean summary display (put summary first in Excel tabs).
     summary=book.add_worksheet("Summary")
