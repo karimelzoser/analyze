@@ -95,6 +95,7 @@ def export_original_project(path,folder):
     import xlsxwriter
     import numpy as np
     from matplotlib.figure import Figure
+    from engineering_maps import filter_coordinate_outliers
     meta,results,project=analyze_original_xlsb(path)
     folder=Path(folder);folder.mkdir(parents=True,exist_ok=True)
     output=folder/"Original_XLSB_Project_Analysis.xlsx"
@@ -142,12 +143,20 @@ def export_original_project(path,folder):
             r["minimum_liquefaction_fos"],r["robertson_bc_kpa"],r["aramco_bc_kpa"],
             r["settlement_check_original"],r["status"]) for r in results]
     sheet("Full Original Model",columns,rows)
+    coord_candidates=[(r["reference"],r["easting"],r["northing"],r)
+               for r in results if isinstance(r["easting"],(int,float)) and isinstance(r["northing"],(int,float))]
+    mapped,withheld=filter_coordinate_outliers(coord_candidates)
+    sheet("Coordinate QA",["CPT Reference","Source Easting","Source Northing","Status"],[
+        (t[0],t[1],t[2],"WITHHELD - gross coordinate outlier; survey verification required")
+        for t in withheld])
+    excluded_ids={t[0] for t in withheld}
     inputs=[("Reference XLSB",meta["source"]),("Reference SHA256",meta["sha256"]),
             ("Cached project CPT",meta["cached_selected_cpt"]),
             ("Cone area ratio",meta["cone_ratio"]),("Groundwater level BGL (m)",meta["water_depth_m"]),
             ("Rolling mean above",meta["rolling_mean_above"]),
             ("Rolling mean below",meta["rolling_mean_below"]),
             ("Saved summary points",meta["cpt_summary_count"]),
+            ("Gross coordinate outliers withheld",len(withheld)),
             ("Zone criterion","Source soil-behavior zones 1-4 are screened as fine-grained-like; this is not a laboratory USCS silt classification."),
             ("IMPORTANT","Values originate from original workbook CACHED results; VBA and native engineering formulas are not independently executed."),
             ("Thickness convention","Observed layer boundaries are derived from 0.01 m SBT cells; reported values use 0.1 m HALF_UP rounding. Borderline/thin layers require review.") ]
@@ -160,14 +169,15 @@ def export_original_project(path,folder):
                       ("minimum_liquefaction_fos","Original minimum liquefaction FOS")]:
         located=[r for r in results if isinstance(r["easting"],(int,float)) and
                   isinstance(r["northing"],(int,float)) and
-                  isinstance(r[key],(int,float)) and math.isfinite(r[key])]
+                  isinstance(r[key],(int,float)) and math.isfinite(r[key]) and
+                  r["reference"] not in excluded_ids]
         fig=Figure(figsize=(11,8),dpi=120)
         ax=fig.add_subplot(111)
         if located:
             sc=ax.scatter([r["easting"] for r in located],[r["northing"] for r in located],
                        c=[r[key] for r in located],cmap="viridis",s=18)
             fig.colorbar(sc,ax=ax,label=title)
-        ax.set_title(title+" — ORIGINAL XLSB CACHED RESULTS")
+        ax.set_title(title+" — ORIGINAL XLSB CACHED RESULTS (%d coordinates withheld)"%len(withheld))
         ax.set_xlabel("Project Easting");ax.set_ylabel("Project Northing")
         ax.set_aspect("equal",adjustable="datalim");ax.grid(alpha=.15)
         fig.tight_layout()
