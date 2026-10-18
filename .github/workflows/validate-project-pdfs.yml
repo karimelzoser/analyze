@@ -1,0 +1,42 @@
+name: Validate 448 Real CPT PDFs
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/validate-project-pdfs.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  project-acceptance:
+    name: Full 448-PDF field corpus acceptance
+    runs-on: windows-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: desktop_app/requirements.txt
+      - name: Install tested application dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r desktop_app/requirements.txt
+          python -m pip install pymupdf pytest
+      - name: Analyze ALL 448 real project PDF inputs, produce 1 XLSX and final CPT PDF reports
+        shell: pwsh
+        working-directory: desktop_app
+        run: |
+          python validate_448_pdf_project.py
+      - name: Upload acceptance workbook, review register and all report PDFs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CPT-448-Field-Acceptance
+          path: desktop_app/field_acceptance_output/
+          if-no-files-found: warn
+          retention-days: 30
