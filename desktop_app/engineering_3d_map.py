@@ -56,6 +56,7 @@ def measured_3d_points(analyses):
 
 
 def site_3d_figure(analyses,site_boundary=None,*,max_labels=12,figure=None):
+    analyses=list(analyses)
     points,withheld=measured_3d_points(analyses)
     fig=Figure(figsize=(11.8,8.2),dpi=120,facecolor="#ffffff") if figure is None else figure
     fig.clear()
@@ -70,16 +71,25 @@ def site_3d_figure(analyses,site_boundary=None,*,max_labels=12,figure=None):
     for p in points:
         x,y=p["easting"]-east0,p["northing"]-north0
         top=p["ground"];base=top-p["depth"]
-        ax.plot([x,x],[y,y],[base,top],color="#94a3b8",lw=1.15,alpha=.62,
-                label="Observed sounding" if "base" not in legend_used else None)
+        ax.plot([x,x],[y,y],[base,top],color="#bdc6d0",lw=.9,alpha=.50,
+                label="CPT sounding depth" if "base" not in legend_used else None)
         legend_used.add("base")
-        for start,end in p["layers"]:
-            lo=top-float(end);hi=top-float(start)
-            if hi<lo:continue
-            ax.plot([x,x],[y,y],[lo,hi],color="#e45747",lw=4.2,
-                alpha=.9,label="Ic >=2.60 observed interval" if "silt" not in legend_used else None)
-            legend_used.add("silt")
-        ax.scatter([x],[y],[top],color="#1a6da3",s=7,depthshade=False)
+        ax.scatter([x],[y],[top],color="#1a6da3",s=9,depthshade=False)
+    # Group thousands of segment lines into five vectorized artists for a
+    # responsive matplotlib preview. The interactive HTML provides per-CPT
+    # hover, depth filters, scene camera and wedge controls.
+    from engineering_3d_studio import collect_observed_segments,GROUPS
+    segments,_,_ = collect_observed_segments(analyses)
+    for category,(label,color) in GROUPS.items():
+        coords=[s for s in segments if s["category"]==category]
+        if not coords:continue
+        xs=[];ys=[];zs=[]
+        for seg in coords:
+            xs.extend([seg["x"],seg["x"],np.nan])
+            ys.extend([seg["y"],seg["y"],np.nan])
+            zs.extend([seg["z0"],seg["z1"],np.nan])
+        ax.plot(xs,ys,zs,color=color,linewidth=3 if category!="unknown" else 1.9,
+                alpha=.9,label=label)
     if site_boundary is not None:
         try:
             poly=np.asarray(site_boundary,dtype=float)
@@ -99,9 +109,9 @@ def site_3d_figure(analyses,site_boundary=None,*,max_labels=12,figure=None):
     ax.set_ylabel(f"Northing offset from {north0:,.1f} m")
     ax.set_zlabel("Elevation RL (m)")
     ax.view_init(elev=25,azim=-65)
-    ax.set_title("Measured CPT 3D Stratigraphy | no unverified surfaces",loc="left",
+    ax.set_title("3D CPT SBT Layers | Sand · Transition · Silt · Clay · Unknown",loc="left",
                  fontsize=13,fontweight="bold")
-    if legend_used:ax.legend(loc="upper left",fontsize=8)
+    ax.legend(loc="upper left",fontsize=7,frameon=False)
     fig.text(.06,.02,f"{len(points)} surveyed columns | {len(withheld)} coordinate outlier(s) withheld | "
              "SBT screening is not laboratory USCS.",fontsize=9,color="#64748b")
     fig.subplots_adjust(left=.02,right=.97,bottom=.06,top=.91)
