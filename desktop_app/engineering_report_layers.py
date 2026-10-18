@@ -69,7 +69,9 @@ def full_layer_pages(analysis,*,page_size=23):
         # interpret than a long table by itself. On dense >14-layer reports
         # the table takes priority and this figure is omitted.
         table_bottom=.885-table_height
-        diagram_top=min(.58,table_bottom-.023)
+        # Keep axes titles outside the table: even the shortest one-row
+        # report needs a generous vertical separation before the depth plot.
+        diagram_top=min(.535,table_bottom-.065)
         diagram_bottom=.325
         if layers and diagram_top-diagram_bottom>.13:
             import numpy as np
