@@ -1,0 +1,69 @@
+name: Real CPT PDF Source Acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "desktop_app/real_pdf_acceptance.py"
+      - "desktop_app/test_real_pdf_acceptance.py"
+      - ".github/workflows/real-pdf-acceptance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  real-pdf-acceptance:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: desktop_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install engineering application dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Test source accounting on actual project CPT PDF fixtures
+        shell: pwsh
+        run: python -m pytest -q test_real_pdf_acceptance.py
+      - name: Analyze all 448 physical project PDFs and create source QA
+        shell: pwsh
+        run: |
+          python real_pdf_acceptance.py --source ../pdfs/pdf_Single --out ../real_pdf_acceptance_results --expect 448
+      - name: Publish observed acceptance counts in workflow summary
+        if: always()
+        shell: pwsh
+        run: |
+          $file = "../real_pdf_acceptance_results/PDF_Acceptance_Result.json"
+          if (Test-Path $file) {
+            $s = Get-Content $file -Raw | ConvertFrom-Json
+            @(
+              "## Real project CPT PDF acceptance"
+              "| Metric | Measured |"
+              "|---|---:|"
+              "| Physical PDFs | $($s.physical_pdfs) |"
+              "| Parsed | $($s.parsed_pdf_files) |"
+              "| Parse errors | $($s.parse_errors) |"
+              "| Unique CPT project families | $($s.unique_cpt_references) |"
+              "| Selected source reports | $($s.selected_sources) |"
+              "| Processing seconds | $($s.elapsed_seconds) |"
+              ""
+              "These are software/source-processing checks, **not** geotechnical design approval."
+            ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          }
+          else {
+            "Acceptance report missing: the full real-PDF run did not complete." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          }
+      - name: Upload full original-PDF source QA and consolidated Excel
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CPT-448-Real-PDF-Acceptance
+          path: real_pdf_acceptance_results/*
+          if-no-files-found: warn
+          retention-days: 30
