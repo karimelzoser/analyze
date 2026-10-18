@@ -42,6 +42,10 @@ def _packaged_gui_smoke():
             root.update()
             if not root.progress.winfo_ismapped():
                 raise RuntimeError("Global analysis progress bar hidden by tab navigation: "+texts[index])
+            if texts[index]=="Site Map" and not root.map_open_3d_btn.winfo_ismapped():
+                raise RuntimeError("Primary interactive 3D model action is hidden on Site Map")
+            if texts[index]=="Setup" and root.settings_form.winfo_ismapped():
+                raise RuntimeError("Engineering advanced options should be collapsed in the simple intake workflow")
             if snapshot:
                 import time
                 time.sleep(.08)
