@@ -59,6 +59,12 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
+      - name: Benchmark 400 synthetic CPT soundings and verify project exports
+        shell: pwsh
+        working-directory: desktop_app
+        run: |
+          python benchmark_synthetic_batch.py --count 400
+
       - name: Build executable
         shell: pwsh
         working-directory: desktop_app
