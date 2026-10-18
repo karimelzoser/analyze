@@ -87,3 +87,22 @@ def test_full_report_uses_actual_calculation_groundwater_and_unit_weight(tmp_pat
     assert report["gamma"]==19.3
     assert report["water_table"]==2.0
     assert report["area_ratio"]==analysis.metadata["area_ratio"]
+
+
+def test_thin_pdf_reviewer_keeps_exact_observed_interval_in_same_excel(tmp_path):
+    source=tmp_path/"thin.GEF"
+    make_synthetic_gef(source,9,90)
+    analysis=analyze_gef(source,water_table_depth=2.0)
+    analysis.status="REVIEW"
+    analysis.final_interval=None
+    analysis.metadata["thin_interval_unrounded_start"]=5.201
+    analysis.metadata["thin_interval_unrounded_end"]=5.243
+    analysis.metadata["thin_interval_unrounded_thickness"]=.042
+    analysis.verification_note="Original PDF trace shows sub-0.1 m interval."
+    output=export_excel([analysis],tmp_path/"thin_evidence.xlsx")
+    with zipfile.ZipFile(output) as workbook:
+        xml=b"".join(workbook.read(n) for n in workbook.namelist()
+                     if n.startswith("xl/worksheets/sheet") and n.endswith(".xml"))
+        assert b"OBSERVED THIN LAYER" in xml
+        assert b"5.201" in xml and b"5.243" in xml
+        assert b"0.042" in xml
