@@ -192,6 +192,9 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.map_open_3d_btn=self._btn(visible3d,"OPEN INTERACTIVE 2D / 3D ATLAS",
                   self.open_interactive_3d,primary=True)
         self.map_open_3d_btn.pack(side="left")
+        self.auto_open_atlas=tk.BooleanVar(value=True)
+        ttk.Checkbutton(visible3d,text="Open interactive soil Atlas after analysis",
+                        variable=self.auto_open_atlas).pack(side="right",padx=7)
         self._btn(visible3d,"SAVE 2D / 3D ATLAS HTML",
                   self.save_interactive_3d).pack(side="left",padx=8)
         tk.Label(visible3d,text="3D shows observed CPT intervals; scale is adjustable.",
@@ -1079,6 +1082,16 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
     def update_kpis(self):
         super().update_kpis()
         self._update_analysis_options()
+        # The operator should actually SEE the soil model when processing
+        # finishes; a PNG embedded in Excel is not an interactive scene.
+        if (not getattr(self,"running",True)
+            and hasattr(self,"auto_open_atlas") and self.auto_open_atlas.get()
+            and getattr(self,"_latest_atlas_path",None)
+            and Path(self._latest_atlas_path).is_file()):
+            current=str(Path(self._latest_atlas_path).resolve())
+            if current!=getattr(self,"_last_auto_opened_atlas",None):
+                self._last_auto_opened_atlas=current
+                self.after(650,self.open_interactive_3d)
 
     def clear(self):
         super().clear()
