@@ -512,7 +512,8 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
     for i,p in enumerate(highs,5):
         summary.write(i,3,p.reference,style["plain"])
         summary.write_number(i,4,p.maximum_m,style["number"])
-    summary.insert_image("G4","plan.png",{"image_data":map_images[0],"x_scale":.30,"y_scale":.30})
+    dashboard_map=next((im for depth,im,meta in soil_views if depth==4.5 and im is not None),risk_image)
+    summary.insert_image("G4","soil_4_5.png",{"image_data":dashboard_map,"x_scale":.30,"y_scale":.30})
     # Contract: the editable/readable five-column CPT Analysis is the FIRST
     # workbook tab and the default open view. Summary and 2D/3D maps remain
     # adjacent in this same XLSX rather than separate output artifacts.
