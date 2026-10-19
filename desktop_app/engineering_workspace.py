@@ -301,7 +301,9 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
 
     def _refresh_foundation_table(self):
         if not hasattr(self,"foundation_table"):return
-        self.foundation_table.delete(*self.foundation_table.get_children())
+        previous=self.foundation_table.get_children()
+        if previous:
+            self.foundation_table.delete(*previous)
         selected=self.foundation_case.get().upper() if hasattr(self,"foundation_case") else "BOTH"
         query=self.foundation_search.get().strip().casefold()
         data=[p for p in self.foundation_points if selected=="BOTH" or p.foundation==selected]
