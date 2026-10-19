@@ -227,13 +227,30 @@ def extend_project_workbook(wb,analyses,*,source_audit=None,
 
     if foundation_xlsx is not None:
         external=read_summary_xlsx(foundation_xlsx)
+        foundation_completeness=[]
         for foundation,tab in (("RAFT","Raft Foundation"),("ISOLATED","Isolated Foundation")):
             selected=[r for r in external if r.foundation==foundation]
-            _rows(wb,tab,["CPT","Easting","Northing","Settlement mm (source)",
-                  "Minimum FOS (source)","Footing width","Length/width ratio","Source review notes"],[
+            available=sum(r.metrics.get("settlement_mm") is not None for r in selected)
+            foundation_completeness.append((foundation,len(selected),available,len(selected)-available))
+            _rows(wb,tab,["CPT Reference","Easting (m)","Northing (m)",
+                  "Settlement (mm) - imported","Minimum FOS - imported",
+                  "Footing width (m)","Footing L/W","Area","Ground elevation RL (m)",
+                  "Original settlement check","Original FOS check",
+                  "Settlement source completeness","Engineering verification"],[
                    (r.reference,r.east,r.north,r.metrics.get("settlement_mm"),
                     r.metrics.get("fos"),r.footing_width_m,r.footing_lb_ratio,
-                    "IMPORTED SOURCE RESULT — verify original design acceptance") for r in selected])
+                    r.area,r.ground_elevation_m,r.reported_settlement_check,
+                    r.reported_fos_check,
+                    "SOURCE VALUE AVAILABLE" if r.metrics.get("settlement_mm") is not None
+                    else "NOT CALCULATED / NOT PRESENT IN SOURCE",
+                    "IMPORTED REFERENCE ONLY — not independently recalculated") for r in selected],
+                   {11:43,12:57})
+        _rows(wb,"Foundation Source Completeness",
+              ["Footing type","All source records","Numeric settlements",
+               "Unreported source settlements","Source meaning"],[
+               (typ,total,available,missing,
+                "Missing settlement is UNKNOWN, not 0 mm; requires approved original model calculation.")
+               for typ,total,available,missing in foundation_completeness],{4:95})
 
     if comparison_result:
         matched=comparison_result.get("matched",[])
