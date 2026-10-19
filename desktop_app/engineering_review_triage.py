@@ -27,6 +27,22 @@ def triage_review(analysis):
     thin=_float(meta.get("thin_interval_unrounded_thickness"))
     start=_float(meta.get("thin_interval_unrounded_start"))
     end=_float(meta.get("thin_interval_unrounded_end"))
+    # A real source revision conflict can still have a valid, measured
+    # provisional interval. It MUST appear in Review Resolution rather than
+    # "NOT RECORDED / UNAVAILABLE". Keep its REVIEW disposition unchanged.
+    candidate=getattr(analysis,"final_interval",None)
+    if candidate is not None:
+        if start is None:
+            start=_float(getattr(candidate,"start_raw",None))
+            if start is None:start=_float(getattr(candidate,"start",None))
+        if end is None:
+            end=_float(getattr(candidate,"end_raw",None))
+            if end is None:end=_float(getattr(candidate,"end",None))
+        if thin is None:
+            thin=_float(getattr(candidate,"thickness_raw",None))
+            if thin is None:thin=_float(getattr(candidate,"thickness",None))
+    if thin is None and start is not None and end is not None:
+        thin=max(0.0,end-start)
     conflict_flags=[key for key in (
         "source_revision_conflict","source_spatial_conflict","source_datum_conflict"
     ) if meta.get(key)]
