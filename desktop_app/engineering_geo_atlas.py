@@ -275,6 +275,12 @@ function init(){
  "<div class='atlas-gradient'></div><div class='atlas-minmax'><span>0.00 m</span><span>"+
  fmt(maxval/2,2)+" m</span><span>"+fmt(maxval,2)+" m</span></div>"+
  "<p class='atlas-note'>Continuous thickness scale is separate from the soil-type legend.</p></section>"+
+ "<section class='atlas-panel'><h3>SOIL BEHAVIOR CLASSES</h3>"+
+ "<p class='atlas-note'><span style='color:#edc96f'>■</span> Sand-like SBT &nbsp;"+
+ "<span style='color:#efa55a'>■</span> Transitional sand/silt<br>"+
+ "<span style='color:#67b4af'>■</span> Silt-mixture-like &nbsp;"+
+ "<span style='color:#9a83c3'>■</span> Clay/organic-like<br>"+
+ "<span style='color:#9ca7b4'>■</span> Unknown / invalid observations</p></section>"+
  "<section class='atlas-panel'><h3>INSPECT SELECTED CPT</h3><div id='cpt-atlas-details' class='atlas-note'>"+
  "Hover or click a measured CPT point; every point remains selectable.</div></section>"+
  "<section class='atlas-panel'><h3>THICKEST SOIL-SCREEN LAYERS</h3><div id='cpt-atlas-rank'></div></section>"+
