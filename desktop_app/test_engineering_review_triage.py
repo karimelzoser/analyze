@@ -43,3 +43,19 @@ def test_register_and_category_counts_match_without_duplicate_evidence():
     rows=review_register(samples)
     assert len(rows)==2
     assert triage_counts(samples)=={"OBSERVED THIN INTERVAL":1,"SOURCE CONFLICT":1}
+
+
+def test_conflicting_full_length_retest_shows_provisional_measured_boundary():
+    from types import SimpleNamespace
+    sample=_sample(source_revision_conflict=True)
+    sample.source_path=Path("P261074_CPT-A2-B254-100-1.GEF")
+    sample.reference="CPT-A2-B254-100"
+    sample.final_interval=SimpleNamespace(
+        start=5.55,end=5.63,thickness=.08,
+        start_raw=5.554,end_raw=5.630,thickness_raw=.076)
+    result=triage_review(sample)
+    assert result["category"]=="SOURCE CONFLICT"
+    assert abs(result["measured_start_m"]-5.554)<1e-10
+    assert abs(result["measured_end_m"]-5.630)<1e-10
+    assert abs(result["measured_thickness_m"]-.076)<1e-10
+    assert result["engineering_disposition"].startswith("AWAITING REVIEW")
