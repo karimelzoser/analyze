@@ -59,6 +59,16 @@ def main():
                     except Exception as e:print("Browser state inspection failed",e)
                     raise
                 assert page.locator("#atlas-2d").is_visible()
+                # Full interactive soil-column view is the DEFAULT scene
+                # rather than hiding the requested 3D model behind a button.
+                page.wait_for_function(
+                    "() => document.querySelector('#atlas-3d')?.classList.contains('chosen')",
+                    timeout=30000)
+                assert page.locator("#cpt-atlas-svg3d").is_visible()
+                page.locator("#atlas-2d").click()
+                page.wait_for_function(
+                    "() => !document.getElementById('cpt-atlas-2d')?.classList.contains('atlas-hide')",
+                    timeout=15000)
                 assert page.locator("#cpt-atlas-2d").is_visible()
                 # User-requested professional layout: ALL atlas controls sit
                 # in a scrollable left rail, while model owns the main viewport.
