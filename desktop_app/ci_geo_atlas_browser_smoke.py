@@ -22,6 +22,9 @@ def main():
             _raw(3,421000,2927025,2.55),
             _raw(4,421025,2927025,2.78)
         ]
+        # Three distinct field thicknesses allow the 3D heat gradient to
+        # prove thin-versus-thick soil visibility, not blanket red blocks.
+        project[1].ic[(project[1].depth>4.5)&(project[1].depth<5.25)]=2.25
         export_geo_atlas(project,target)
         screenshots=Path("geo-atlas-visual-qa")
         screenshots.mkdir(exist_ok=True)
@@ -96,17 +99,31 @@ def main():
                 # GPU-free column view must show actual soil shapes, not a
                 # blank WebGL scene with only Plotly legends.
                 assert page.locator("#cpt-atlas-svg3d svg polygon").count()>=4
-                mesh_count=page.evaluate(
-                    "() => Array.from(document.querySelectorAll('.plotly-graph-div')).filter(x=>x.data).flatMap(x=>x.data).filter(t=>t.type==='mesh3d').length")
-                assert mesh_count>=1,"Expected actual WebGL 3D soil meshes"
-                assert page.locator("#cpt-thickness-color").is_checked(),"3D must support numeric thickness color mode"
+                # GPU-independent SVG is the primary 3D model. Requiring a
+                # WebGL mesh in the hidden optional plot prevents this app
+                # working on engineering PCs without stable graphics drivers.
+                assert page.locator("#cpt-thickness-color").is_checked(), "3D numeric thickness overlay missing"
+                colors_before=page.locator("#cpt-atlas-svg3d polygon.soil-svg-body").evaluate_all(
+                    "(items) => [...new Set(items.map(x => x.getAttribute('fill')))]")
+                assert len(colors_before)>=3, "3D soil palette lacks distinct class/thickness colors"
                 page.locator("#cpt-thickness-color").uncheck()
+                colors_classes=page.locator("#cpt-atlas-svg3d polygon.soil-svg-body").evaluate_all(
+                    "(items) => [...new Set(items.map(x => x.getAttribute('fill')))]")
+                assert "#67b4af" in colors_classes, "Silt category color not restored in soil-class mode"
                 page.locator("#cpt-thickness-color").check()
-                page.wait_for_timeout(300)
-                assert not exceptions,"Browser errors during 3D block recoloring: "+" | ".join(exceptions[:5])
+                colors_heat=page.locator("#cpt-atlas-svg3d polygon.soil-svg-body").evaluate_all(
+                    "(items) => [...new Set(items.map(x => x.getAttribute('fill')))]")
+                assert colors_heat!=colors_classes, "3D silt thickness heat toggle did not recolor soil blocks"
+                page.locator("#cpt-atlas-svg3d polygon.soil-svg-body").first.click(force=True)
+                assert "CPT-A2-" in page.locator("#cpt-atlas-details").inner_text()
+                page.locator("#atlas-expand").click()
+                page.locator("#atlas-expand").click()
+                page.set_viewport_size({"width":1220,"height":800})
+                page.wait_for_timeout(350)
+                assert not exceptions,"Browser errors during 3D resizing and recoloring: "+" | ".join(exceptions[:5])
 
                 assert not exceptions,"Browser JS errors: "+" | ".join(exceptions[:5])
-                print("PASS: offline 2D/3D atlas visually rendered, zoom/hover data present, search and inspector responded, 3D mesh loaded.")
+                print("PASS: offline 2D/3D atlas visually rendered, zoom/hover data present, search and inspector responded, 3D soil SVG blocks and thickness color toggle verified.")
             finally:
                 browser.close()
 
