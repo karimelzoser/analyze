@@ -152,7 +152,7 @@ def _control_html(segments, excluded):
         f'<div class="cpt-options">{choices}'
         '<label class="cpt-toggle"><input type="checkbox" id="cpt-wedges">Indicative wedges</label>'
         '<label class="cpt-toggle"><input type="checkbox" id="cpt-thickness-color" checked>'
-        'Color fine-grained blocks by thickness (blue → yellow → red)</label>'
+        'Show silt-thickness scale on CPT collars (blue → red)</label>'
         '</div><div class="cpt-range">'
         '<label for="cpt-top">Top BGL</label><input type="range" id="cpt-top" min="0" max="10" step="0.1" value="0">'
         '<output id="cpt-top-value">0.0 m</output>'
@@ -229,9 +229,9 @@ function start(){
       $("cpt-top-value").textContent=lo.toFixed(1)+" m";
       $("cpt-bottom-value").textContent=hi.toFixed(1)+" m";
       let rendered=0,cpts=new Set();
-      let updates={x:[],y:[],z:[],i:[],j:[],k:[],text:[],visible:[],vertexcolor:[]};
+      let updates={x:[],y:[],z:[],i:[],j:[],k:[],text:[],visible:[]};
       for(const category of categories){
-        const xs=[],ys=[],zs=[],texts=[],ii=[],jj=[],kk=[],vertexColors=[];
+        const xs=[],ys=[],zs=[],texts=[],ii=[],jj=[],kk=[];
         for(const s of SEGMENTS){
           if(s.category!==category||s.bottom<=lo||s.top>=hi)continue;
           const top=Math.max(s.top,lo),bottom=Math.min(s.bottom,hi);
@@ -254,19 +254,15 @@ function start(){
           const hover="<b>"+s.ref+"</b><br>"+s.source+"<br>Measured BGL "+
              top.toFixed(2)+"–"+bottom.toFixed(2)+" m<br>"+s.quality+
              "<br>Colored column is a CPT profile SYMBOL, not continuous geology";
-          const color=(category==="silt"&&$("cpt-thickness-color").checked)?
-                thicknessColor(s.maximum_cpt_silt_m??s.bottom-s.top):COLORS[category];
           for(let vertex=0;vertex<8;vertex++){
              texts.push(hover+"<br>Maximum observed CPT silt: "+
                   Number(s.maximum_cpt_silt_m||0).toFixed(3)+" m");
-             vertexColors.push(color);
           }
           rendered++;cpts.add(s.ref);
         }
         updates.x.push(xs);updates.y.push(ys);updates.z.push(zs);
         updates.i.push(ii);updates.j.push(jj);updates.k.push(kk);
         updates.text.push(texts);
-        updates.vertexcolor.push(vertexColors);
         updates.visible.push(!!checkbox(category).checked);
       }
       Plotly.restyle(gd,updates,categories.map(k=>idx[k]));
@@ -277,7 +273,6 @@ function start(){
    }
    categories.forEach(k=>checkbox(k).addEventListener("change",redraw));
    $("cpt-wedges").addEventListener("change",redraw);
-   $("cpt-thickness-color").addEventListener("change",redraw);
    $("cpt-top").addEventListener("input",redraw);
    $("cpt-bottom").addEventListener("input",redraw);
    $("cpt-reset").addEventListener("click",()=>{$("cpt-top").value=0;$("cpt-bottom").value=maximum;redraw()});
