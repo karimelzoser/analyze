@@ -152,7 +152,7 @@ def _control_html(segments, excluded):
         f'<div class="cpt-options">{choices}'
         '<label class="cpt-toggle"><input type="checkbox" id="cpt-wedges">Indicative wedges</label>'
         '<label class="cpt-toggle"><input type="checkbox" id="cpt-thickness-color" checked>'
-        'Show silt-thickness scale on CPT collars (blue → red)</label>'
+        'Silt thickness heat: observed silt layers and CPT collars (blue thin → red thick)</label>'
         '</div><div class="cpt-range">'
         '<label for="cpt-top">Top BGL</label><input type="range" id="cpt-top" min="0" max="10" step="0.1" value="0">'
         '<output id="cpt-top-value">0.0 m</output>'
