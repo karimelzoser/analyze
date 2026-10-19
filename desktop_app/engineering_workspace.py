@@ -743,7 +743,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
     def refresh_map(self):
         if not hasattr(self,"map_ax"):return
         if hasattr(self,"slice_controls"):
-            if self.map_projection.get()=="Depth slice plan":
+            if self.map_projection.get() in ("Depth slice plan","Soil-behaviour color map"):
                 if not self.slice_controls.winfo_manager():
                     self.slice_controls.pack(fill="x",padx=16,pady=4,
                                              before=self.map_status_label)
