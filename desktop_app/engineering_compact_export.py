@@ -359,15 +359,22 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
                ["CPT","Elevation RL (m)","Depth BGL (m)","Saved qc (MPa)",
                 "Saved SBT zone (1-9)","Source zone screen","Provenance"],
                original_rows(),widths={0:28,5:32,6:70})
-    elif foundation_xlsx:
+    if foundation_xlsx:
+        # Original XLSB holds the project's cached raft results, while the
+        # supplied pre-CPT workbook also carries separate ISOLATED cases.
+        # Both must be retained when both source workbooks are supplied.
         from engineering_comparison import read_summary_xlsx
         foundations=read_summary_xlsx(foundation_xlsx)
-        _sheet(book,style,"Foundation Results",
+        _sheet(book,style,"Supplied Footing Cases" if original_xlsb else "Foundation Results",
            ["CPT","Footing type","Easting","Northing","Settlement (mm) SOURCE",
-            "Min FOS SOURCE","Source workbook"],
+            "Min FOS SOURCE","Footing width (m)","Footing L/B",
+            "Original settlement check","Original FOS check","Source worksheet"],
            [(f.reference,f.foundation,f.east,f.north,
              f.metrics.get("settlement_mm"),f.metrics.get("fos"),
-             f.source_sheet) for f in foundations])
+             f.footing_width_m,f.footing_lb_ratio,
+             f.reported_settlement_check,f.reported_fos_check,
+             f.source_sheet) for f in foundations],
+           {0:29,1:17,8:25,9:25,10:30})
     if comparison_result:
         _sheet(book,style,"Pre Post Changes",
               ["PRE reference","POST reference","Metric","PRE","POST","Change",
