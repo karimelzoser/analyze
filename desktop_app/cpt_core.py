@@ -502,20 +502,27 @@ def analyze_gef(path: str | Path, gamma_soil: float = DEFAULT_GAMMA,
     label=lambda z: "NONE" if z is None else f"{z.start:.1f}/{z.end:.1f}/{z.thickness:.1f}"
     primary=label(p2)
     support=sum(label(x)==primary for x in candidates.values())
-    if p2 is None and support>=3:
+    # PRE (3 samples) or POST (10 samples) is the selected interpretation.
+    # The other windows quantify sensitivity; they are NOT independent CPT
+    # measurements or votes that can delete a valid observed interval.
+    if p2 is None:
         final,status=None,"NO SILT"
-    elif p2 is not None and support>=3:
-        final,status=p2,"VERIFIED"
     else:
-        final,status=None,"REVIEW"
+        final,status=p2,"VERIFIED"
+    gef.metadata["processing_sensitivity_support"]=support
+    gef.metadata["processing_sensitivity_total"]=len(candidates)
+    gef.metadata["processing_sensitivity_warning"]=support<3
     report="; ".join(f"window {k}: {label(v)}" for k,v in candidates.items())
     note=(f"Observed-only {phase} Ic screening ({primary_width}-sample rolling mean);"
           f" {support}/4 sensitivity windows agree with {primary} at 0.10m"
           f" reporting resolution. {report}. No gap-joining.")
     if status=="NO SILT":
         note+=" No qualifying *observed* Ic interval, not confirmed absence of silt."
-    if status=="REVIEW":
-        note+=" Processing sensitivity changes interval; compare source workbook or obtain engineer approval."
+    if support<3:
+        note+=(" QA SENSITIVITY WARNING: alternate smoothing windows change the"
+               " interpretation; the declared project-stage window remains"
+               " authoritative for the reported OBSERVED interval. Check"
+               " source workbook before geotechnical design sign-off.")
     if selected_profile.brief_exceedances:
         note+=f" {len(selected_profile.brief_exceedances)} brief threshold crossing(s) retained separately in the layer audit."
 
@@ -537,11 +544,22 @@ def analyze_gef(path: str | Path, gamma_soil: float = DEFAULT_GAMMA,
                          " This does not exclude unobserved fine-grained soil.")
     # Do not emit a verified 0.00 m thickness for a measured positive interval.
     if status == "VERIFIED" and final is not None and final.thickness_raw>0 and final.thickness==0:
-        status="REVIEW"
-        note += (" Raw qualifying thickness is positive but rounded start and end"
-                 " are equal; no minimum 0.10 m was fabricated. Engineering"
-                 " reporting-precision review required.")
-        final=None
+        # Preserve the observed thin interval at 0.01m reporting precision,
+        # rather than blanking its result or fabricating a 0.10m layer.
+        observed_start=round(float(final.start_raw),2)
+        observed_end=round(float(final.end_raw),2)
+        observed_thickness=round(max(0.0,observed_end-observed_start),2)
+        if observed_thickness>0:
+            final=SiltInterval(observed_start,observed_end,observed_thickness,
+                final.start_raw,final.end_raw,final.thickness_raw,final.source_end_raw)
+            gef.metadata["thin_precision_display_m"]=0.01
+            note+=(" THIN-INTERVAL PRECISION: boundaries and thickness"
+                  " shown to 0.01m because rounding separately to 0.10m"
+                  " would incorrectly give zero. Raw observed bounds preserved.")
+        else:
+            status="REVIEW"
+            note+=(" Positive observed interval cannot be represented"
+                   " at 0.01m; raw boundaries retained for engineering QA.")
     if dropout_start is not None:
         note += f" Terminal sleeve-friction dropout detected from {dropout_start:.3f} m; this UNKNOWN tail is NOT counted as measured silt."
 
