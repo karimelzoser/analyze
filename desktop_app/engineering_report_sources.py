@@ -89,3 +89,37 @@ def choose_official_pdf(raw_analysis,candidates,*,xy_tolerance_m=.50,
     return chosen,("Original PDF pages preserved with numerical GEF/GFF calculations; "
                    "coordinates and elevation agree. File export dates are NOT assumed "
                    "to be field-test dates; verify source identity if this is a retest.")
+
+
+def enrich_from_matched_official_pdf(raw_analysis, official_pdf_analysis):
+    """Populate only absent descriptive report fields from a matched PDF.
+
+    Geotechnical inputs, numeric coordinates, test depth, area ratio, qc and
+    Ic always remain authoritative from raw GEF/GFF. Provenance for each
+    imported field is explicitly retained in metadata for workbook/PDF audit.
+    The caller must have verified the physical CPT pairing first.
+    """
+    raw = getattr(raw_analysis,"metadata",None)
+    pdf = getattr(official_pdf_analysis,"metadata",None)
+    if not isinstance(raw,dict) or not isinstance(pdf,dict):
+        raise ValueError("Both CPTs require source metadata dictionaries")
+    descriptive=("client","project_name","location","main_contractor",
+                 "cone_id","standard","test_date")
+    imported={}
+    disagreements={}
+    for key in descriptive:
+        value=pdf.get(key)
+        if value is None or not str(value).strip():
+            continue
+        current=raw.get(key)
+        if current is None or not str(current).strip():
+            raw[key]=value
+            imported[key]=str(value)
+        elif str(current).strip().casefold()!=str(value).strip().casefold():
+            # Never quietly replace an existing source field. Even differing
+            # contractor names / dates are useful for audit and review.
+            disagreements[key]={"raw":str(current),"pdf":str(value)}
+    raw["official_pdf_metadata_source"]=str(official_pdf_analysis.source_path.name)
+    raw["official_pdf_imported_fields"]=imported
+    raw["official_pdf_metadata_disagreements"]=disagreements
+    return imported,disagreements
