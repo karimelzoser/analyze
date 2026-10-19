@@ -296,15 +296,28 @@ function renderSvg3d(){
  const span=Math.max(15,Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys));
  // Fit to actual CPT depths. Former h/86 scale reduced 6m to just ~30px.
  const deepest=Math.max(3,...SEG.map(s=>Number(s.bottom)||0));
- const hscale=Math.min((w-92)/(span*1.22),(h-64)/(span*1.05))*iso.zoom;
- const vertical=Math.min(52,h*.52/deepest)*(iso.vertical/6)*iso.zoom;
+ const nominalXY=Math.min((w-92)/(span*1.22),(h-64)/(span*1.05))*iso.zoom;
+ const nominalZ=Math.min(52,h*.52/deepest)*(iso.vertical/6)*iso.zoom;
  const meanGround=SOURCE.reduce((a,p)=>a+Number(p.rl||0),0)/SOURCE.length;
  const midz=meanGround-deepest*.47;
  const cos=Math.cos(iso.az),sin=Math.sin(iso.az);
+ // Fit BOTH collar tops and measured sounding tips to the visible viewport.
+ // Previously a fixed depth exaggeration cut some CPTs off above/below.
+ const projectedRange=SOURCE.flatMap(p=>{
+  const dx=p.x-midx,dy=p.y-midy,ry=dx*sin+dy*cos;
+  const ground=Number(p.rl||meanGround),bottom=ground-Number(p.depth||deepest);
+  return [ry*nominalXY*iso.elev-(ground-midz)*nominalZ,
+          ry*nominalXY*iso.elev-(bottom-midz)*nominalZ];
+ });
+ const lower=Math.min(...projectedRange),upper=Math.max(...projectedRange);
+ const fit=Math.min(1,(h-155)/Math.max(1,upper-lower));
+ const hscale=nominalXY*fit,vertical=nominalZ*fit;
+ const verticalCenter=(upper+lower)*.5*fit;
  function project(x,y,z){
   const dx=x-midx,dy=y-midy;
   const rx=dx*cos-dy*sin,ry=dx*sin+dy*cos;
-  return [w/2+iso.tx+rx*hscale,h/2+iso.ty+ry*hscale*iso.elev-(z-midz)*vertical];
+  return [w/2+iso.tx+rx*hscale,
+          h/2+iso.ty+ry*hscale*iso.elev-(z-midz)*vertical-verticalCenter];
  }
  const bg=svgNode("g");
  for(let q=0;q<9;q++){
