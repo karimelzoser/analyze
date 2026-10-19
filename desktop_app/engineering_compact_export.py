@@ -386,13 +386,31 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
         _sheet(book,style,"Supplied Footing Cases" if original_xlsb else "Foundation Results",
            ["CPT","Footing type","Easting","Northing","Settlement (mm) SOURCE",
             "Min FOS SOURCE","Footing width (m)","Footing L/B",
-            "Original settlement check","Original FOS check","Source worksheet"],
+            "Original settlement check","Original FOS check","Source worksheet",
+            "Settlement source completeness","Area","Ground elevation RL (m)",
+            "Engineering provenance"],
            [(f.reference,f.foundation,f.east,f.north,
              f.metrics.get("settlement_mm"),f.metrics.get("fos"),
              f.footing_width_m,f.footing_lb_ratio,
              f.reported_settlement_check,f.reported_fos_check,
-             f.source_sheet) for f in foundations],
-           {0:29,1:17,8:25,9:25,10:30})
+             f.source_sheet,
+             "AVAILABLE" if f.metrics.get("settlement_mm") is not None
+               else "NOT CALCULATED / NOT PROVIDED IN SOURCE",
+             f.area,f.ground_elevation_m,
+             "Saved source result, NOT independent numerical footing design") for f in foundations],
+           {0:29,1:17,8:25,9:25,10:30,11:45,14:73})
+        # No isolated settlement is assigned an arbitrary zero. Missing
+        # source calculations are tallied for explicit engineering QA.
+        _sheet(book,style,"Footing Calculation QA",
+            ["Foundation type","Source rows","Numeric settlement values",
+             "Unreported / not calculated in source","Calculation status"],[
+              (kind,len(filtered),
+               sum(x.metrics.get("settlement_mm") is not None for x in filtered),
+               sum(x.metrics.get("settlement_mm") is None for x in filtered),
+               "REFERENCE ONLY: missing results require approved source model")
+              for kind in ("RAFT","ISOLATED")
+              for filtered in [[x for x in foundations if x.foundation==kind]]
+            ],{4:72})
     if comparison_result:
         _sheet(book,style,"Pre Post Changes",
               ["PRE reference","POST reference","Metric","PRE","POST","Change",
