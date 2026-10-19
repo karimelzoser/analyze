@@ -102,6 +102,55 @@ body.atlas-focus-map #cpt-atlas-aside{display:none}
  #cpt-atlas-map{height:76vh;min-height:570px}
  #cpt-atlas-aside{overflow:visible}
 }
+
+/* Workspace layout v4: map owns the center; tools in independently scrolling rail. */
+#cpt-atlas-screen{grid-template-columns:340px minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr);
+ height:100vh!important;min-height:490px!important;max-height:100vh;margin:0!important}
+#cpt-atlas-map{grid-column:2;grid-row:1;min-height:0;height:100%;position:relative}
+#cpt-atlas-graphs{min-height:0!important;flex:1;contain:layout paint}
+#cpt-atlas-aside{grid-column:1;grid-row:1;overflow:auto;overscroll-behavior:contain;
+ background:#f3f7fb;border-right:1px solid #d5e2ec;border-left:0;padding:10px 12px!important;
+ box-shadow:3px 0 15px #123b570a;scrollbar-gutter:stable}
+#cpt-atlas-header{position:static!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));
+ width:100%;padding:6px 0 12px!important;margin:0 0 10px!important;gap:7px!important;
+ border-bottom:1px solid #dce7f0!important;background:transparent!important}
+#cpt-atlas-header strong{grid-column:1/-1;line-height:1.15;font-size:19px!important;margin:0 0 5px!important}
+#cpt-atlas-header button{white-space:normal;min-height:37px;line-height:1.15;padding:7px 6px!important;font-size:11px!important}
+#cpt-atlas-header label{grid-column:1/-1;align-self:end}
+#atlas-mode{grid-column:1/-1;min-width:0;width:100%}
+#atlas-find{grid-column:1/-1;min-width:0;width:100%}
+#atlas-2d,#atlas-3d{font-size:12px!important}
+#atlas-full{grid-column:1/-1}
+#atlas-depth-tools{padding:10px!important;display:grid;grid-template-columns:1fr auto;gap:8px;
+ margin:0 0 10px!important;border:1px solid #dae6f0!important;border-radius:9px;background:white!important}
+#atlas-depth-tools > span:first-child{grid-column:1/-1;font-weight:700}
+#atlas-depth{grid-column:1;max-width:100%;width:100%}
+#atlas-depth-label{grid-column:2}
+#atlas-depth-number{grid-column:1/-1;width:100%!important;box-sizing:border-box}
+#atlas-silt-only,#atlas-all-layers{grid-column:auto;min-height:37px}
+#atlas-vertical{grid-column:1;max-width:100%}
+#cpt-studio{padding:10px!important;margin:0 0 10px!important;background:white;border:1px solid #dae6f0!important;
+ border-radius:9px!important}
+#cpt-studio .cpt-options{display:flex!important;flex-direction:column;align-items:stretch!important;
+ gap:7px!important;overflow:visible;white-space:normal}
+#cpt-studio .cpt-options label{max-width:100%!important;white-space:normal!important;font-size:11px}
+#cpt-studio .cpt-range{display:flex;flex-wrap:wrap;gap:6px}
+#cpt-studio .cpt-range input[type=range]{width:100%!important}
+#cpt-atlas-aside .atlas-panel{margin-bottom:10px}
+#cpt-atlas-graphs svg{user-select:none}
+body.atlas-focus-map #cpt-atlas-screen{grid-template-columns:minmax(0,1fr)!important}
+body.atlas-focus-map #cpt-atlas-map{grid-column:1}
+@media(max-width:860px){
+ #cpt-atlas-screen{grid-template-columns:280px minmax(0,1fr)!important}
+ #cpt-atlas-header button{font-size:10px!important;padding:7px 4px!important}
+}
+@media(max-width:630px){
+ #cpt-atlas-screen{grid-template-columns:minmax(0,1fr)!important}
+ #cpt-atlas-map{grid-column:1;grid-row:1}
+ #cpt-atlas-aside{position:fixed;top:0;left:0;bottom:0;width:min(320px,85vw);max-width:85vw;
+  z-index:50;box-shadow:4px 0 25px #112b4670}
+ body.atlas-focus-map #cpt-atlas-aside{display:none}
+}
 </style>
 """
 
@@ -119,6 +168,8 @@ const clean=s=>String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").repl
 const maxval=Math.max(.01,...SOURCE.map(p=>p.max||0));
 let active2d=false,selected=null,depth=4.5,navMode="pan";
 let mainGraph=null,mainPanel=null;
+let atlas2dFrame=0;
+function schedule2d(){if(atlas2dFrame)return;atlas2dFrame=requestAnimationFrame(()=>{atlas2dFrame=0;render2d();});}
 const byref=Object.fromEntries(SOURCE.map(p=>[p.ref,p]));
 const segmap={};
 SEG.forEach(s=>{(segmap[s.ref]??=[]).push(s)});
@@ -171,7 +222,7 @@ function focusCpt(p){
  Plotly.relayout(graph,{"xaxis.range":[p.x-rx,p.x+rx],
                         "yaxis.range":[p.y-ry,p.y+ry]});
 }
-function inspect(p){
+function inspect(p,skipRedraw=false){
  if(!p)return;
  selected=p.ref;
  const blocks=(segmap[p.ref]||[]);
@@ -197,7 +248,7 @@ function inspect(p){
  "</p><table>"+table+"</table><details><summary>"+blocks.length+
  " measured/cached soil intervals · expand</summary><div class='atlas-layers'><table>"+
  "<tr><th>BGL</th><th>SBT</th><th>Thickness</th></tr>"+detail+"</table></div></details>";
- if(active2d)render2d();
+ if(active2d && !skipRedraw)schedule2d();
 }
 function display(){
  const type=$("atlas-mode").value;
@@ -286,7 +337,7 @@ function svgNode(name,attrs={},text=null){
  if(text!==null)el.textContent=String(text);
  return el;
 }
-function renderSvg3d(){
+function renderSvg3d(preview=false){
  const svg=$("cpt-atlas-isometric"),host=$("cpt-atlas-svg3d");
  if(!svg||!host)return;
  const w=Math.max(320,host.clientWidth),h=Math.max(270,host.clientHeight);
@@ -350,7 +401,9 @@ function renderSvg3d(){
   .filter(s=>s.drawBottom>s.drawTop)
   .map(s=>({...s,sort:(project(s.x,s.y,s.z0)[1])}))
   .sort((a,b)=>a.sort-b.sort);
- for(const s of candidates){
+ const previewStep=preview?Math.max(1,Math.ceil(candidates.length/650)):1;
+ for(let pass=0;pass<candidates.length;pass+=previewStep){
+  const s=candidates[pass];
   const collar=byref[s.ref];if(!collar)continue;
   const zTop=s.z0-(s.drawTop-s.top),zBot=s.z0-(s.drawBottom-s.top);
   const top=project(s.x,s.y,zTop),bot=project(s.x,s.y,zBot);
@@ -379,7 +432,7 @@ function renderSvg3d(){
        "–"+fmt(s.drawBottom,2)+" m | CPT maximum "+fmt(collar.max,3)+" m";
   main.appendChild(svgNode("title",{},label));
   side.appendChild(svgNode("title",{},label));
-  for(const el of [main,side,cap]){
+  for(const el of (preview?[main]:[main,side,cap])){
    el.style.cursor="pointer";
    el.addEventListener("click",e=>{
       if(iso.moved)return;
@@ -426,6 +479,16 @@ function setSvg3dVisible(visible){
  $("atlas-silt-only").classList.toggle("atlas-hide",!visible);
  $("atlas-all-layers").classList.toggle("atlas-hide",!visible);
 }
+let isoFrame=0,isoPendingFull=false;
+function scheduleIsoFrame(preview=false){
+ if(!preview)isoPendingFull=true;
+ if(isoFrame)return;
+ isoFrame=requestAnimationFrame(()=>{
+  isoFrame=0;
+  const final=isoPendingFull;isoPendingFull=false;
+  renderSvg3d(!final && preview && iso.drag);
+ });
+}
 function initIsoInteraction(){
  const host=$("cpt-atlas-svg3d");if(!host)return;
  host.addEventListener("pointerdown",e=>{
@@ -440,19 +503,20 @@ function initIsoInteraction(){
    if(iso.shift){iso.tx+=dx;iso.ty+=dy;}
    else{iso.az+=dx*.011;iso.elev=Math.max(.14,Math.min(.88,iso.elev+dy*.004));}
    iso.pointerX=e.clientX;iso.pointerY=e.clientY;
-   renderSvg3d();
+   scheduleIsoFrame(true);
  });
  host.addEventListener("pointerup",e=>{
    iso.drag=false;
+   scheduleIsoFrame(false);
    setTimeout(()=>{iso.moved=false},70);
  });
  host.addEventListener("wheel",e=>{
    if(host.classList.contains("atlas-hide"))return;
    e.preventDefault();
    iso.zoom=Math.max(.4,Math.min(10,iso.zoom*(e.deltaY<0?1.12:.89)));
-   renderSvg3d();
+   scheduleIsoFrame(false);
  },{passive:false});
- $("atlas-vertical").oninput=e=>{iso.vertical=Number(e.target.value);renderSvg3d();};
+ $("atlas-vertical").oninput=e=>{iso.vertical=Number(e.target.value);scheduleIsoFrame(false);};
  for(const id of ["cpt-top","cpt-bottom"])
    $(id)?.addEventListener("input",()=>{if(!host.classList.contains("atlas-hide"))renderSvg3d();});
  document.querySelectorAll("[data-layer]").forEach(el=>
@@ -565,7 +629,13 @@ function init(){
  isoview.className="atlas-hide";graphs.appendChild(isoview);
  isoview.innerHTML="<svg id='cpt-atlas-isometric' aria-label='Interactive measured CPT 3D soil columns'></svg>";
  const studio=$("cpt-studio");
- graphs.parentNode.insertBefore(studio,graphs);
+ // Relocate the existing REAL controls instead of duplicating them. All
+ // event handlers keep operating on the same DOM nodes and one map canvas.
+ const rail=$("cpt-atlas-aside");
+ rail.insertBefore(head,rail.firstChild);
+ rail.insertBefore(bar,head.nextSibling);
+ rail.insertBefore(studio,bar.nextSibling);
+
  // Keep the original E-W and N-S fence plots as expandable secondary views.
  const rest=document.createElement("details");rest.className="atlas-fences";
  rest.innerHTML="<summary>Show E–W / N–S CPT fence sections</summary>";
@@ -595,8 +665,8 @@ function init(){
   $("atlas-depth").value=depth;
   $("atlas-depth-number").value=depth.toFixed(2);
   $("atlas-depth-label").textContent=fmt(depth)+" m";
-  if(active2d)render2d();
-  if(selected)inspect(byref[selected]);
+  if(active2d)schedule2d();
+  if(selected)inspect(byref[selected],true);
  };
  $("atlas-depth").oninput=()=>setDepth($("atlas-depth").value);
  $("atlas-depth-number").onchange=()=>setDepth($("atlas-depth-number").value);
