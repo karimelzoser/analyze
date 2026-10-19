@@ -764,6 +764,13 @@ function init(){
  // depend on the GPU-intensive 3D scene finishing its asynchronous traces.
  // This isolates the 2D map from WebGL context limits on engineering laptops.
  show2d();
+ // Start in the meaningful full stratigraphy explorer, not the old static
+ // point-plan. 2D can still be selected at any moment; its Plotly data and
+ // depth controls are already initialized before this transition.
+ setTimeout(()=>{try{show3d()}catch(err){
+   console.warn("3D isometric initialization failed; keeping measured 2D plan",err);
+   show2d();
+ }},220);
  // New overlay markers with continuous silt-thickness color, independent
  // from categorical SBT body block colors. All ties remain inspectable.
  const stem=SOURCE.map(p=>p.rl??0);
