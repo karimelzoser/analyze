@@ -74,7 +74,10 @@ body{background:#eef3f7!important;font-family:Segoe UI,Inter,Arial,sans-serif}
 #cpt-atlas-svg3d .soil-svg-body:hover{stroke:#102d43!important;stroke-width:1.8px!important}
 #cpt-atlas-svg3d .soil-svg-top:hover{stroke:#102d43!important}
 #cpt-atlas-svg3d .soil-svg-label{font:11px Segoe UI,Arial,sans-serif;fill:#233e54}
-body.atlas-mode-3d #atlas-depth-tools > *:not(#atlas-vertical):not(#atlas-vertical-label){display:none!important}
+body.atlas-mode-3d #atlas-depth-tools > *:not(#atlas-vertical):not(#atlas-vertical-label):not(#atlas-silt-only):not(#atlas-all-layers){display:none!important}
+#atlas-silt-only,#atlas-all-layers{border:1px solid #a3c2d7;background:#fff;color:#235876;
+ border-radius:7px;padding:7px 12px;cursor:pointer;font-weight:700}
+#atlas-silt-only.chosen,#atlas-all-layers.chosen{background:#0d648b;color:white}
 #atlas-vertical{width:98px;vertical-align:middle}
 
 #cpt-atlas-header button:focus-visible,#cpt-atlas-rank button:focus-visible{
@@ -420,6 +423,8 @@ function setSvg3dVisible(visible){
  if(visible)svg.classList.remove("atlas-hide");else svg.classList.add("atlas-hide");
  $("atlas-vertical").classList.toggle("atlas-hide",!visible);
  $("atlas-vertical-label").classList.toggle("atlas-hide",!visible);
+ $("atlas-silt-only").classList.toggle("atlas-hide",!visible);
+ $("atlas-all-layers").classList.toggle("atlas-hide",!visible);
 }
 function initIsoInteraction(){
  const host=$("cpt-atlas-svg3d");if(!host)return;
@@ -546,6 +551,8 @@ function init(){
  "<strong id='atlas-depth-label'>4.50 m</strong>"+
  "<label for='atlas-depth-number'>SET DEPTH</label><input type='number' id='atlas-depth-number' step='.05' min='0' value='4.5'>"+
  "<span>Wheel zoom / drag pan · click CPT for measurements</span>"+
+ "<button type='button' id='atlas-silt-only' class='atlas-hide'>SILT ONLY</button>"+
+ "<button type='button' id='atlas-all-layers' class='atlas-hide chosen'>ALL SOIL TYPES</button>"+
  "<label for='atlas-vertical' id='atlas-vertical-label' class='atlas-hide'>3D depth exaggeration</label>"+
  "<input type='range' id='atlas-vertical' class='atlas-hide' min='2' max='12' step='.5' value='6'>";
  document.body.insertBefore(head,document.body.firstChild);
@@ -572,6 +579,16 @@ function init(){
  $("atlas-depth-label").textContent=fmt(depth)+" m";
  $("atlas-2d").onclick=show2d;$("atlas-3d").onclick=show3d;
  $("atlas-webgl").onclick=showWebgl;
+ function applyLayerPreset(siltOnly){
+  document.querySelectorAll("[data-layer]").forEach(el=>{
+   el.checked=!siltOnly||el.dataset.layer==="silt";
+  });
+  $("atlas-silt-only").classList.toggle("chosen",siltOnly);
+  $("atlas-all-layers").classList.toggle("chosen",!siltOnly);
+  if(!$("cpt-atlas-svg3d").classList.contains("atlas-hide"))renderSvg3d();
+ }
+ $("atlas-silt-only").onclick=()=>applyLayerPreset(true);
+ $("atlas-all-layers").onclick=()=>applyLayerPreset(false);
  initIsoInteraction();
  const setDepth=value=>{
   depth=Math.min(grand,Math.max(0,Number.isFinite(Number(value))?Number(value):depth));
