@@ -402,31 +402,60 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
                  m.get("matching_method")) for m in comparison_result.get("matched",[])
                  for key,v in m["metrics"].items()])
 
-    # Maps and project summary are dynamic, not static instructions.
+    # Site plans are now soil-category maps at three depth levels, rather
+    # than ONLY silt-thickness point markers. All color regions are bounded
+    # by local CPT observations, and are explicitly marked INTERPRETED.
     source_data=cached if cached else analyses
     plan_points,excluded=spatial_points(source_data)
-    fig=__import__("matplotlib.figure",fromlist=["Figure"]).Figure(
-        figsize=(11.5,7),dpi=100,facecolor="white")
+    from matplotlib.figure import Figure
+    from engineering_soil_maps import soil_depth_plan
+    from engineering_3d_map import site_3d_figure
+    fig=Figure(figsize=(11.5,7),dpi=100,facecolor="white")
     drawn=risk_plan(fig,source_data,boundary=site_boundary,
                     warning_m=.10,high_m=.30,show_interpretive_surface=True)
-    map_images=[_save_figure(fig)]
+    risk_image=_save_figure(fig)
+    soil_views=[]
+    for depth in (2.0,4.5,5.4):
+        soil_fig=Figure(figsize=(11.5,7),dpi=100,facecolor="white")
+        try:
+            info=soil_depth_plan(soil_fig,source_data,depth_m=depth,
+                                boundary=site_boundary,fill_interpretation=True)
+            soil_views.append((depth,_save_figure(soil_fig),info))
+        except (RuntimeError,ValueError,TypeError) as exc:
+            soil_views.append((depth,None,{"error":str(exc),"classified":0,
+                                           "supported_triangles":0}))
     try:
-        from engineering_3d_map import site_3d_figure
         fig3,info=site_3d_figure(source_data,site_boundary)
-        map_images.append(_save_figure(fig3))
+        image_3d=_save_figure(fig3)
     except (RuntimeError,ValueError,TypeError):
-        # Two-dimensional map remains available if the 3D engine cannot run.
-        info={"plotted":0}
+        info={"plotted":0};image_3d=None
     map_sheet=book.add_worksheet("Project Maps")
     map_sheet.set_tab_color("#306d9f")
     map_sheet.set_column(0,0,3);map_sheet.set_column(1,15,12)
-    map_sheet.merge_range("B2:N2","SITE SURVEY — SCREENING PLAN & STRATIGRAPHIC VIEW",style["header"])
+    map_sheet.merge_range("B2:N2","SITE SURVEY — SOIL BEHAVIOUR LEVELS AND 3D STRATIGRAPHY",style["header"])
     map_sheet.set_row(1,32)
-    map_sheet.insert_image("B4","plan.png",{"image_data":map_images[0],"x_scale":.49,"y_scale":.49})
-    if len(map_images)>1:map_sheet.insert_image("B51","subsurface.png",{
-        "image_data":map_images[1],"x_scale":.49,"y_scale":.49})
-    map_sheet.write("B97",f"Observed points: {len(plan_points)} | coordinate exceptions: {len(excluded)} | "
-                    "3D is a visual screening representation, not a validated geological volume.",style["small"])
+    for index,(depth,soil_image,soil_meta) in enumerate(soil_views):
+        label_row=3+index*48
+        map_sheet.write(label_row-1,1,
+            f"2D SOIL CLASSIFICATION AT {depth:.2f} m BGL | "
+            f"{soil_meta.get('classified',0)} measured points; "
+            f"{soil_meta.get('supported_triangles',0)} locally supported triangles",
+            style["small"])
+        if soil_image is not None:
+            map_sheet.insert_image(label_row,1,f"soil_level_{index}.png",
+                {"image_data":soil_image,"x_scale":.49,"y_scale":.49})
+        else:
+            map_sheet.write(label_row,1,
+                "Soil classification unavailable at this depth: "+soil_meta.get("error","not measured"))
+    map_sheet.write("B149","MAXIMUM SILT-SCREEN THICKNESS — point results and bounded interpretive contours",style["small"])
+    map_sheet.insert_image("B151","silt_thickness.png",
+                           {"image_data":risk_image,"x_scale":.49,"y_scale":.49})
+    map_sheet.write("B197","3D OBSERVED SOIL COLUMNS — sand / transition / silt / clay / unknown",style["small"])
+    if image_3d is not None:
+        map_sheet.insert_image("B199","subsurface.png",{
+            "image_data":image_3d,"x_scale":.49,"y_scale":.49})
+    map_sheet.write("B247",f"Observed points: {len(plan_points)} | coordinate exceptions: {len(excluded)} | "
+                    "All between-CPT colored areas are interpreted, not confirmed geology.",style["small"])
     if excluded:
         _sheet(book,style,"Coordinate QA",
                ["CPT","Easting (original)","Northing (original)","Survey QA"],
