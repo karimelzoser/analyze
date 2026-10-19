@@ -279,15 +279,28 @@ def extend_project_workbook(wb,analyses,*,source_audit=None,
     fmt=_header(wb)
     visual.merge_range("B2:N2","CPT ENGINEERING | SITE PLAN & 3D SUBSURFACE",fmt)
     visual.set_row(1,32)
-    visual.write("B3","2D survey plan + measured source screening values. 3D depicts vertical observed/cached CPT zones, NOT a continuous interpolated surface.")
-    fig,outliers=_make_plan_chart(plot_points,site_boundary)
-    visual.insert_image("B5","measured_site_plan.png",{
-        "image_data":_in_memory_image(fig), "x_scale":.49,"y_scale":.49})
-    fig3,stats=site_3d_figure(source_profile.values() if selected_original else analyses,site_boundary)
-    visual.insert_image("B50","observed_3d_cpt.png",{
-        "image_data":_in_memory_image(fig3),"x_scale":.49,"y_scale":.49})
-    visual.write("B92",f"Grounded surveyed CPT columns: {stats['plotted']} | Gross coordinate exceptions: {len(withheld)}")
-    visual.write("B93","Maps are based only on observed/cached input; original workbook formulas and project soil classification need engineering approval.")
+    visual.write("B3","Colored soil classifications at specified depths are interpreted only between nearby measured CPTs. Grey/blank areas have no credible coverage.")
+    from engineering_soil_maps import soil_depth_plan
+    map_sources=list(source_profile.values()) if selected_original else list(analyses)
+    for idx,depth in enumerate((2.0,4.5,5.4)):
+        fig=Figure(figsize=(11,7.5),dpi=110,facecolor="white")
+        try:
+            info=soil_depth_plan(fig,map_sources,depth_m=depth,
+                                 boundary=site_boundary,fill_interpretation=True)
+            visual.write(4+idx*45,1,
+                         f"SOIL-BEHAVIOUR COLOR LEVEL — {depth:.1f} m below ground"
+                         f"  |  {info['classified']} observed CPT readings")
+            visual.insert_image(5+idx*45,1,f"soil_zone_{idx}.png",{
+                  "image_data":_in_memory_image(fig),"x_scale":.49,"y_scale":.49})
+        except Exception as exc:
+            visual.write(4+idx*45,1,
+                     "Soil color map unavailable at %.1f m: %s"%(depth,str(exc)))
+    fig3,stats=site_3d_figure(map_sources,site_boundary)
+    visual.write("B140","3D MEASURED SOIL COLUMNS + CONFIRMED SURVEY LOCATIONS")
+    visual.insert_image("B142","observed_3d_cpt.png",{
+         "image_data":_in_memory_image(fig3),"x_scale":.49,"y_scale":.49})
+    visual.write("B184",f"Grounded surveyed CPT columns: {stats['plotted']} | Gross coordinate exceptions: {len(withheld)}")
+    visual.write("B185","All color surfaces between soundings are explicitly INTERPRETED, not observed or laboratory USCS. Review sparse areas and sensor dropout.")
 
     summary=wb.add_worksheet("Project Dashboard")
     summary.set_column("A:A",38);summary.set_column("B:B",34)
