@@ -75,21 +75,51 @@ def site_3d_figure(analyses,site_boundary=None,*,max_labels=12,figure=None):
                 label="CPT sounding depth" if "base" not in legend_used else None)
         legend_used.add("base")
         ax.scatter([x],[y],[top],color="#1a6da3",s=9,depthshade=False)
-    # Group thousands of segment lines into five vectorized artists for a
-    # responsive matplotlib preview. The interactive HTML provides per-CPT
-    # hover, depth filters, scene camera and wedge controls.
+    # Render OBSERVED SOIL DEPTH BLOCKS rather than a forest of thin points.
+    # Each prism is an independent measured/CPT-classified layer with a
+    # symbolic footprint; it is NOT a soil volume spanning between CPTs.
     from engineering_3d_studio import collect_observed_segments,GROUPS
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+    from matplotlib.patches import Patch
     segments,_,_ = collect_observed_segments(analyses)
+    xy=np.asarray([(p["easting"],p["northing"]) for p in points],dtype=float)
+    if len(xy)>1:
+        min_spacing=[]
+        for i,coord in enumerate(xy):
+            dist=np.linalg.norm(xy-coord,axis=1)
+            dist=dist[dist>1e-7]
+            if len(dist):min_spacing.append(float(np.min(dist)))
+        spacing=float(np.median(min_spacing)) if min_spacing else 12.
+    else:
+        spacing=12.
+    half_width=min(4.0,max(.65,spacing*.18))
+    # Limit plotting complexity for 400+ CPT project overviews; the offline
+    # HTML 3D explorer can still show the entire observed depth stack.
+    if len(segments)>2200:
+        stride=int(np.ceil(len(segments)/2200))
+        draw_segments=segments[::stride]
+    else:
+        draw_segments=segments
+    def prism_faces(x,y,zlo,zhi,w):
+        u=x-w;v=x+w;r=y-w;t=y+w
+        a=(u,r,zlo);b=(v,r,zlo);c=(v,t,zlo);d=(u,t,zlo)
+        e=(u,r,zhi);f=(v,r,zhi);g=(v,t,zhi);h=(u,t,zhi)
+        return [[a,b,c,d],[e,f,g,h],[a,b,f,e],
+                [b,c,g,f],[c,d,h,g],[d,a,e,h]]
     for category,(label,color) in GROUPS.items():
-        coords=[s for s in segments if s["category"]==category]
-        if not coords:continue
-        xs=[];ys=[];zs=[]
-        for seg in coords:
-            xs.extend([seg["x"],seg["x"],np.nan])
-            ys.extend([seg["y"],seg["y"],np.nan])
-            zs.extend([seg["z0"],seg["z1"],np.nan])
-        ax.plot(xs,ys,zs,color=color,linewidth=3 if category!="unknown" else 1.9,
-                alpha=.9,label=label)
+        faces=[]
+        for seg in draw_segments:
+            if seg["category"]!=category:continue
+            top,bottom=max(seg["z0"],seg["z1"]),min(seg["z0"],seg["z1"])
+            if top-bottom<.003:continue
+            faces.extend(prism_faces(seg["x"],seg["y"],bottom,top,half_width))
+        if faces:
+            solids=Poly3DCollection(faces,facecolors=color,edgecolors="none",
+                  linewidths=0,alpha=.83 if category!="unknown" else .28)
+            ax.add_collection3d(solids)
+    ax.legend(handles=[Patch(facecolor=color,label=label,alpha=.86)
+                       for key,(label,color) in GROUPS.items()],
+              loc="upper left",fontsize=7,frameon=False)
     if site_boundary is not None:
         try:
             poly=np.asarray(site_boundary,dtype=float)
@@ -114,12 +144,11 @@ def site_3d_figure(analyses,site_boundary=None,*,max_labels=12,figure=None):
     ax.set_ylabel(f"Northing offset from {north0:,.1f} m")
     ax.set_zlabel("Elevation RL (m)")
     ax.view_init(elev=25,azim=-65)
-    ax.set_title("3D CPT SBT Layers | Sand · Transition · Silt · Clay · Unknown",loc="left",
+    ax.set_title("3D OBSERVED SOIL-CLASSIFICATION BLOCKS | Sand · Transition · Silt · Clay · Unknown",loc="left",
                  fontsize=13,fontweight="bold")
-    ax.legend(loc="upper left",fontsize=7,frameon=False)
     fig.text(.06,.02,f"{len(points)} surveyed columns | {len(withheld)} coordinate outlier(s) withheld | "+
              ("Point labels suppressed for overview; explore exact CPT IDs interactively. "
               if label_limit==0 else "")+
-             "SBT is not laboratory USCS.",fontsize=8.5,color="#64748b")
+             "Colored blocks show individual observed CPT strata only, NOT continuity between soundings. SBT is not lab USCS.",fontsize=8.5,color="#64748b")
     fig.subplots_adjust(left=.02,right=.97,bottom=.06,top=.91)
     return fig,{"plotted":len(points),"withheld":len(withheld),"reference_xy":(east0,north0)}
