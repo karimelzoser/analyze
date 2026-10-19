@@ -46,9 +46,13 @@ def engineering_analysis_page(a):
         observed=[];threshold_runs=tuple(getattr(a,"all_intervals",[]) or [])
         brief=[];unknown=None
 
-    report_start=_num(interval.start,2,"m") if interval else ("NO QUALIFYING SILT" if status=="NO SILT" else "REVIEW - not confirmed")
-    report_end=_num(interval.end,2,"m") if interval else "N/A - no verified boundary"
-    thickness=_num(interval.thickness,2,"m") if interval else ("0.00 m measured qualifying thickness" if status=="NO SILT" else "N/A - not verified")
+    # Keep a defensible *measured* candidate visible even when conflicting
+    # test revisions require REVIEW. "Provisional" must remain explicit to
+    # prevent its use as an accepted geotechnical design value.
+    qualifier=" [PROVISIONAL]" if status=="REVIEW" and interval is not None else ""
+    report_start=(_num(interval.start,2,"m")+qualifier) if interval else ("NO QUALIFYING SILT" if status=="NO SILT" else "REVIEW - not confirmed")
+    report_end=(_num(interval.end,2,"m")+qualifier) if interval else "N/A - no verified boundary"
+    thickness=(_num(interval.thickness,2,"m")+qualifier) if interval else ("0.00 m measured qualifying thickness" if status=="NO SILT" else "N/A - not verified")
     raw_start=_num(interval.start_raw,3,"m") if interval else "N/A - no selected interval"
     raw_end=_num(interval.end_raw,3,"m") if interval else "N/A - no selected interval"
     raw_thick=_num(interval.thickness_raw,3,"m") if interval else "N/A - no selected interval"
@@ -84,7 +88,11 @@ def engineering_analysis_page(a):
         ("Silt start (reported)",report_start),
         ("Silt end (reported)",report_end),
         ("Silt thickness (reported)",thickness),
-        ("Sand before selected silt",_num(getattr(a,"sand_layer_thickness",None),2,"m") if status!="REVIEW" else "N/A - not verified"),
+        ("Sand before selected silt",
+         (_num(getattr(a,"sand_layer_thickness",None),2,"m")+
+          (" [PROVISIONAL]" if status=="REVIEW" else ""))
+         if interval is not None and getattr(a,"sand_layer_thickness",None) is not None
+         else "N/A - no established qualifying interval"),
         ("Raw observed silt start",raw_start),
         ("Raw observed silt end",raw_end),
         ("Raw observed thickness",raw_thick),
