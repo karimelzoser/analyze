@@ -260,7 +260,10 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             else:
                 values=read_summary_xlsx(path)
                 detail="%d summary reference rows loaded" % len(values)
-                self.foundation_reference_path=None
+                # Retain the selected XLSX as the definitive external
+                # reference for BOTH raft and isolated-footing settlements.
+                # Otherwise the all-in-one export silently omits these values.
+                self.foundation_reference_path=Path(path)
             if hasattr(self,"reference_status"):
                 self.reference_status.set("Foundation summary: "+Path(path).name+" · "+str(len(values))+" reference records")
             self.foundation_points=[v for v in values if v.foundation in ("RAFT","ISOLATED")]
