@@ -164,7 +164,10 @@ def test_revisions_with_different_surveyed_coordinates_are_review_not_merged():
                                       [p0,p1])
     assert len(rows)==1
     assert rows[0].status=="REVIEW"
-    assert rows[0].final_interval is None
+    # Retain a provisional measured number while visibly refusing to
+    # approve two different test locations as one certified CPT.
+    assert rows[0].final_interval is not None
+    assert rows[0].metadata["provisional_conflicting_result"] is True
     assert rows[0].metadata["source_spatial_conflict"] is True
     assert "SOURCE CONFLICT" in rows[0].metadata["source_selection_reason"]
 
