@@ -198,12 +198,15 @@ function start(){
    if(/Other observed CPT behavior|Observed SBT-screen layers/.test(trace.name||"")) oldIndices.push(i);
  });
  if(oldIndices.length) Plotly.restyle(gd,{visible:false},oldIndices);
+ // Volumetric symbol per measured CPT depth interval. Each mesh has
+ // a small, FIXED schematic footprint. Nothing is interpolated between
+ // sites; only the separate interpreted 3-CPT wedges imply continuity.
  let models=categories.map(k=>({
-   type:"scatter3d",mode:"lines",name:LABELS[k],
-   x:[],y:[],z:[],text:[],hoverinfo:"text",connectgaps:false,
+   type:"mesh3d",name:LABELS[k]+" · observed soil blocks",
+   x:[],y:[],z:[],i:[],j:[],k:[],text:[],
+   hoverinfo:"text",flatshading:true,
    legendgroup:"studio-"+k,showlegend:true,
-   line:{color:COLORS[k],width:k==="unknown"?5:10},
-   visible:true
+   color:COLORS[k],opacity:k==="unknown"?.17:.88,visible:true
  }));
  Plotly.addTraces(gd,models).then(()=>{
    const idx=Object.fromEntries(categories.map((k,i)=>[k,originalN+i]));
@@ -216,28 +219,44 @@ function start(){
       $("cpt-top-value").textContent=lo.toFixed(1)+" m";
       $("cpt-bottom-value").textContent=hi.toFixed(1)+" m";
       let rendered=0,cpts=new Set();
-      let updates={x:[],y:[],z:[],text:[],visible:[]};
-      for(const k of categories){
-        const xs=[],ys=[],zs=[],texts=[];
+      let updates={x:[],y:[],z:[],i:[],j:[],k:[],text:[],visible:[]};
+      for(const category of categories){
+        const xs=[],ys=[],zs=[],texts=[],ii=[],jj=[],kk=[];
         for(const s of SEGMENTS){
-          if(s.category!==k||s.bottom<=lo||s.top>=hi)continue;
-          const a=Math.max(s.top,lo), b=Math.min(s.bottom,hi);
-          if(!(b>a))continue;
-          const rl0=s.z0-(a-s.top),rl1=s.z0-(b-s.top);
-          const hover="<b>"+s.ref+"</b><br>"+s.source+"<br>BGL "+
-            a.toFixed(2)+"–"+b.toFixed(2)+" m<br>"+s.quality;
-          xs.push(s.x,s.x,null);ys.push(s.y,s.y,null);
-          zs.push(rl0,rl1,null);texts.push(hover,hover,"");
+          if(s.category!==category||s.bottom<=lo||s.top>=hi)continue;
+          const top=Math.max(s.top,lo),bottom=Math.min(s.bottom,hi);
+          if(!(bottom>top))continue;
+          const ztop=s.z0-(top-s.top),zbottom=s.z0-(bottom-s.top);
+          // Visual footprint is schematic (2m width), not claimed soil
+          // influence radius or actual layer correlation.
+          const w=1.0,x=s.x,y=s.y;
+          const vx=[x-w,x+w,x+w,x-w,x-w,x+w,x+w,x-w];
+          const vy=[y-w,y-w,y+w,y+w,y-w,y-w,y+w,y+w];
+          const vz=[zbottom,zbottom,zbottom,zbottom,ztop,ztop,ztop,ztop];
+          const base=xs.length;
+          xs.push(...vx);ys.push(...vy);zs.push(...vz);
+          const faces=[[0,1,2],[0,2,3],[4,5,6],[4,6,7],
+                       [0,1,5],[0,5,4],[1,2,6],[1,6,5],
+                       [2,3,7],[2,7,6],[3,0,4],[3,4,7]];
+          for(const face of faces){
+            ii.push(base+face[0]);jj.push(base+face[1]);kk.push(base+face[2]);
+          }
+          const hover="<b>"+s.ref+"</b><br>"+s.source+"<br>Measured BGL "+
+             top.toFixed(2)+"–"+bottom.toFixed(2)+" m<br>"+s.quality+
+             "<br>Colored column is a CPT profile SYMBOL, not continuous geology";
+          for(let vertex=0;vertex<8;vertex++)texts.push(hover);
           rendered++;cpts.add(s.ref);
         }
-        updates.x.push(xs);updates.y.push(ys);updates.z.push(zs);updates.text.push(texts);
-        updates.visible.push(!!checkbox(k).checked);
+        updates.x.push(xs);updates.y.push(ys);updates.z.push(zs);
+        updates.i.push(ii);updates.j.push(jj);updates.k.push(kk);
+        updates.text.push(texts);
+        updates.visible.push(!!checkbox(category).checked);
       }
       Plotly.restyle(gd,updates,categories.map(k=>idx[k]));
       if(wedges.length)Plotly.restyle(gd,{visible:$("cpt-wedges").checked},wedges);
       maxLabel.textContent=rendered+" shown observed segments / "+cpts.size+
-         " surveyed CPTs in "+lo.toFixed(1)+"–"+hi.toFixed(1)+
-         " m BGL; unknown data are not classified as sand.";
+         " measured soil blocks at "+cpts.size+" surveyed CPTs, "+lo.toFixed(1)+"–"+hi.toFixed(1)+
+         " m BGL. Blocks are schematic; unmeasured gaps remain UNKNOWN.";
    }
    categories.forEach(k=>checkbox(k).addEventListener("change",redraw));
    $("cpt-wedges").addEventListener("change",redraw);
