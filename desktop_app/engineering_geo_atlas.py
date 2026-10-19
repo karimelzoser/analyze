@@ -74,6 +74,7 @@ body{background:#eef3f7!important;font-family:Segoe UI,Inter,Arial,sans-serif}
 #cpt-atlas-svg3d .soil-svg-body:hover{stroke:#102d43!important;stroke-width:1.8px!important}
 #cpt-atlas-svg3d .soil-svg-top:hover{stroke:#102d43!important}
 #cpt-atlas-svg3d .soil-svg-label{font:11px Segoe UI,Arial,sans-serif;fill:#233e54}
+body.atlas-mode-3d #atlas-depth-tools > *:not(#atlas-vertical):not(#atlas-vertical-label){display:none!important}
 #atlas-vertical{width:98px;vertical-align:middle}
 
 #cpt-atlas-header button:focus-visible,#cpt-atlas-rank button:focus-visible{
@@ -435,16 +436,36 @@ function initIsoInteraction(){
  $("cpt-thickness-color")?.addEventListener("change",()=>renderSvg3d());
 }
 function show3d(){
- active2d=false;$("cpt-atlas-2d").classList.add("atlas-hide");
- mainGraph.classList.remove("atlas-hide");$("atlas-2d").classList.remove("chosen");$("atlas-3d").classList.add("chosen");
- $("atlas-depth-tools").classList.add("atlas-hide");$("cpt-studio").classList.remove("atlas-hide");
- Plotly.relayout(mainGraph,{height:$("cpt-atlas-graphs").clientHeight,width:$("cpt-atlas-graphs").clientWidth});
- setTimeout(recolor3d,120);
- $("cpt-atlas-status").textContent="Observed CPT blocks · drag to rotate · wheel to zoom. Silt layer color varies by measured thickness.";
+ active2d=false;document.body.classList.add("atlas-mode-3d");
+ $("cpt-atlas-2d").classList.add("atlas-hide");
+ mainGraph.classList.add("atlas-hide");
+ setSvg3dVisible(true);
+ $("atlas-2d").classList.remove("chosen");$("atlas-webgl").classList.remove("chosen");
+ $("atlas-3d").classList.add("chosen");
+ $("atlas-depth-tools").classList.remove("atlas-hide");
+ $("cpt-studio").classList.remove("atlas-hide");
+ renderSvg3d();
+ $("cpt-atlas-status").textContent="Measured CPT isometric soil columns · drag to rotate · Shift+drag to pan · wheel zoom. Exact surveyed positions; no invented geology.";
+}
+function showWebgl(){
+ active2d=false;document.body.classList.remove("atlas-mode-3d");
+ $("cpt-atlas-2d").classList.add("atlas-hide");
+ setSvg3dVisible(false);
+ mainGraph.classList.remove("atlas-hide");
+ $("atlas-2d").classList.remove("chosen");$("atlas-3d").classList.remove("chosen");
+ $("atlas-webgl").classList.add("chosen");
+ $("atlas-depth-tools").classList.add("atlas-hide");
+ $("cpt-studio").classList.remove("atlas-hide");
+ Plotly.relayout(mainGraph,{height:$("cpt-atlas-graphs").clientHeight,
+    width:$("cpt-atlas-graphs").clientWidth});
+ $("cpt-atlas-status").textContent="GPU-accelerated 3D. If graphics are unavailable, choose 3D SOIL COLUMNS for reliable interactive viewing.";
 }
 function show2d(){
- active2d=true;mainGraph.classList.add("atlas-hide");
- $("cpt-atlas-2d").classList.remove("atlas-hide");$("atlas-3d").classList.remove("chosen");$("atlas-2d").classList.add("chosen");
+ active2d=true;document.body.classList.remove("atlas-mode-3d");
+ mainGraph.classList.add("atlas-hide");setSvg3dVisible(false);
+ $("cpt-atlas-2d").classList.remove("atlas-hide");
+ $("atlas-3d").classList.remove("chosen");$("atlas-webgl").classList.remove("chosen");
+ $("atlas-2d").classList.add("chosen");
  $("cpt-studio").classList.add("atlas-hide");$("atlas-depth-tools").classList.remove("atlas-hide");
  render2d();setTimeout(()=>Plotly.Plots.resize($("cpt-atlas-2d")),60);
 }
@@ -520,6 +541,8 @@ function init(){
  depth=Number($("atlas-depth").value);
  $("atlas-depth-label").textContent=fmt(depth)+" m";
  $("atlas-2d").onclick=show2d;$("atlas-3d").onclick=show3d;
+ $("atlas-webgl").onclick=showWebgl;
+ initIsoInteraction();
  const setDepth=value=>{
   depth=Math.min(grand,Math.max(0,Number.isFinite(Number(value))?Number(value):depth));
   $("atlas-depth").value=depth;
@@ -539,6 +562,9 @@ function init(){
  zoom.onclick=()=>{navMode="zoom";zoom.classList.add("chosen");pan.classList.remove("chosen");
   if(active2d)Plotly.relayout("cpt-atlas-2d",{dragmode:"zoom"});};
  const zoomBy=factor=>{
+  if(!$("cpt-atlas-svg3d").classList.contains("atlas-hide")){
+    iso.zoom=Math.max(.4,Math.min(10,iso.zoom*factor));renderSvg3d();return;
+  }
   if(!active2d){Plotly.relayout(mainGraph,{"scene.camera.eye":{x:1.6/factor,y:-1.6/factor,z:1.05/factor}});return;}
   const g=$("cpt-atlas-2d");
   const xr=g.layout.xaxis.range,yr=g.layout.yaxis.range;
@@ -549,16 +575,45 @@ function init(){
  };
  $("atlas-zoom-in").onclick=()=>zoomBy(1.45);
  $("atlas-zoom-out").onclick=()=>zoomBy(1/1.45);
- $("atlas-fit").onclick=()=>active2d?Plotly.relayout("cpt-atlas-2d",{"xaxis.autorange":true,"yaxis.autorange":true}):
- Plotly.relayout(mainGraph,{"scene.camera.eye":{x:1.6,y:-1.6,z:1.05}});
+ $("atlas-fit").onclick=()=>{
+   if(!$("cpt-atlas-svg3d").classList.contains("atlas-hide")){
+      iso.zoom=1;iso.tx=0;iso.ty=0;iso.az=-.7;iso.elev=.53;renderSvg3d();
+   }else if(active2d){
+      Plotly.relayout("cpt-atlas-2d",{"xaxis.autorange":true,"yaxis.autorange":true});
+   }else Plotly.relayout(mainGraph,{"scene.camera.eye":{x:1.6,y:-1.6,z:1.05}});
+ };
  $("atlas-expand").onclick=()=>{
   document.body.classList.toggle("atlas-focus-map");
   const focused=document.body.classList.contains("atlas-focus-map");
   $("atlas-expand").textContent=focused?"SHOW DETAILS":"HIDE DETAILS";
   setTimeout(()=>Plotly.Plots.resize(active2d?$("cpt-atlas-2d"):mainGraph),120);
  };
- $("atlas-save").onclick=()=>Plotly.downloadImage(active2d?"cpt-atlas-2d":TARGET,
-  {format:"png",filename:"CPT_ATLAS_"+(active2d?"2D":"3D"),width:1800,height:1200,scale:1});
+ $("atlas-save").onclick=()=>{
+   if(!$("cpt-atlas-svg3d").classList.contains("atlas-hide"))saveIsometricPng();
+   else Plotly.downloadImage(active2d?"cpt-atlas-2d":TARGET,{
+        format:"png",filename:"CPT_ATLAS_"+(active2d?"2D":"WEBGL_3D"),
+        width:1800,height:1200,scale:1});
+ };
+ function saveIsometricPng(){
+   const svg=$("cpt-atlas-isometric");
+   const w=Math.round($("cpt-atlas-svg3d").clientWidth||1100);
+   const h=Math.round($("cpt-atlas-svg3d").clientHeight||750);
+   const xml=new XMLSerializer().serializeToString(svg);
+   const url="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(xml);
+   const pic=new Image();
+   pic.onload=()=>{
+     const cv=document.createElement("canvas");cv.width=w*2;cv.height=h*2;
+     const ctx=cv.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,cv.width,cv.height);
+     ctx.scale(2,2);ctx.drawImage(pic,0,0,w,h);
+     cv.toBlob(blob=>{
+       if(!blob)return;
+       const u=URL.createObjectURL(blob),link=document.createElement("a");
+       link.href=u;link.download="CPT_ATLAS_3D_MEASURED_SOIL.png";link.click();
+       setTimeout(()=>URL.revokeObjectURL(u),1200);
+     },"image/png");
+   };
+   pic.src=url;
+ }
  $("atlas-full").onclick=()=>{
    if(document.fullscreenElement)document.exitFullscreen();
    else $("cpt-atlas-map").requestFullscreen();
