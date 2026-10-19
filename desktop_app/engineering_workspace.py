@@ -19,7 +19,7 @@ from engineering_maps import coordinate_rows,filter_coordinate_outliers
 from engineering_3d_map import site_3d_figure
 from engineering_soil_maps import soil_depth_plan
 from engineering_geo_explorer import risk_plan, depth_window_plan
-from engineering_3d_studio import export_professional_3d as export_interactive_3d
+from engineering_geo_atlas import export_geo_atlas as export_interactive_3d
 from engineering_comparison import read_summary_xlsx, compare_summaries, export_comparison, read_site_boundary_xlsx
 from engineering_depth_comparison import compare_depth_profiles, export_depth_change
 from engineering_foundations import check_foundation_results, export_foundation_validation
@@ -737,7 +737,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             if not webbrowser.open(target.resolve().as_uri()):
                 messagebox.showinfo("3D model created","Open this local HTML in your browser:\n"+str(target))
             self.map_status.set(
-                f"Offline 3D explorer: {result['points']} surveyed CPTs | "
+                f"Offline 2D/3D Atlas: {result['points']} surveyed CPTs | "
                 f"{result['wedges']} locally supported interpretation wedges | "
                 f"{result['withheld']} survey coordinate exceptions. "
                 "Rotate, zoom and toggle layer visibility in the browser.")
