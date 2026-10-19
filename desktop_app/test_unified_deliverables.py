@@ -25,7 +25,12 @@ def test_all_in_one_xlsx_contains_all_cpt_measurements_maps_and_qa(tmp_path):
                      b"Project Maps",b"CPT Measurements",b"Source Audit"):
             assert name in manifest, name
         media=[n for n in book.namelist() if n.startswith("xl/media/image")]
-        assert len(media)>=2
+        assert len(media)>=5, "Workbook must embed three 2D soil-depth color maps, screening plan and 3D strata"
+        xml=b"".join(book.read(p) for p in book.namelist()
+                     if p.startswith("xl/worksheets/sheet") and p.endswith(".xml"))
+        assert b"SOIL CLASSIFICATION AT 2.00" in xml
+        assert b"SOIL CLASSIFICATION AT 4.50" in xml
+        assert b"SOIL CLASSIFICATION AT 5.40" in xml
         # All data rows in one output, not an external CSV or extra workbook.
         entries=book.read("xl/sharedStrings.xml") if "xl/sharedStrings.xml" in book.namelist() else b""
         entries+=b"".join(book.read(n) for n in book.namelist()
