@@ -115,7 +115,11 @@ def run_real_pdf_acceptance(root, out, *, expected_physical=None,
             warnings.append({"reference":row.reference,"status":"REVIEW",
                   "reason":str(getattr(row,"verification_note","") or ""),
                   "source":row.source_path.name})
+    from engineering_review_triage import review_register,triage_counts
+    triage=review_register(unique)
     summary={
+      "review_category_counts":triage_counts(unique),
+      "review_resolution_register":triage,
       "disposition":"SOURCE PIPELINE AUDIT ONLY — not engineer-approved CPT design",
       "source_root":str(root),
       "physical_pdfs":len(sources),
