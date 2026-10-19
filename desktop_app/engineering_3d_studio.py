@@ -151,6 +151,8 @@ def _control_html(segments, excluded):
         'Rotate by dragging the model; use the mouse wheel to zoom.</div>'
         f'<div class="cpt-options">{choices}'
         '<label class="cpt-toggle"><input type="checkbox" id="cpt-wedges">Indicative wedges</label>'
+        '<label class="cpt-toggle"><input type="checkbox" id="cpt-thickness-color" checked>'
+        'Color fine-grained blocks by thickness (blue → yellow → red)</label>'
         '</div><div class="cpt-range">'
         '<label for="cpt-top">Top BGL</label><input type="range" id="cpt-top" min="0" max="10" step="0.1" value="0">'
         '<output id="cpt-top-value">0.0 m</output>'
@@ -180,6 +182,14 @@ const COLORS={sand:"#e6b86c",transition:"#eaa352",silt:"#e65f4b",clay:"#8e77c6",
 const LABELS={sand:"Sand-like SBT",transition:"Transitional SBT",silt:"Silt-mixture SBT",
               clay:"Clay/organic-like SBT",unknown:"UNKNOWN sensor coverage"};
 const categories=Object.keys(COLORS);
+const RAMP=[[49,104,142],[53,183,121],[249,214,67],[235,112,47],[176,22,64]];
+const siltBlocks=SEGMENTS.filter(s=>s.category==="silt"&&s.bottom>s.top);
+const maxSilt=Math.max(.01,...siltBlocks.map(s=>s.maximum_cpt_silt_m??s.bottom-s.top));
+function thicknessColor(value){
+ let t=Math.min(.999999,Math.max(0,Number(value||0)/maxSilt))*4;
+ let i=Math.floor(t),f=t-i;
+ return "#"+RAMP[i].map((p,j)=>Math.round(p+(RAMP[i+1][j]-p)*f).toString(16).padStart(2,"0")).join("");
+}
 const checkbox=k=>document.querySelector('[data-layer="'+k+'"]');
 const $=id=>document.getElementById(id);
 function start(){
@@ -219,9 +229,9 @@ function start(){
       $("cpt-top-value").textContent=lo.toFixed(1)+" m";
       $("cpt-bottom-value").textContent=hi.toFixed(1)+" m";
       let rendered=0,cpts=new Set();
-      let updates={x:[],y:[],z:[],i:[],j:[],k:[],text:[],visible:[]};
+      let updates={x:[],y:[],z:[],i:[],j:[],k:[],text:[],visible:[],vertexcolor:[]};
       for(const category of categories){
-        const xs=[],ys=[],zs=[],texts=[],ii=[],jj=[],kk=[];
+        const xs=[],ys=[],zs=[],texts=[],ii=[],jj=[],kk=[],vertexColors=[];
         for(const s of SEGMENTS){
           if(s.category!==category||s.bottom<=lo||s.top>=hi)continue;
           const top=Math.max(s.top,lo),bottom=Math.min(s.bottom,hi);
@@ -244,12 +254,19 @@ function start(){
           const hover="<b>"+s.ref+"</b><br>"+s.source+"<br>Measured BGL "+
              top.toFixed(2)+"–"+bottom.toFixed(2)+" m<br>"+s.quality+
              "<br>Colored column is a CPT profile SYMBOL, not continuous geology";
-          for(let vertex=0;vertex<8;vertex++)texts.push(hover);
+          const color=(category==="silt"&&$("cpt-thickness-color").checked)?
+                thicknessColor(s.maximum_cpt_silt_m??s.bottom-s.top):COLORS[category];
+          for(let vertex=0;vertex<8;vertex++){
+             texts.push(hover+"<br>Maximum observed CPT silt: "+
+                  Number(s.maximum_cpt_silt_m||0).toFixed(3)+" m");
+             vertexColors.push(color);
+          }
           rendered++;cpts.add(s.ref);
         }
         updates.x.push(xs);updates.y.push(ys);updates.z.push(zs);
         updates.i.push(ii);updates.j.push(jj);updates.k.push(kk);
         updates.text.push(texts);
+        updates.vertexcolor.push(vertexColors);
         updates.visible.push(!!checkbox(category).checked);
       }
       Plotly.restyle(gd,updates,categories.map(k=>idx[k]));
@@ -260,6 +277,7 @@ function start(){
    }
    categories.forEach(k=>checkbox(k).addEventListener("change",redraw));
    $("cpt-wedges").addEventListener("change",redraw);
+   $("cpt-thickness-color").addEventListener("change",redraw);
    $("cpt-top").addEventListener("input",redraw);
    $("cpt-bottom").addEventListener("input",redraw);
    $("cpt-reset").addEventListener("click",()=>{$("cpt-top").value=0;$("cpt-bottom").value=maximum;redraw()});
@@ -290,6 +308,10 @@ def export_professional_3d(data,path,*,boundary=None,warning_m=.10,
     base=export_interactive_3d(data,output,boundary=boundary,
         warning_m=warning_m,high_m=high_m,max_spacing_m=max_spacing_m)
     segments,outliers,origin=collect_observed_segments(data)
+    point_rows,_=spatial_points(data)
+    max_by_ref={p.reference:float(p.maximum_m) for p in point_rows}
+    for segment in segments:
+        segment["maximum_cpt_silt_m"]=max_by_ref.get(segment["ref"],0.0)
     source=output.read_text(encoding="utf-8")
     # The first Plotly plot is the measured 3D scene, followed by two fence
     # section figures. Do not change the fence plot IDs.
