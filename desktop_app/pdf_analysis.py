@@ -115,7 +115,8 @@ def _parse_pdf_metadata(page, path: Path) -> dict:
         "ground_elevation": ground,
         "easting": easting,
         "northing": northing,
-        "file_date": _block_value(page, "Test Date"),
+        "test_date": _block_value(page, "Test Date"),
+        "file_date": "",  # source PDF reports a test date, not GEF FILEDATE
         "area_ratio": None,
         "standard": "PDF vector report",
         "input_type": "PDF",
