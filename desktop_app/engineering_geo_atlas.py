@@ -294,9 +294,12 @@ function renderSvg3d(){
  const midx=(Math.min(...xs)+Math.max(...xs))/2;
  const midy=(Math.min(...ys)+Math.max(...ys))/2;
  const span=Math.max(15,Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys));
- const hscale=Math.min((w-95)/(span*1.6),(h-70)/(span*1.65))*iso.zoom;
- const vertical=(h/86)*(iso.vertical/6)*iso.zoom;
- const midz=SOURCE.reduce((a,p)=>a+Number(p.rl||0),0)/SOURCE.length;
+ // Fit to actual CPT depths. Former h/86 scale reduced 6m to just ~30px.
+ const deepest=Math.max(3,...SEG.map(s=>Number(s.bottom)||0));
+ const hscale=Math.min((w-92)/(span*1.22),(h-64)/(span*1.05))*iso.zoom;
+ const vertical=Math.min(52,h*.52/deepest)*(iso.vertical/6)*iso.zoom;
+ const meanGround=SOURCE.reduce((a,p)=>a+Number(p.rl||0),0)/SOURCE.length;
+ const midz=meanGround-deepest*.47;
  const cos=Math.cos(iso.az),sin=Math.sin(iso.az);
  function project(x,y,z){
   const dx=x-midx,dy=y-midy;
