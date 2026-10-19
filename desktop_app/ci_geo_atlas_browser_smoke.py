@@ -31,11 +31,30 @@ def main():
             try:
                 page=browser.new_page(viewport={"width":1440,"height":900},device_scale_factor=1)
                 exceptions=[]
+                console=[]
                 page.on("pageerror",lambda err:exceptions.append(str(err)))
+                page.on("console",lambda msg:console.append(msg.type+": "+msg.text))
                 page.goto(target.as_uri(),wait_until="load",timeout=100000)
-                page.wait_for_function(
-                    "() => {let e=document.getElementById('cpt-atlas-2d');return !!e && !!e.data && e.data.length>=2;}",
-                    timeout=100000)
+                try:
+                    page.wait_for_function(
+                        "() => {let e=document.getElementById('cpt-atlas-2d');return !!e && !!e.data && e.data.length>=2;}",
+                        timeout=30000)
+                except Exception:
+                    print("ATLAS INITIALIZATION FAILURE. JS ERRORS:",repr(exceptions))
+                    print("BROWSER CONSOLE:",repr(console[-15:]))
+                    try:
+                        print("DOM STATE:",page.evaluate("""() => ({
+                            ready:document.readyState,plotly:!!window.Plotly,
+                            original:!!document.getElementById('cpt-studio'),
+                            atlas:!!document.getElementById('cpt-atlas-screen'),
+                            canvas:!!document.getElementById('cpt-atlas-2d'),
+                            traces:document.getElementById('cpt-atlas-2d')?.data?.length,
+                            primaryTraces:[...document.querySelectorAll('.plotly-graph-div')]
+                                .map(x=>({id:x.id,n:x.data?.length||0}))
+                        })"""))
+                        page.screenshot(path=str(screenshots/"00-startup-error.png"),full_page=True)
+                    except Exception as e:print("Browser state inspection failed",e)
+                    raise
                 assert page.locator("#atlas-2d").is_visible()
                 assert page.locator("#cpt-atlas-2d").is_visible()
                 page.screenshot(path=str(screenshots/"01-soil-plan.png"),full_page=True)
