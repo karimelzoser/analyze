@@ -45,11 +45,11 @@ def _level_axis(a):
         upper=math.ceil((float(np.max(measured))+.03)*2)/2
         lower=math.floor((float(np.min(measured))-.03)*2)/2
         if upper-lower<.5:lower=upper-.5
-        return level,"Elevation RL, m",(upper,lower)
+        return level,"Elevation RL, m",(lower,upper)
     top=max(0.,math.floor((float(np.min(valid))-.03)*2)/2)
     bottom=math.ceil((float(np.max(valid))+.03)*2)/2
     if bottom-top<.5:bottom=top+.5
-    return depth,"Depth BGL, m",(top,bottom)
+    return depth,"Depth BGL, m",(bottom,top)
 
 
 def report_page(a: CPTAnalysis) -> Figure:
