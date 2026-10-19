@@ -99,6 +99,15 @@ def main():
                 # GPU-free column view must show actual soil shapes, not a
                 # blank WebGL scene with only Plotly legends.
                 assert page.locator("#cpt-atlas-svg3d svg polygon").count()>=4
+                # Engineer usability regression: columns must occupy meaningful
+                # vertical plotting space rather than the previous ~30px sticks.
+                column_height=page.evaluate("""() => {
+                  const shapes=[...document.querySelectorAll('#cpt-atlas-svg3d polygon.soil-svg-body')];
+                  const y=shapes.flatMap(p=>p.getAttribute('points').trim().split(/\\s+/)
+                               .map(pair=>Number(pair.split(',')[1])));
+                  return y.length ? Math.max(...y)-Math.min(...y) : 0;
+                }""")
+                assert column_height>120, f"3D CPT layers too small to inspect: {column_height:.1f}px high"
                 # GPU-independent SVG is the primary 3D model. Requiring a
                 # WebGL mesh in the hidden optional plot prevents this app
                 # working on engineering PCs without stable graphics drivers.
