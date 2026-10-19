@@ -41,3 +41,30 @@ def test_comparable_full_depth_revisions_with_different_interpretation_remain_re
     selected,_=select_project_results([first,second],[first.source_path,second.source_path])
     assert selected[0].status=="REVIEW"
     assert selected[0].metadata["source_revision_conflict"] is True
+
+
+def test_b254_two_substantial_retests_require_review_but_retain_provisional_numbers():
+    old=SimpleNamespace(source_path=Path("P261074_CPT-A2-B254-100.GEF"),
+        reference="CPT-A2-B254-100",status="VERIFIED",
+        final_interval=SimpleNamespace(start=3.7,end=3.9,thickness=.2),
+        metadata={"easting":421269.814,"northing":2927368.449,
+                  "ground_elevation":3.93},
+        verification_note="first full sounding",test_depth_raw=4.870633)
+    new=SimpleNamespace(source_path=Path("P261074_CPT-A2-B254-100-1.GEF"),
+        reference="CPT-A2-B254-100",status="VERIFIED",
+        final_interval=SimpleNamespace(start=5.55,end=5.63,thickness=.08),
+        metadata={"easting":421269.814,"northing":2927368.449,
+                  "ground_elevation":3.93},
+        verification_note="second full sounding",test_depth_raw=5.730286)
+    selected,audit=select_project_results([old,new],
+                              [old.source_path,new.source_path])
+    assert len(selected)==1
+    item=selected[0]
+    assert item.status=="REVIEW"
+    assert item.metadata["source_revision_conflict"] is True
+    assert item.metadata["incomplete_source_count"]==0
+    assert item.metadata["provisional_conflicting_result"] is True
+    assert item.final_interval is not None
+    assert item.final_interval.start==5.55
+    assert item.final_interval.thickness==.08
+    assert len(audit)==2
