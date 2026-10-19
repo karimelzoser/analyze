@@ -874,10 +874,10 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         try:
             current_batch=self.map_data_source.get()=="Current CPT batch"
             target=None
-            if current_batch:
-                completed=getattr(self,"_latest_atlas_path",None)
-                if completed and Path(completed).is_file():
-                    target=Path(completed)
+            # Always rebuild from currently displayed CPT data. A previously
+            # exported HTML can be from an earlier app / soil-model version,
+            # and opening that cached file made UI upgrades appear missing.
+            # Offline generation is deterministic and does not need internet.
             if target is None:
                 dataset=self._map_dataset()
                 if not dataset:
