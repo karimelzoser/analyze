@@ -141,6 +141,14 @@ def _packaged_gui_smoke():
                             raise RuntimeError("Unified Excel lacks "+str(name))
                     if len([n for n in book.namelist() if n.startswith("xl/media/image")])<2:
                         raise RuntimeError("Unified Excel lacks embedded 2D/3D map images")
+                atlas=destination/"CPT_Interactive_2D_3D_Atlas.html"
+                if not atlas.is_file() or atlas.stat().st_size<100000:
+                    raise RuntimeError("A completed CPT batch must deliver a fully offline interactive soil atlas")
+                markup=atlas.read_text(encoding="utf-8")
+                for required in ("2D SOIL PLAN","3D SOIL COLUMNS",
+                                 "SOIL BEHAVIOR CLASSES","INSPECT SELECTED CPT"):
+                    if required not in markup:
+                        raise RuntimeError("Missing interactive Atlas workflow: "+required)
                 # Preserve representative synthetic output for visual QA,
                 # independent of the private user project.
                 sample_dir=os.environ.get("CPT_QA_SAMPLE_DIR")
@@ -149,6 +157,7 @@ def _packaged_gui_smoke():
                     target=Path(sample_dir);target.mkdir(parents=True,exist_ok=True)
                     shutil.copy2(latest,target/"Synthetic_CPT_Full_Analysis.xlsx")
                     shutil.copy2(reports[0],target/"Synthetic_CPT_Full_Analysis.pdf")
+                    shutil.copy2(atlas,target/"Synthetic_CPT_Interactive_Soil_Atlas.html")
                 from threading import Event
                 root.cancel_event=Event()
                 root.cancel_event.set()
