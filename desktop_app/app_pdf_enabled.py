@@ -248,14 +248,22 @@ def select_project_results(analyses, all_sources=None, analysis_errors=None):
         datum_conflict=any(
             abs(z-levels[0][0])>.08 for z,_ in levels[1:]) if len(levels)>1 else False
         if conflict or spatial_conflict or datum_conflict:
-            reason += (" SOURCE CONFLICT: revisions disagree in final engineering"
-                       " classification, measured coordinates, or ground elevation."
-                       " No verified project value was selected; manual reconciliation required.")
+            reason += (" SOURCE CONFLICT: comparable full-depth revisions disagree"
+                       " in observed engineering classification, physical coordinates,"
+                       " or ground elevation. Selected numeric result is PROVISIONAL,"
+                       " not accepted. All conflicting measurements remain in"
+                       " Source Audit for required engineering reconciliation.")
             selected.status="REVIEW"
-            selected.final_interval=None
+            # Keep original measured candidate interval so the project sheet
+            # shows an analyzed number, not an empty cell. Its REVIEW status
+            # and SOURCE CONFLICT label remain mandatory until sign-off.
+            selected.metadata=dict(selected.metadata)
+            selected.metadata["provisional_conflicting_result"]=True
             selected.verification_note=(str(selected.verification_note or "")+
-                 " Project source revisions conflict. Resolve original test identity,"
-                 " survey coordinates, ground datum and selected report before approval.")
+                 " Project full-depth source revisions CONFLICT. The displayed"
+                 " start/thickness is preliminary, NOT VERIFIED. Compare"
+                 " original field-test identity, depth, qc/fs curves, survey"
+                 " datum and accepted retest before engineering use.")
 
         original_ref = selected.reference
         selected.metadata = dict(selected.metadata)
