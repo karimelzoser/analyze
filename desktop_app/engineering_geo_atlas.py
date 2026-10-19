@@ -271,6 +271,169 @@ function render2d(){
  $("cpt-atlas-status").textContent=SOURCE.length+" surveyed CPTs · "+FACES.length+
   " supported triangles · "+depth.toFixed(2)+"m BGL. Colored areas are INTERPRETED; markers are MEASURED.";
 }
+// GPU-independent 3D projection. Every face belongs to one measured CPT
+// depth interval; it never invents a continuous subsurface between tests.
+const SVGNS="http://www.w3.org/2000/svg";
+const iso={az:-.70,elev:.53,zoom:1,tx:0,ty:0,vertical:6,drag:false,
+            pointerX:0,pointerY:0,moved:false,shift:false};
+function svgNode(name,attrs={},text=null){
+ const el=document.createElementNS(SVGNS,name);
+ Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,String(v)));
+ if(text!==null)el.textContent=String(text);
+ return el;
+}
+function renderSvg3d(){
+ const svg=$("cpt-atlas-isometric"),host=$("cpt-atlas-svg3d");
+ if(!svg||!host)return;
+ const w=Math.max(320,host.clientWidth),h=Math.max(270,host.clientHeight);
+ svg.setAttribute("viewBox","0 0 "+w+" "+h);
+ svg.replaceChildren();
+ const xs=SOURCE.map(p=>p.x),ys=SOURCE.map(p=>p.y);
+ if(!xs.length)return;
+ const midx=(Math.min(...xs)+Math.max(...xs))/2;
+ const midy=(Math.min(...ys)+Math.max(...ys))/2;
+ const span=Math.max(15,Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys));
+ const hscale=Math.min((w-95)/(span*1.6),(h-70)/(span*1.65))*iso.zoom;
+ const vertical=(h/86)*(iso.vertical/6)*iso.zoom;
+ const midz=SOURCE.reduce((a,p)=>a+Number(p.rl||0),0)/SOURCE.length;
+ const cos=Math.cos(iso.az),sin=Math.sin(iso.az);
+ function project(x,y,z){
+  const dx=x-midx,dy=y-midy;
+  const rx=dx*cos-dy*sin,ry=dx*sin+dy*cos;
+  return [w/2+iso.tx+rx*hscale,h/2+iso.ty+ry*hscale*iso.elev-(z-midz)*vertical];
+ }
+ const bg=svgNode("g");
+ for(let q=0;q<9;q++){
+  const offset=(q-4)*span/6;
+  const a=project(midx-span/2,midy+offset,midz-5);
+  const b=project(midx+span/2,midy+offset,midz-5);
+  bg.appendChild(svgNode("line",{x1:a[0],y1:a[1],x2:b[0],y2:b[1],
+                   stroke:"#e1eaf2","stroke-width":1}));
+ }
+ svg.appendChild(bg);
+ const stTop=Number($("cpt-top")?.value??0);
+ const stBot=Number($("cpt-bottom")?.value??1e3);
+ const surfaceColor=$("cpt-thickness-color")?.checked!==false;
+ if(BOUND&&BOUND.length){
+  const poly=[...BOUND,BOUND[0]];
+  const coords=poly.map(([x,y])=>project(x,y,midz));
+  svg.appendChild(svgNode("polyline",{
+   points:coords.map(q=>q.join(",")).join(" "),fill:"none",
+   stroke:"#4b647b","stroke-width":2,"stroke-dasharray":"6 3"
+  }));
+ }
+ const selectable=[];
+ const candidates=SEG.filter(s=>s.bottom>stTop&&s.top<stBot&&
+   ($("[data-layer='"+s.category+"']")?.checked!==false))
+  .map(s=>({...s,drawTop:Math.max(s.top,stTop),
+             drawBottom:Math.min(s.bottom,stBot)}))
+  .filter(s=>s.drawBottom>s.drawTop)
+  .map(s=>({...s,sort:(project(s.x,s.y,s.z0)[1])}))
+  .sort((a,b)=>a.sort-b.sort);
+ for(const s of candidates){
+  const collar=byref[s.ref];if(!collar)continue;
+  const zTop=s.z0-(s.drawTop-s.top),zBot=s.z0-(s.drawBottom-s.top);
+  const top=project(s.x,s.y,zTop),bot=project(s.x,s.y,zBot);
+  const bw=Math.max(4,Math.min(11,hscale*.7)),d=Math.max(2,bw*.55);
+  const main=svgNode("polygon",{
+    points:[[top[0]-bw,top[1]],[top[0]+bw,top[1]],
+            [bot[0]+bw,bot[1]],[bot[0]-bw,bot[1]]].map(q=>q.join(",")).join(" "),
+    fill:COLORS[s.category]||COLORS.unknown,stroke:"#ffffff",
+    "stroke-width":.65,class:"soil-svg-body"
+  });
+  const side=svgNode("polygon",{
+    points:[[top[0]+bw,top[1]],[top[0]+bw+d,top[1]-d],
+            [bot[0]+bw+d,bot[1]-d],[bot[0]+bw,bot[1]]].map(q=>q.join(",")).join(" "),
+    fill:COLORS[s.category]||COLORS.unknown,"fill-opacity":.72,
+    stroke:"#ffffff","stroke-width":.5
+  });
+  const cap=svgNode("polygon",{
+    points:[[top[0]-bw,top[1]],[top[0]+bw,top[1]],
+            [top[0]+bw+d,top[1]-d],[top[0]-bw+d,top[1]-d]].map(q=>q.join(",")).join(" "),
+    fill:COLORS[s.category]||COLORS.unknown,"fill-opacity":.86
+  });
+  const label=s.ref+" | "+s.category+" | BGL "+fmt(s.drawTop,2)+
+       "–"+fmt(s.drawBottom,2)+" m | CPT maximum "+fmt(collar.max,3)+" m";
+  main.appendChild(svgNode("title",{},label));
+  side.appendChild(svgNode("title",{},label));
+  for(const el of [main,side,cap]){
+   el.style.cursor="pointer";
+   el.addEventListener("click",e=>{
+      if(iso.moved)return;
+      e.stopPropagation();inspect(collar);renderSvg3d();
+   });
+   svg.appendChild(el);
+  }
+ }
+ for(const p of SOURCE){
+  const pos=project(p.x,p.y,p.rl??midz);
+  const radius=p.ref===selected?7.6:5;
+  const circle=svgNode("circle",{cx:pos[0],cy:pos[1],r:radius,
+    fill:surfaceColor?ramp(p.max):"#1b688c",
+    stroke:p.ref===selected?"#0c2439":"#ffffff",
+    "stroke-width":p.ref===selected?2.7:1.6,
+    style:"cursor:pointer"});
+  circle.appendChild(svgNode("title",{},p.ref+" — max silt "+fmt(p.max,3)+
+      " m; cumulative "+fmt(p.cum,3)+" m; click to inspect"));
+  circle.addEventListener("click",e=>{
+    if(iso.moved)return;
+    e.stopPropagation();inspect(p);renderSvg3d();
+  });
+  svg.appendChild(circle);
+  if(p.ref===selected){
+    svg.appendChild(svgNode("text",{x:pos[0]+11,y:pos[1]-8,
+                   class:"soil-svg-label","font-weight":"bold"},p.ref));
+  }
+ }
+ svg.appendChild(svgNode("text",{x:20,y:30,fill:"#21445f",
+        style:"font:600 15px Segoe UI,Arial,sans-serif"},
+        "Interactive CPT 3D columns · surveyed XY and actual measured depths"));
+ svg.appendChild(svgNode("text",{x:20,y:50,fill:"#657e90",
+        style:"font:11px Segoe UI,Arial,sans-serif"},
+        "Drag to rotate · Shift+drag to pan · Wheel to zoom · Click a CPT"));
+ svg.appendChild(svgNode("text",{x:20,y:h-16,fill:"#657e90",
+        style:"font:11px Segoe UI,Arial,sans-serif"},
+        "Schematic column width and vertical exaggeration · no interpolated geology"));
+}
+function setSvg3dVisible(visible){
+ const svg=$("cpt-atlas-svg3d");
+ if(visible)svg.classList.remove("atlas-hide");else svg.classList.add("atlas-hide");
+ $("atlas-vertical").classList.toggle("atlas-hide",!visible);
+ $("atlas-vertical-label").classList.toggle("atlas-hide",!visible);
+}
+function initIsoInteraction(){
+ const host=$("cpt-atlas-svg3d");if(!host)return;
+ host.addEventListener("pointerdown",e=>{
+   iso.drag=true;iso.moved=false;iso.shift=e.shiftKey;
+   iso.pointerX=e.clientX;iso.pointerY=e.clientY;
+   host.setPointerCapture(e.pointerId);
+ });
+ host.addEventListener("pointermove",e=>{
+   if(!iso.drag)return;
+   const dx=e.clientX-iso.pointerX,dy=e.clientY-iso.pointerY;
+   if(Math.abs(dx)+Math.abs(dy)>2)iso.moved=true;
+   if(iso.shift){iso.tx+=dx;iso.ty+=dy;}
+   else{iso.az+=dx*.011;iso.elev=Math.max(.14,Math.min(.88,iso.elev+dy*.004));}
+   iso.pointerX=e.clientX;iso.pointerY=e.clientY;
+   renderSvg3d();
+ });
+ host.addEventListener("pointerup",e=>{
+   iso.drag=false;
+   setTimeout(()=>{iso.moved=false},70);
+ });
+ host.addEventListener("wheel",e=>{
+   if(host.classList.contains("atlas-hide"))return;
+   e.preventDefault();
+   iso.zoom=Math.max(.4,Math.min(10,iso.zoom*(e.deltaY<0?1.12:.89)));
+   renderSvg3d();
+ },{passive:false});
+ $("atlas-vertical").oninput=e=>{iso.vertical=Number(e.target.value);renderSvg3d();};
+ for(const id of ["cpt-top","cpt-bottom"])
+   $(id)?.addEventListener("input",()=>{if(!host.classList.contains("atlas-hide"))renderSvg3d();});
+ document.querySelectorAll("[data-layer]").forEach(el=>
+   el.addEventListener("change",()=>{if(!host.classList.contains("atlas-hide"))renderSvg3d();}));
+ $("cpt-thickness-color")?.addEventListener("change",()=>renderSvg3d());
+}
 function show3d(){
  active2d=false;$("cpt-atlas-2d").classList.add("atlas-hide");
  mainGraph.classList.remove("atlas-hide");$("atlas-2d").classList.remove("chosen");$("atlas-3d").classList.add("chosen");
