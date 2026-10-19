@@ -865,28 +865,56 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             messagebox.showerror("3D export unsuccessful",str(exc))
 
     def open_interactive_3d(self):
+        """Open the full portable soil Atlas rather than a static site map."""
+        import os
         import webbrowser
-        import tempfile
         try:
-            dataset=self._map_dataset()
-            # A standalone HTML document contains Plotly itself; it remains
-            # usable offline and can be opened in any modern local browser.
-            if not hasattr(self,"_geo_html_dir"):
-                from tempfile import TemporaryDirectory
-                self._geo_html_dir=TemporaryDirectory(prefix="cpt_3d_explorer_")
-            target=Path(self._geo_html_dir.name)/"CPT_Interactive_2D_3D_Atlas.html"
-            result=export_interactive_3d(dataset,target,boundary=self.site_boundary,
-                         warning_m=float(self.risk_watch.get()),
-                         high_m=float(self.risk_high.get()))
-            if not webbrowser.open(target.resolve().as_uri()):
-                messagebox.showinfo("3D model created","Open this local HTML in your browser:\n"+str(target))
+            current_batch=self.map_data_source.get()=="Current CPT batch"
+            target=None
+            if current_batch:
+                completed=getattr(self,"_latest_atlas_path",None)
+                if completed and Path(completed).is_file():
+                    target=Path(completed)
+            if target is None:
+                dataset=self._map_dataset()
+                if not dataset:
+                    messagebox.showinfo("No CPT data",
+                        "Analyze GEF/GFF files or select the original XLSB project.")
+                    return
+                if getattr(self,"output_dir",None):
+                    directory=Path(self.output_dir)
+                    directory.mkdir(parents=True,exist_ok=True)
+                else:
+                    from tempfile import TemporaryDirectory
+                    if not hasattr(self,"_geo_html_dir"):
+                        self._geo_html_dir=TemporaryDirectory(prefix="cpt_soil_atlas_")
+                    directory=Path(self._geo_html_dir.name)
+                label="Current_CPTs" if current_batch else "Original_XLSB"
+                target=directory/("CPT_Interactive_2D_3D_Atlas_"+label+".html")
+                export_interactive_3d(dataset,target,boundary=self.site_boundary,
+                    warning_m=float(self.risk_watch.get()),
+                    high_m=float(self.risk_high.get()))
+                if current_batch:
+                    self._latest_atlas_path=target
+            if not target.is_file() or target.stat().st_size<100000:
+                raise RuntimeError("The offline interactive atlas was not fully generated.")
+            launched=False
+            if os.name=="nt":
+                try:
+                    os.startfile(str(target.resolve()))
+                    launched=True
+                except OSError:
+                    pass
+            if not launched:
+                launched=bool(webbrowser.open_new_tab(target.resolve().as_uri()))
+            if not launched:
+                messagebox.showinfo("Soil Atlas is ready",
+                    "Open this HTML file in Chrome or Edge:\n"+str(target.resolve()))
             self.map_status.set(
-                f"Offline 2D/3D Atlas: {result['points']} surveyed CPTs | "
-                f"{result['wedges']} locally supported interpretation wedges | "
-                f"{result['withheld']} survey coordinate exceptions. "
-                "Rotate, zoom and toggle layer visibility in the browser.")
+                "2D soil-depth colors + rotatable 3D SBT layers + surveyed CPTs: "+target.name)
+            self.status_var.set("Interactive soil Atlas: "+str(target))
         except Exception as exc:
-            messagebox.showerror("3D geology model unavailable",str(exc))
+            messagebox.showerror("Interactive soil model unavailable",str(exc))
 
     def refresh_map(self):
         if not hasattr(self,"map_ax"):return
