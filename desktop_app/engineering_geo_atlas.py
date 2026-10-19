@@ -420,7 +420,7 @@ def export_geo_atlas(data, path, *, boundary=None, warning_m=.10, high_m=.30,
     code=(SCRIPT.replace("__SOURCE__",json.dumps(data_rows,separators=(",",":")).replace("<","\\u003c"))
           .replace("__SEG__",json.dumps(segments,separators=(",",":")).replace("<","\\u003c"))
           .replace("__FACES__",json.dumps(faces,separators=(",",":")))
-          .replace("__BOUND__",json.dumps(boundary_rows,separators=(",",":"))
+          .replace("__BOUND__",json.dumps(boundary_rows,separators=(",",":")))
           .replace("__TARGET__",json.dumps(found.group(1))))
     content=content.replace("</body>",STYLE+code+"</body>",1)
     target.write_text(content,encoding="utf-8")
