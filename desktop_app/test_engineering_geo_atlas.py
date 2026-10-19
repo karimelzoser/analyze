@@ -38,7 +38,7 @@ def test_atlas_offline_interactive_maps_and_raw_parameters(tmp_path):
     html=out.read_text(encoding="utf-8")
     assert len(html)>2_000_000
     for token in ('two.id="cpt-atlas-2d"','host.id="cpt-atlas-screen"','2D SOIL PLAN',
-                  "3D SUBSURFACE","plotly_click","qc at ","Easting",
+                  "3D SOIL COLUMNS","plotly_click","qc at ","Easting",
                   "Max silt", "Supported"):
         # Some tokens are authored by DOM JavaScript rather than initial HTML.
         assert token.lower() in html.lower(),token
