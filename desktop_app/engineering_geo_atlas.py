@@ -411,6 +411,12 @@ function init(){
     const hit=evt.points.find(p=>p.customdata&&typeof p.customdata==="string");
     if(hit)inspect(byref[hit.customdata]);
    });
+   const thicknessToggle=$("cpt-thickness-color");
+   const collarIndex=mainGraph.data.findIndex(t=>t.name==="Measured CPT collars · thickness");
+   if(thicknessToggle&&collarIndex>=0){
+     thicknessToggle.onchange=()=>Plotly.restyle(mainGraph,
+                                  {visible:thicknessToggle.checked},[collarIndex]);
+   }
    for(const id of ["cpt-top","cpt-bottom"])$(id).addEventListener("input",()=>setTimeout(recolor3d,80));
    recolor3d();
  }).catch(error=>{
