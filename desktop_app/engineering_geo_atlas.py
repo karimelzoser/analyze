@@ -66,6 +66,19 @@ body{background:#eef3f7!important;font-family:Segoe UI,Inter,Arial,sans-serif}
 .atlas-fences{padding:0 12px 10px;background:#f4f8fb}
 .atlas-fences summary{padding:12px;cursor:pointer;font-weight:700}
 #cpt-atlas-2d{position:absolute;inset:0;z-index:2;background:#fff}
+#cpt-atlas-header button:focus-visible,#cpt-atlas-rank button:focus-visible{
+ outline:3px solid #4ca8dc;outline-offset:2px}
+body.atlas-focus-map #cpt-atlas-screen{grid-template-columns:minmax(0,1fr)!important}
+body.atlas-focus-map #cpt-atlas-aside{display:none}
+#cpt-atlas-header button:hover{background:#e6f3fa;border-color:#69a4c9}
+#cpt-atlas-header button.chosen:hover{background:#075278;color:#fff}
+#atlas-depth-number{width:67px;text-align:center}
+#cpt-atlas-aside{scrollbar-gutter:stable}
+#cpt-atlas-graphs .modebar-container{z-index:10}
+@media (max-height:760px){#cpt-atlas-screen{min-height:440px}
+ #cpt-atlas-header{padding:7px 13px;gap:7px}
+ #cpt-studio .cpt-options{margin:3px 0}
+}
 @media(max-width:970px){
  #cpt-atlas-screen{grid-template-columns:minmax(0,1fr) 260px}
  #cpt-atlas-header strong{font-size:16px}
@@ -90,7 +103,7 @@ const $=id=>document.getElementById(id);
 const fmt=(value,n=2)=>value===null||value===undefined||!Number.isFinite(Number(value))?"—":Number(value).toFixed(n);
 const clean=s=>String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 const maxval=Math.max(.01,...SOURCE.map(p=>p.max||0));
-let active2d=false,selected=null,depth=4.5;
+let active2d=false,selected=null,depth=4.5,navMode="pan";
 let mainGraph=null,mainPanel=null;
 const byref=Object.fromEntries(SOURCE.map(p=>[p.ref,p]));
 const segmap={};
@@ -212,7 +225,7 @@ function render2d(){
   line:{color:"#263e55",width:2},hoverinfo:"skip",showlegend:false}]:[];
  const layout={paper_bgcolor:"#fff",plot_bgcolor:"#f9fcff",
   margin:{l:60,r:type==="soil"?17:84,t:43,b:57},
-  dragmode:"pan",hovermode:"closest",uirevision:"cpt-atlas-pan",
+  dragmode:navMode,hovermode:"closest",uirevision:"cpt-atlas-pan",
   xaxis:{title:{text:"Easting offset from "+fmt(SOURCE[0].east-SOURCE[0].x,1)+" m"},
    range:[g.xs[0],g.xs[g.xs.length-1]],showgrid:true,gridcolor:"#e3edf4"},
   yaxis:{title:{text:"Northing offset from "+fmt(SOURCE[0].north-SOURCE[0].y,1)+" m"},
@@ -248,20 +261,9 @@ function show2d(){
  render2d();setTimeout(()=>Plotly.Plots.resize($("cpt-atlas-2d")),60);
 }
 function recolor3d(){
- if(!mainGraph.data)return;
- const idx=mainGraph.data.findIndex(t=>/Silt-mixture SBT.*observed soil blocks/.test(t.name||""));
- if(idx<0)return;
- const layer=mainGraph.data[idx];if(!layer.x)return;
- const top=Number($("cpt-top").value),bottom=Number($("cpt-bottom").value);
- const paint=[];
- for(const seg of SEG){
-  if(seg.category!=="silt"||seg.bottom<=top||seg.top>=bottom)continue;
-  const p=byref[seg.ref],col=ramp(p?.max||0);
-  for(let i=0;i<8;i++)paint.push(col);
- }
- if(layer.x.length===paint.length&&paint.length){
-  Plotly.restyle(mainGraph,{"vertexcolor":[paint],"opacity":[.9]},[idx]);
- }
+ // Layer mesh colors and depth-window recalculation are owned by the 3D
+ // studio renderer. Avoid racing its valid per-block thickness palette with
+ // an array that assumes an incorrect scene vertex ordering.
 }
 function init(){
  mainGraph=$(TARGET);if(!mainGraph||!window.Plotly)return;
@@ -295,11 +297,15 @@ function init(){
  "<option value='cum'>Cumulative silt thickness</option><option value='start'>First silt-screen depth</option>"+
  "<option value='depth'>Test termination depth</option></select>"+
  "<input type='search' id='atlas-find' placeholder='Find CPT reference' aria-label='Find CPT reference'>"+
+ "<button id='atlas-pan' class='chosen'>PAN</button><button id='atlas-box'>BOX ZOOM</button>"+
+ "<button id='atlas-zoom-in'>ZOOM +</button><button id='atlas-zoom-out'>ZOOM −</button>"+
  "<button id='atlas-fit'>FIT VIEW</button><button id='atlas-save'>SAVE PNG</button>"+
- "<button id='atlas-full'>FULL SCREEN</button>";
+ "<button id='atlas-expand'>HIDE DETAILS</button><button id='atlas-full'>FULL SCREEN</button>";
  let bar=document.createElement("div");bar.className="atlas-toolbar";bar.id="atlas-depth-tools";
  bar.innerHTML="<span>Depth below ground</span><input type='range' id='atlas-depth' min='0' max='15' step='.05' value='4.5'>"+
- "<strong id='atlas-depth-label'>4.50 m</strong><span>Zoom wheel · Drag pan · Click CPT for details</span>";
+ "<strong id='atlas-depth-label'>4.50 m</strong>"+
+ "<label for='atlas-depth-number'>SET DEPTH</label><input type='number' id='atlas-depth-number' step='.05' min='0' value='4.5'>"+
+ "<span>Wheel to zoom · drag to pan · click a surveyed CPT to inspect</span>";
  document.body.insertBefore(head,document.body.firstChild);
  document.body.insertBefore(bar,head.nextSibling);
  document.body.insertBefore(host,bar.nextSibling);
@@ -320,12 +326,43 @@ function init(){
  depth=Number($("atlas-depth").value);
  $("atlas-depth-label").textContent=fmt(depth)+" m";
  $("atlas-2d").onclick=show2d;$("atlas-3d").onclick=show3d;
- $("atlas-depth").oninput=()=>{depth=Number($("atlas-depth").value);$("atlas-depth-label").textContent=fmt(depth)+" m";render2d()};
+ const setDepth=value=>{
+  depth=Math.min(grand,Math.max(0,Number.isFinite(Number(value))?Number(value):depth));
+  $("atlas-depth").value=depth;
+  $("atlas-depth-number").value=depth.toFixed(2);
+  $("atlas-depth-label").textContent=fmt(depth)+" m";
+  if(active2d)render2d();
+  if(selected)inspect(byref[selected]);
+ };
+ $("atlas-depth").oninput=()=>setDepth($("atlas-depth").value);
+ $("atlas-depth-number").onchange=()=>setDepth($("atlas-depth-number").value);
  $("atlas-mode").onchange=()=>{if(active2d)render2d();recolor3d()};
  $("atlas-find").onchange=()=>{let v=$("atlas-find").value.toLowerCase().trim();const p=SOURCE.find(p=>p.ref.toLowerCase()===v)||
  SOURCE.find(p=>p.ref.toLowerCase().includes(v));if(p)inspect(p)};
+ const pan=$("atlas-pan"),zoom=$("atlas-box");
+ pan.onclick=()=>{navMode="pan";pan.classList.add("chosen");zoom.classList.remove("chosen");
+  if(active2d)Plotly.relayout("cpt-atlas-2d",{dragmode:"pan"});};
+ zoom.onclick=()=>{navMode="zoom";zoom.classList.add("chosen");pan.classList.remove("chosen");
+  if(active2d)Plotly.relayout("cpt-atlas-2d",{dragmode:"zoom"});};
+ const zoomBy=factor=>{
+  if(!active2d){Plotly.relayout(mainGraph,{"scene.camera.eye":{x:1.6/factor,y:-1.6/factor,z:1.05/factor}});return;}
+  const g=$("cpt-atlas-2d");
+  const xr=g.layout.xaxis.range,yr=g.layout.yaxis.range;
+  if(!xr||!yr)return;
+  const cx=(xr[0]+xr[1])/2,cy=(yr[0]+yr[1])/2;
+  const rx=(xr[1]-xr[0])/2/factor,ry=(yr[1]-yr[0])/2/factor;
+  Plotly.relayout(g,{"xaxis.range":[cx-rx,cx+rx],"yaxis.range":[cy-ry,cy+ry]});
+ };
+ $("atlas-zoom-in").onclick=()=>zoomBy(1.45);
+ $("atlas-zoom-out").onclick=()=>zoomBy(1/1.45);
  $("atlas-fit").onclick=()=>active2d?Plotly.relayout("cpt-atlas-2d",{"xaxis.autorange":true,"yaxis.autorange":true}):
  Plotly.relayout(mainGraph,{"scene.camera.eye":{x:1.6,y:-1.6,z:1.05}});
+ $("atlas-expand").onclick=()=>{
+  document.body.classList.toggle("atlas-focus-map");
+  const focused=document.body.classList.contains("atlas-focus-map");
+  $("atlas-expand").textContent=focused?"SHOW DETAILS":"HIDE DETAILS";
+  setTimeout(()=>Plotly.Plots.resize(active2d?$("cpt-atlas-2d"):mainGraph),120);
+ };
  $("atlas-save").onclick=()=>Plotly.downloadImage(active2d?"cpt-atlas-2d":TARGET,
   {format:"png",filename:"CPT_ATLAS_"+(active2d?"2D":"3D"),width:1800,height:1200,scale:1});
  $("atlas-full").onclick=()=>{
