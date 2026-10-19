@@ -336,22 +336,25 @@ function renderSvg3d(){
   const zTop=s.z0-(s.drawTop-s.top),zBot=s.z0-(s.drawBottom-s.top);
   const top=project(s.x,s.y,zTop),bot=project(s.x,s.y,zBot);
   const bw=Math.max(4,Math.min(11,hscale*.7)),d=Math.max(2,bw*.55);
+  // Numeric heat applies only to silt-like material; other blocks use soil colors.
+  const fillColor=surfaceColor && s.category==="silt" ? ramp(collar.max) :
+                  COLORS[s.category]||COLORS.unknown;
   const main=svgNode("polygon",{
     points:[[top[0]-bw,top[1]],[top[0]+bw,top[1]],
             [bot[0]+bw,bot[1]],[bot[0]-bw,bot[1]]].map(q=>q.join(",")).join(" "),
-    fill:COLORS[s.category]||COLORS.unknown,stroke:"#ffffff",
+    fill:fillColor,stroke:"#ffffff",
     "stroke-width":.65,class:"soil-svg-body"
   });
   const side=svgNode("polygon",{
     points:[[top[0]+bw,top[1]],[top[0]+bw+d,top[1]-d],
             [bot[0]+bw+d,bot[1]-d],[bot[0]+bw,bot[1]]].map(q=>q.join(",")).join(" "),
-    fill:COLORS[s.category]||COLORS.unknown,"fill-opacity":.72,
+    fill:fillColor,"fill-opacity":.72,
     stroke:"#ffffff","stroke-width":.5
   });
   const cap=svgNode("polygon",{
     points:[[top[0]-bw,top[1]],[top[0]+bw,top[1]],
             [top[0]+bw+d,top[1]-d],[top[0]-bw+d,top[1]-d]].map(q=>q.join(",")).join(" "),
-    fill:COLORS[s.category]||COLORS.unknown,"fill-opacity":.86
+    fill:fillColor,"fill-opacity":.86
   });
   const label=s.ref+" | "+s.category+" | BGL "+fmt(s.drawTop,2)+
        "–"+fmt(s.drawBottom,2)+" m | CPT maximum "+fmt(collar.max,3)+" m";
@@ -394,7 +397,7 @@ function renderSvg3d(){
         "Drag to rotate · Shift+drag to pan · Wheel to zoom · Click a CPT"));
  svg.appendChild(svgNode("text",{x:20,y:h-16,fill:"#657e90",
         style:"font:11px Segoe UI,Arial,sans-serif"},
-        "Schematic column width and vertical exaggeration · no interpolated geology"));
+        "Silt heat: blue=thin / red=thick · non-silt retains soil category · no interpolated geology"));
 }
 function setSvg3dVisible(visible){
  const svg=$("cpt-atlas-svg3d");
@@ -456,8 +459,7 @@ function showWebgl(){
  $("atlas-webgl").classList.add("chosen");
  $("atlas-depth-tools").classList.add("atlas-hide");
  $("cpt-studio").classList.remove("atlas-hide");
- Plotly.relayout(mainGraph,{height:$("cpt-atlas-graphs").clientHeight,
-    width:$("cpt-atlas-graphs").clientWidth});
+ requestAnimationFrame(resizeVisibleAtlas);
  $("cpt-atlas-status").textContent="GPU-accelerated 3D. If graphics are unavailable, choose 3D SOIL COLUMNS for reliable interactive viewing.";
 }
 function show2d(){
@@ -467,12 +469,24 @@ function show2d(){
  $("atlas-3d").classList.remove("chosen");$("atlas-webgl").classList.remove("chosen");
  $("atlas-2d").classList.add("chosen");
  $("cpt-studio").classList.add("atlas-hide");$("atlas-depth-tools").classList.remove("atlas-hide");
- render2d();setTimeout(()=>Plotly.Plots.resize($("cpt-atlas-2d")),60);
+ render2d();setTimeout(resizeVisibleAtlas,80);
 }
 function recolor3d(){
- // Layer mesh colors and depth-window recalculation are owned by the 3D
- // studio renderer. Avoid racing its valid per-block thickness palette with
- // an array that assumes an incorrect scene vertex ordering.
+ if(!$("cpt-atlas-svg3d")?.classList.contains("atlas-hide"))renderSvg3d();
+}
+function resizeVisibleAtlas(){
+ const isoHost=$("cpt-atlas-svg3d");
+ if(isoHost&&!isoHost.classList.contains("atlas-hide")){renderSvg3d();return;}
+ const el=active2d?$("cpt-atlas-2d"):mainGraph;
+ // Plotly.Plots.resize throws if a plot is HIDDEN. Never resize the
+ // hidden WebGL scene while GPU-independent SVG 3D soil is displayed.
+ if(!el||el.classList.contains("atlas-hide")||!el.isConnected||
+    !el.getClientRects().length||el.clientWidth<10||el.clientHeight<10||
+    !el._fullLayout||!el.data)return;
+ try{Promise.resolve(Plotly.Plots.resize(el)).catch(err=>{
+  console.warn("Atlas plot resize skipped",String(err));
+ });}
+ catch(err){console.warn("Atlas plot resize skipped",String(err));}
 }
 function init(){
  mainGraph=$(TARGET);if(!mainGraph||!window.Plotly)return;
@@ -586,7 +600,7 @@ function init(){
   document.body.classList.toggle("atlas-focus-map");
   const focused=document.body.classList.contains("atlas-focus-map");
   $("atlas-expand").textContent=focused?"SHOW DETAILS":"HIDE DETAILS";
-  setTimeout(()=>Plotly.Plots.resize(active2d?$("cpt-atlas-2d"):mainGraph),120);
+  setTimeout(resizeVisibleAtlas,120);
  };
  $("atlas-save").onclick=()=>{
    if(!$("cpt-atlas-svg3d").classList.contains("atlas-hide"))saveIsometricPng();
@@ -657,8 +671,7 @@ function init(){
    console.warn("3D collar overlay unavailable; independent 2D map remains functional",error);
    $("cpt-atlas-status").textContent="2D working. 3D graphics acceleration unavailable; inspect source CPTs in the 2D plan.";
  });
- window.addEventListener("resize",()=>{let el=active2d?$("cpt-atlas-2d"):mainGraph;
- if(el?.data)Plotly.Plots.resize(el)});
+ window.addEventListener("resize",()=>requestAnimationFrame(resizeVisibleAtlas));
 }
 if(document.readyState==="complete")setTimeout(init,250);
 else window.addEventListener("load",()=>setTimeout(init,250),{once:true});
