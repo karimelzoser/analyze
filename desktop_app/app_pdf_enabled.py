@@ -200,7 +200,8 @@ def select_project_results(analyses, all_sources=None, analysis_errors=None):
         incomplete=[a for a in pool if longest is not None and longest>=1.0
                     and (z:=_observed_length(a)) is not None
                     and z < min(1.0, .65*longest)]
-        eligible=[a for a in pool if a not in incomplete]
+        incomplete_ids={id(a) for a in incomplete}
+        eligible=[a for a in pool if id(a) not in incomplete_ids]
         if not eligible:
             eligible=pool
         newest=max(eligible,key=_candidate_rank)
