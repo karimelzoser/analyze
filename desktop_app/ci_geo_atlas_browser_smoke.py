@@ -127,6 +127,29 @@ def main():
                     "() => {let panel=document.getElementById('cpt-atlas-svg3d');return !!panel && !!panel.offsetParent && panel.querySelectorAll('svg polygon').length>=4;}",
                     timeout=20000)
                 assert page.locator("#atlas-vertical").is_visible()
+                # Professional soil-layer volumes must be visible in the
+                # DEFAULT GPU-independent 3D scene, not hidden behind WebGL.
+                assert page.locator("#atlas-geology").is_checked()
+                assert page.locator("#atlas-depth").is_visible()
+                page.wait_for_function(
+                    "() => document.querySelectorAll('#atlas-inferred-layer-volume polygon.soil-layer-ribbon').length>=3",
+                    timeout=20000)
+                inferred=page.locator("#atlas-inferred-layer-volume polygon.soil-layer-ribbon").count()
+                assert inferred>=3
+                page.screenshot(path=str(screenshots/"03a-interpreted-soil-volume.png"),full_page=True)
+                page.locator("#atlas-geology").uncheck()
+                page.wait_for_function(
+                    "() => document.querySelectorAll('#atlas-inferred-layer-volume polygon.soil-layer-ribbon').length===0",
+                    timeout=12000)
+                page.locator("#atlas-geology").check()
+                page.wait_for_function(
+                    "() => document.querySelectorAll('#atlas-inferred-layer-volume polygon.soil-layer-ribbon').length>=3",
+                    timeout=12000)
+                # Depth slider changes the selected 3D soil band, not just 2D.
+                page.locator("#atlas-depth-number").fill("5.00")
+                page.locator("#atlas-depth-number").press("Tab")
+                assert page.locator("#atlas-depth-label").inner_text().startswith("5.00")
+                assert "5.00" in page.locator("#atlas-inferred-layer-volume polygon title").first.text_content()
                 assert page.locator("#cpt-atlas-svg3d svg circle").count()>=4
                 page.wait_for_timeout(300)
                 page.screenshot(path=str(screenshots/"03-layered-3d.png"),full_page=True)
@@ -175,6 +198,8 @@ def main():
                 assert page.locator("#cpt-atlas-svg3d polygon.soil-svg-body").count()==full_layer_count
                 page.locator("#cpt-atlas-svg3d polygon.soil-svg-body").first.click(force=True)
                 assert "CPT-A2-" in page.locator("#cpt-atlas-details").inner_text()
+                assert page.locator("#cpt-atlas-details .atlas-depth-column").count()==1
+                assert page.locator("#cpt-atlas-details .atlas-depth-band").count()>=2
                 page.locator("#atlas-expand").click()
                 assert page.locator("#atlas-show-panel").is_visible()
                 page.locator("#atlas-show-panel").click()
