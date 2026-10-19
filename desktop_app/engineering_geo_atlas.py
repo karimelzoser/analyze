@@ -344,7 +344,7 @@ function renderSvg3d(){
  }
  const selectable=[];
  const candidates=SEG.filter(s=>s.bottom>stTop&&s.top<stBot&&
-   ($("[data-layer='"+s.category+"']")?.checked!==false))
+   (document.querySelector("[data-layer='"+s.category+"']")?.checked!==false))
   .map(s=>({...s,drawTop:Math.max(s.top,stTop),
              drawBottom:Math.min(s.bottom,stBot)}))
   .filter(s=>s.drawBottom>s.drawTop)
