@@ -284,6 +284,7 @@ function init(){
  "<section class='atlas-panel'><h3>INSPECT SELECTED CPT</h3><div id='cpt-atlas-details' class='atlas-note'>"+
  "Hover or click a measured CPT point; every point remains selectable.</div></section>"+
  "<section class='atlas-panel'><h3>THICKEST SOIL-SCREEN LAYERS</h3><div id='cpt-atlas-rank'></div></section>"+
+ "<section class='atlas-panel'><h3>THINNEST POSITIVE SILT LAYERS</h3><div id='cpt-atlas-minrank'></div></section>"+
  "<section class='atlas-panel atlas-visual-note'>Interpreted soil zones are NOT observed geology between tests. "+
  "Unmeasured sensor depths remain unknown. No geotechnical design acceptance inferred.</section></aside>";
  let head=document.createElement("div");head.id="cpt-atlas-header";
@@ -335,6 +336,12 @@ function init(){
  $("cpt-atlas-rank").innerHTML=ranked.slice(0,12).map((p,i)=>
   "<button data-id='"+clean(p.ref)+"'>#"+(i+1)+" · "+clean(p.ref)+" — "+fmt(p.max,3)+" m</button>").join("");
  $("cpt-atlas-rank").querySelectorAll("button").forEach(el=>el.onclick=()=>inspect(byref[el.dataset.id]));
+ const lows=SOURCE.filter(p=>Number.isFinite(p.max)&&p.max>0).sort((a,b)=>a.max-b.max);
+ const absent=SOURCE.filter(p=>p.max===0).length;
+ $("cpt-atlas-minrank").innerHTML=lows.slice(0,10).map((p,i)=>
+    "<button data-id='"+clean(p.ref)+"'>#"+(i+1)+" · "+clean(p.ref)+" — "+fmt(p.max,3)+" m</button>").join("")+
+    "<p class='atlas-note'>"+absent+" CPTs have no qualifying observed silt screen; they are not counted as thin positive layers.</p>";
+ $("cpt-atlas-minrank").querySelectorAll("button").forEach(el=>el.onclick=()=>inspect(byref[el.dataset.id]));
  // New overlay markers with continuous silt-thickness color, independent
  // from categorical SBT body block colors. All ties remain inspectable.
  const stem=SOURCE.map(p=>p.rl??0);
