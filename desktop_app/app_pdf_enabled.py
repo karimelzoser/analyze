@@ -186,24 +186,42 @@ def select_project_results(analyses, all_sources=None, analysis_errors=None):
         raw_items = [a for a in items if a.source_path.suffix.lower() in RAW_EXTENSIONS]
         pool = raw_items if raw_items else items
         source_class = "RAW GEF/GFF" if raw_items else "PDF"
-        newest = max(pool, key=_candidate_rank)
-        conclusive = [a for a in pool if a.status in CONCLUSIVE_STATUSES]
+        def _observed_length(a):
+            try:
+                z=float(a.test_depth_raw)
+                return z if math.isfinite(z) and z>0 else None
+            except (AttributeError,TypeError,ValueError):
+                return None
+        depths=[z for a in pool if (z:=_observed_length(a)) is not None]
+        longest=max(depths,default=None)
+        # A 0.27m failed push followed by a 6.09m full CPT is not a
+        # contradictory full-depth interpretation. Keep both in Source
+        # Audit, but choose only a substantially complete sounding.
+        incomplete=[a for a in pool if longest is not None and longest>=1.0
+                    and (z:=_observed_length(a)) is not None
+                    and z < min(1.0, .65*longest)]
+        eligible=[a for a in pool if a not in incomplete]
+        if not eligible:
+            eligible=pool
+        newest=max(eligible,key=_candidate_rank)
+        conclusive=[a for a in eligible if a.status in CONCLUSIVE_STATUSES]
 
         if newest.status in CONCLUSIVE_STATUSES:
-            selected = newest
-            reason = f"Selected highest {source_class} revision ({source_revision(newest.source_path)}); analysis is conclusive."
+            selected=newest
+            reason=f"Selected highest sufficiently complete {source_class} revision ({source_revision(newest.source_path)})."
         elif conclusive:
-            selected = max(conclusive, key=_candidate_rank)
-            reason = (
-                f"Newest {source_class} revision {source_revision(newest.source_path)} is REVIEW; "
-                f"selected highest conclusive revision {source_revision(selected.source_path)}."
-            )
+            selected=max(conclusive,key=_candidate_rank)
+            reason=("Newest sufficiently complete source requires REVIEW; "
+                    f"selected conclusive revision {source_revision(selected.source_path)}.")
         else:
-            selected = newest
-            reason = f"All available {source_class} revisions require REVIEW; newest revision retained without guessing."
+            selected=newest
+            reason="All sufficiently complete candidate sources require REVIEW."
+        if incomplete:
+            reason+=(" Excluded %d substantially incomplete/aborted earlier sounding(s)"
+                    " from final-layer conflict voting; originals kept in Source Audit."%len(incomplete))
 
-        signatures = {_result_signature(a) for a in conclusive}
-        conflict = len(signatures) > 1
+        signatures={_result_signature(a) for a in conclusive}
+        conflict=len(signatures)>1
         # Different report versions can use the same nominal CPT identifier
         # while referring to different physical tests. These must not be
         # collapsed into a seemingly verified single engineering location.
@@ -249,6 +267,8 @@ def select_project_results(analyses, all_sources=None, analysis_errors=None):
             "source_revision_conflict": conflict,
             "source_spatial_conflict": spatial_conflict,
             "source_datum_conflict": datum_conflict,
+            "incomplete_source_count":len(incomplete),
+            "incomplete_source_filenames":[a.source_path.name for a in incomplete],
         })
         selected.reference = family
         selected_results.append(selected)
@@ -290,7 +310,11 @@ def select_project_results(analyses, all_sources=None, analysis_errors=None):
         if is_selected:
             selection_reason = str(selected.metadata.get("source_selection_reason") or "Selected project source.")
         elif selected is not None:
-            selection_reason = f"Superseded by {selected.source_path.name}."
+            if a is not None and p.name in selected.metadata.get("incomplete_source_filenames",[]):
+                selection_reason=(f"ABORTED / SUBSTANTIALLY INCOMPLETE CPT; {selected.source_path.name}"
+                                  " is a later full-depth sounding at the same physical point.")
+            else:
+                selection_reason=f"Superseded by {selected.source_path.name}."
         else:
             selection_reason = "No project source could be selected from this family."
 
