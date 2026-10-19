@@ -238,12 +238,95 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.foundation_note=tk.StringVar(value="REFERENCE ONLY — Load the original raft / isolated summary XLSX.")
         tk.Label(self.foundation_tab,textvariable=self.foundation_note,bg="#ffffff",
                  fg="#9a3412",anchor="w").pack(fill="x",padx=16,pady=5)
+        self.foundation_views=ttk.Notebook(self.foundation_tab)
+        self.foundation_views.pack(fill="both",expand=True,padx=13,pady=(3,9))
+        self.foundation_map_view=tk.Frame(self.foundation_views,bg="#ffffff")
+        self.foundation_table_view=tk.Frame(self.foundation_views,bg="#ffffff")
+        self.foundation_views.add(self.foundation_map_view,text="  Settlement & FOS Site Map  ")
+        self.foundation_views.add(self.foundation_table_view,text="  Complete Foundation Results Table  ")
+        table_tools=tk.Frame(self.foundation_table_view,bg="#ffffff")
+        table_tools.pack(fill="x",padx=8,pady=8)
+        tk.Label(table_tools,text="Search CPT reference",bg="#ffffff",fg="#334155",
+                 font=("Segoe UI Semibold",9)).pack(side="left",padx=(0,8))
+        self.foundation_search=tk.StringVar()
+        ttk.Entry(table_tools,textvariable=self.foundation_search,width=30).pack(side="left",padx=4)
+        tk.Label(table_tools,text="Click headings to sort · original imported values, not inferred",
+                 bg="#ffffff",fg="#64748b",font=("Segoe UI",8)).pack(side="right")
+        columns=("ref","case","area","e","n","settlement","fos","width","length",
+                 "settlecheck","foscheck")
+        tableholder=tk.Frame(self.foundation_table_view,bg="#ffffff")
+        tableholder.pack(fill="both",expand=True,padx=8,pady=(0,8))
+        self.foundation_table=ttk.Treeview(tableholder,columns=columns,show="headings",
+                             selectmode="browse",height=12)
+        self._foundation_table_columns={
+            "ref":("CPT reference",185),"case":("Foundation",94),
+            "area":("Area",65),"e":("Easting",105),"n":("Northing",118),
+            "settlement":("Settlement (mm)",130),"fos":("Min FOS",93),
+            "width":("Width (m)",85),"length":("L/W",65),
+            "settlecheck":("Settlement check",132),"foscheck":("FOS check",95)}
+        self._foundation_sort_column="ref"
+        self._foundation_sort_reverse=False
+        for key,(label,width) in self._foundation_table_columns.items():
+            self.foundation_table.heading(key,text=label,command=lambda k=key:self._sort_foundation_table(k))
+            self.foundation_table.column(key,width=width,minwidth=65,
+                anchor="w" if key in ("ref","case","area") else "center",stretch=False)
+        self.foundation_table.tag_configure("missing",background="#fff3e8",foreground="#854d0e")
+        self.foundation_table.tag_configure("ok",background="#f3fafc",foreground="#164e63")
+        vertical=ttk.Scrollbar(tableholder,orient="vertical",command=self.foundation_table.yview)
+        horizontal=ttk.Scrollbar(tableholder,orient="horizontal",command=self.foundation_table.xview)
+        self.foundation_table.configure(yscrollcommand=vertical.set,xscrollcommand=horizontal.set)
+        vertical.pack(side="right",fill="y")
+        horizontal.pack(side="bottom",fill="x")
+        self.foundation_table.pack(side="left",fill="both",expand=True)
+        self.foundation_search.trace_add("write",lambda *_:self._refresh_foundation_table())
         self.foundation_fig=Figure(figsize=(10,6),dpi=100,facecolor="#ffffff")
         self.foundation_ax=self.foundation_fig.add_subplot(111)
-        self.foundation_canvas=self._plot(self.foundation_tab,self.foundation_fig)
+        self.foundation_canvas=self._plot(self.foundation_map_view,self.foundation_fig)
         self._foundation_plotted={}
         self.foundation_canvas.mpl_connect("pick_event",self._foundation_pick)
         self.foundation_points=[]
+
+    def _sort_foundation_table(self,field):
+        if self._foundation_sort_column==field:
+            self._foundation_sort_reverse=not self._foundation_sort_reverse
+        else:
+            self._foundation_sort_column=field
+            self._foundation_sort_reverse=field in ("settlement","fos")
+        self._refresh_foundation_table()
+
+    def _refresh_foundation_table(self):
+        if not hasattr(self,"foundation_table"):return
+        self.foundation_table.delete(*self.foundation_table.get_children())
+        selected=self.foundation_case.get().upper() if hasattr(self,"foundation_case") else "BOTH"
+        query=self.foundation_search.get().strip().casefold()
+        data=[p for p in self.foundation_points if selected=="BOTH" or p.foundation==selected]
+        if query:data=[p for p in data if query in p.reference.casefold()]
+        def key(p):
+            attr=self._foundation_sort_column
+            value=(
+                p.reference if attr=="ref" else p.foundation if attr=="case" else
+                p.area if attr=="area" else p.east if attr=="e" else
+                p.north if attr=="n" else p.metrics.get("settlement_mm") if attr=="settlement" else
+                p.metrics.get("fos") if attr=="fos" else p.footing_width_m if attr=="width" else
+                p.footing_lb_ratio if attr=="length" else
+                p.reported_settlement_check if attr=="settlecheck" else p.reported_fos_check)
+            return (value is None, str(value).casefold() if isinstance(value,str) else
+                    float(value) if isinstance(value,(float,int)) else 0.)
+        data.sort(key=key,reverse=self._foundation_sort_reverse)
+        def fmt(value,places):
+            return "NOT REPORTED" if value is None else (
+                f"{value:,.{places}f}" if isinstance(value,(float,int)) else str(value))
+        for p in data:
+            settlement=p.metrics.get("settlement_mm")
+            fos=p.metrics.get("fos")
+            self.foundation_table.insert("","end",values=(
+                p.reference,p.foundation,p.area or "—",fmt(p.east,3),fmt(p.north,3),
+                fmt(settlement,2),fmt(fos,3),fmt(p.footing_width_m,2),
+                fmt(p.footing_lb_ratio,2),p.reported_settlement_check or "NOT REPORTED",
+                p.reported_fos_check or "NOT REPORTED"),
+                tags=("missing" if settlement is None else "ok",))
+        if hasattr(self,"foundation_note") and not data and self.foundation_points:
+            self.foundation_note.set("No matching imported "+selected+" foundation records; clear the CPT search or choose another case.")
 
     def load_foundation_summary(self):
         path=filedialog.askopenfilename(title="Select original calculation XLSB or foundation summary XLSX",
@@ -319,6 +402,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
 
     def refresh_foundations(self):
         if not hasattr(self,"foundation_fig"):return
+        self._refresh_foundation_table()
         self.foundation_fig.clear()
         ax=self.foundation_fig.add_subplot(111);self.foundation_ax=ax
         self._foundation_plotted={}
