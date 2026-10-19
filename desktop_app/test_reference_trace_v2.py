@@ -53,7 +53,7 @@ def test_pdf_vertical_axis_tracks_actual_ground_and_measured_depth():
     example=SimpleNamespace(depth=depths,metadata={"ground_elevation":3.93})
     values,label,limits=_level_axis(example)
     assert label=="Elevation RL, m"
-    assert limits[0]>values[0] and limits[1]<values[-1]
-    assert limits[0]-limits[1]<8.0  # no empty +/-10m fixed report panels
+    assert limits[0]<values[-1] and limits[1]>values[0]
+    assert limits[1]-limits[0]<8.0  # no empty +/-10m fixed report panels
     for d in values:
-        assert limits[1]<=d<=limits[0]
+        assert limits[0]<=d<=limits[1]
