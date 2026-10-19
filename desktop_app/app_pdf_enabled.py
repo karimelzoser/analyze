@@ -491,8 +491,12 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
                         from engineering_report_sources import choose_official_pdf
                         official, reason = choose_official_pdf(a, candidate_results)
                         if official is not None:
-                            # Use RAW source for every calculation and the verified
-                            # official PDF solely for its original reference graphics.
+                            # Calculations remain from raw GEF. The
+                            # coordinate-matched original can fill only
+                            # missing descriptive PDF labels, with an audit
+                            # trail recording each imported/conflicting field.
+                            from engineering_report_sources import enrich_from_matched_official_pdf
+                            enrich_from_matched_official_pdf(a,official)
                             append_pdf_analysis(official.source_path, a, output_pdf)
                             a.metadata["official_pdf_visual_source"] = official.source_path.name
                             a.metadata["official_pdf_pairing_reason"] = reason
