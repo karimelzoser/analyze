@@ -616,25 +616,15 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         try:
             dataset=self._map_dataset()
             figure=Figure(figsize=(13,8.5),dpi=110,facecolor="white")
-            settings={"boundary":self.site_boundary,
-                      "warning_m":float(self.risk_watch.get()),
-                      "high_m":float(self.risk_high.get()),
-                      "show_interpretive_surface":self.show_interpolated.get()}
-            if self.map_projection.get()=="Soil-behaviour color map":
-                # Full screen must render exactly the same categorical soil
-                # level colors as the embedded plan, not fall back to a
-                # thickness/risk plot with CPT point symbols.
-                drawn=soil_depth_plan(
-                    figure,dataset,
-                    depth_m=(float(self.slice_top.get())+float(self.slice_bottom.get()))/2,
-                    boundary=self.site_boundary,
-                    fill_interpretation=self.show_interpolated.get())
-            elif self.map_projection.get()=="Depth slice plan":
-                drawn=depth_window_plan(figure,dataset,
-                    top_m=float(self.slice_top.get()),
-                    bottom_m=float(self.slice_bottom.get()),**settings)
-            else:
-                drawn=risk_plan(figure,dataset,**settings)
+            from engineering_map_dispatch import render_fullscreen_map
+            drawn=render_fullscreen_map(
+                figure,dataset,self.map_projection.get(),
+                slice_top_m=float(self.slice_top.get()),
+                slice_bottom_m=float(self.slice_bottom.get()),
+                boundary=self.site_boundary,
+                watch_m=float(self.risk_watch.get()),
+                high_m=float(self.risk_high.get()),
+                interpretive_fill=self.show_interpolated.get())
         except Exception as exc:
             messagebox.showerror("Full-screen plan unavailable",str(exc))
             return
