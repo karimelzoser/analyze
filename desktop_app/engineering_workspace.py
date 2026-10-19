@@ -17,6 +17,7 @@ from app_pdf_enabled import PDFEnabledCPTApp
 from engineering_layers import from_analysis, _smooth_contiguous
 from engineering_maps import coordinate_rows,filter_coordinate_outliers
 from engineering_3d_map import site_3d_figure
+from engineering_soil_maps import soil_depth_plan
 from engineering_geo_explorer import risk_plan, depth_window_plan
 from engineering_3d_studio import export_professional_3d as export_interactive_3d
 from engineering_comparison import read_summary_xlsx, compare_summaries, export_comparison, read_site_boundary_xlsx
@@ -107,8 +108,8 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
     def _add_map_tab(self):
         self.map_tab=tk.Frame(self.notebook,bg="#ffffff")
         self.notebook.add(self.map_tab,text="  Site Map  ")
-        self._tab_top(self.map_tab,"CPT point map — actual surveyed coordinates",
-            "Offline Easting/Northing plan. No unverified coordinate conversion or interpolation.")
+        self._tab_top(self.map_tab,"Subsurface soil-behaviour maps | measured CPTs and bounded zones",
+            "Select a depth to see sand, transitional, silt-like and clay-like colored regions; drag the 3D model to inspect vertical strata.")
         self.site_boundary=None
         ctrl=tk.Frame(self.map_tab,bg="#ffffff")
         ctrl.pack(fill="x",padx=16,pady=4)
@@ -132,9 +133,9 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self._source_cached_analysis=None
         self._source_cached_file=None
 
-        self.map_projection=tk.StringVar(value="Risk screening plan")
+        self.map_projection=tk.StringVar(value="Soil-behaviour color map")
         projection=ttk.Combobox(map_actions,textvariable=self.map_projection,
-                         values=["Risk screening plan","Depth slice plan","2D measured plan","3D CPT soil columns"],width=23,state="readonly")
+                         values=["Soil-behaviour color map","Risk screening plan","Depth slice plan","2D measured plan","3D CPT soil columns"],width=23,state="readonly")
         projection.pack(side="left",padx=8)
         projection.bind("<<ComboboxSelected>>",lambda event:self.refresh_map())
         self._btn(map_actions,"MAP OPTIONS",self.show_map_options).pack(side="right",padx=3)
@@ -154,7 +155,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         tk.Label(riskbar,text="HIGH from (m)",bg="#ffffff",fg="#475569").pack(side="left")
         self.risk_high=tk.StringVar(value="0.30")
         ttk.Entry(riskbar,textvariable=self.risk_high,width=8).pack(side="left",padx=(5,10))
-        self.show_interpolated=tk.BooleanVar(value=False)
+        self.show_interpolated=tk.BooleanVar(value=True)
         ttk.Checkbutton(riskbar,text="Bounded indicative shading",
                         variable=self.show_interpolated,
                         command=self.refresh_map).pack(side="left",padx=4)
@@ -168,13 +169,13 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.slice_controls=tk.Frame(self.map_tab,bg="#edf4f9")
         self.slice_top=tk.StringVar(value="4.0")
         self.slice_bottom=tk.StringVar(value="5.0")
-        tk.Label(self.slice_controls,text="DEPTH SLICE BGL",fg="#29465d",
+        tk.Label(self.slice_controls,text="SOIL DEPTH BAND BGL",fg="#29465d",
                  bg="#edf4f9",font=("Segoe UI Semibold",9)).pack(side="left",padx=(10,14))
         tk.Label(self.slice_controls,text="Top (m)",bg="#edf4f9").pack(side="left")
         ttk.Entry(self.slice_controls,textvariable=self.slice_top,width=9).pack(side="left",padx=6)
         tk.Label(self.slice_controls,text="Bottom (m)",bg="#edf4f9").pack(side="left")
         ttk.Entry(self.slice_controls,textvariable=self.slice_bottom,width=9).pack(side="left",padx=6)
-        self._btn(self.slice_controls,"UPDATE DEPTH SLICE",self.refresh_map).pack(side="left",padx=9)
+        self._btn(self.slice_controls,"UPDATE SOIL LEVELS",self.refresh_map).pack(side="left",padx=9)
         self.slice_controls.pack_forget()
         # Keep the map as the main canvas. Advanced controls live in MAP
         # OPTIONS instead of consuming half the screen at 1024x697.
@@ -619,7 +620,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                       "warning_m":float(self.risk_watch.get()),
                       "high_m":float(self.risk_high.get()),
                       "show_interpretive_surface":self.show_interpolated.get()}
-            if self.map_projection.get()=="Depth slice plan":
+            if self.map_projection.get() in ("Depth slice plan","Soil-behaviour color map"):
                 drawn=depth_window_plan(figure,dataset,
                     top_m=float(self.slice_top.get()),
                     bottom_m=float(self.slice_bottom.get()),**settings)
@@ -769,6 +770,29 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             except Exception as exc:
                 self.map_status.set("Original XLSB project could not be read: "+str(exc))
                 return
+        if self.map_projection.get()=="Soil-behaviour color map":
+            try:
+                top=float(self.slice_top.get());bottom=float(self.slice_bottom.get())
+                if not (0<=top<bottom):
+                    raise ValueError("Soil map top must be smaller than bottom")
+                depth=(top+bottom)/2
+                summary=soil_depth_plan(self.map_fig,map_analyses,depth_m=depth,
+                                        boundary=self.site_boundary,
+                                        fill_interpretation=self.show_interpolated.get())
+            except Exception as exc:
+                self.map_status.set("Soil-behaviour map unavailable: "+str(exc))
+                return
+            self.map_ax=self.map_fig.axes[0]
+            self._geo_risk_artists=summary["artists"]
+            self._geo_hotspots=[]
+            self._mapped_points=[]
+            self.map_status.set(
+                "%d observed CPT soil classifications • %d unknown • %d source outliers • "
+                "%d locally supported triangles | %.2fm BGL. Color areas are INTERPRETED." %
+                (summary["classified"],summary["unknown"],len(summary["outliers"]),
+                 summary["supported_triangles"],depth))
+            self.map_canvas.draw_idle()
+            return
         if self.map_projection.get() in ("Risk screening plan","Depth slice plan"):
             try:
                 watch=float(self.risk_watch.get());high=float(self.risk_high.get())
