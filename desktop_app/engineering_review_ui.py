@@ -37,6 +37,10 @@ def qa_record(analysis):
     elif not hasattr(analysis,"depth") or len(analysis.depth)==0:
         issues.append("Raw depth data unavailable")
     note=str(getattr(analysis,"verification_note","") or "")
+    from engineering_review_triage import triage_review
+    review_evidence=triage_review(analysis)
+    if review_evidence:
+        issues.insert(0,review_evidence["category"]+": "+review_evidence["required_action"])
     if any(term in note.lower() for term in ("uncertain","conflict","nonconver","review","invalid")):
         issues.append("Engineering verification note requires attention")
     return {
@@ -49,6 +53,8 @@ def qa_record(analysis):
         "silt_thickness":None if interval is None else float(interval.thickness),
         "test_depth":float(analysis.test_depth_raw) if hasattr(analysis,"test_depth_raw") else None,
         "sensor_dropout":getattr(analysis,"sensor_dropout_depth",None),
+        "review_category":review_evidence["category"] if review_evidence else None,
+        "observed_candidate_thickness":review_evidence["measured_thickness_m"] if review_evidence else None,
         "issues":issues,
         "verification":note,
         "full_path":str(source),
@@ -233,7 +239,7 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
         self.qa_tree=ttk.Treeview(frame,columns=columns,show="headings",selectmode="browse")
         for col,label,width in [
             ("reference","CPT REFERENCE",185),("status","STATUS",100),
-            ("type","SOURCE",78),("thickness","SILT (m)",95),
+            ("type","SOURCE",78),("thickness","THICKNESS EVIDENCE (m)",172),
             ("quality","QUALITY",128),("issues","QA FINDINGS",430)]:
             self.qa_tree.heading(col,text=label)
             self.qa_tree.column(col,width=width,anchor="w" if col in ("reference","issues","quality") else "center",
@@ -266,7 +272,12 @@ class EngineeringReviewApp(EngineeringWorkspaceApp):
             if filtering=="QC flagged" and not row["issues"]:continue
             if filtering not in ("All","QC flagged") and row["status"]!=filtering:continue
             if query and query not in (row["reference"]+" "+row["source"]).casefold():continue
-            val=("—" if row["silt_thickness"] is None else f'{row["silt_thickness"]:.2f}')
+            if row["silt_thickness"] is not None:
+                val=f'{row["silt_thickness"]:.2f}'
+            elif row.get("observed_candidate_thickness") is not None:
+                val=f'{row["observed_candidate_thickness"]:.3f} OBSERVED'
+            else:
+                val="—"
             iid=self.qa_tree.insert("", "end",values=(
                 row["reference"],row["status"],row["source_type"],val,
                 row["source_quality"],"  |  ".join(row["issues"]) or "No automatic flags"),
