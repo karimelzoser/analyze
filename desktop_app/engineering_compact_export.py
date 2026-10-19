@@ -253,6 +253,27 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
                 "Original file","Reason analysis was not verified","Use limitation"],
                 reviews,{0:29,1:34,7:44,8:105,9:55})
 
+    # Each unresolved CPT gets one actionable row with actual observed
+    # geometry where available, rather than a context-free REVIEW label.
+    from engineering_review_triage import review_register
+    triage_rows=review_register(analyses)
+    if triage_rows:
+        _sheet(book,style,"Review Resolution",
+            ["CPT REFERENCE","Review category","Original file",
+             "Observed start BGL (m)","Observed end BGL (m)",
+             "Observed thickness (m)","Sounding depth (m)",
+             "Sensor dropout depth (m)","Revision / survey conflict",
+             "Required engineering resolution","Exact source evidence",
+             "Disposition"],[
+                (r["reference"],r["category"],r["source"],
+                 r["measured_start_m"],r["measured_end_m"],
+                 r["measured_thickness_m"],r["test_depth_m"],
+                 r["sensor_dropout_m"],r["conflict_fields"],
+                 r["required_action"],r["evidence"],
+                 r["engineering_disposition"])
+                for r in triage_rows],
+            {0:28,1:31,2:49,8:32,9:100,10:105,11:70})
+
     # Audit source conflicts, unclassified tails and processing exceptions
     audit_rows=[]
     for r in audits:
