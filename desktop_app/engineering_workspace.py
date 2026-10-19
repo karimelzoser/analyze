@@ -249,8 +249,13 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         tk.Label(table_tools,text="Search CPT reference",bg="#ffffff",fg="#334155",
                  font=("Segoe UI Semibold",9)).pack(side="left",padx=(0,8))
         self.foundation_search=tk.StringVar()
-        ttk.Entry(table_tools,textvariable=self.foundation_search,width=30).pack(side="left",padx=4)
-        tk.Label(table_tools,text="Click headings to sort · original imported values, not inferred",
+        ttk.Entry(table_tools,textvariable=self.foundation_search,width=26).pack(side="left",padx=4)
+        self.foundation_value_filter=tk.StringVar(value="All source records")
+        values=ttk.Combobox(table_tools,textvariable=self.foundation_value_filter,state="readonly",
+               values=["All source records","Only numeric settlements","Missing source settlements"],width=24)
+        values.pack(side="left",padx=8)
+        values.bind("<<ComboboxSelected>>",lambda _event:self._refresh_foundation_table())
+        tk.Label(table_tools,text="Click heading to sort",
                  bg="#ffffff",fg="#64748b",font=("Segoe UI",8)).pack(side="right")
         columns=("ref","case","area","e","n","settlement","fos","width","length",
                  "settlecheck","foscheck")
@@ -301,6 +306,11 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         query=self.foundation_search.get().strip().casefold()
         data=[p for p in self.foundation_points if selected=="BOTH" or p.foundation==selected]
         if query:data=[p for p in data if query in p.reference.casefold()]
+        filt=self.foundation_value_filter.get() if hasattr(self,"foundation_value_filter") else "All source records"
+        if filt=="Only numeric settlements":
+            data=[p for p in data if p.metrics.get("settlement_mm") is not None]
+        elif filt=="Missing source settlements":
+            data=[p for p in data if p.metrics.get("settlement_mm") is None]
         def key(p):
             attr=self._foundation_sort_column
             value=(
@@ -357,7 +367,13 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                 self.reference_status.set("Foundation summary: "+Path(path).name+" · "+str(len(values))+" reference records")
             self.foundation_points=[v for v in values if v.foundation in ("RAFT","ISOLATED")]
             if not self.foundation_points:raise ValueError("No Raft Summary or Isolated Summary results found.")
-            self.foundation_note.set(detail+"  •  SAVED SOURCE RESULTS; formula recalculation NOT CERTIFIED.")
+            count_by_type=[]
+            for typ in ("ISOLATED","RAFT"):
+                sub=[p for p in self.foundation_points if p.foundation==typ]
+                observed=sum(p.metrics.get("settlement_mm") is not None for p in sub)
+                if sub:count_by_type.append(f"{typ}: {observed}/{len(sub)} settlement values present")
+            self.foundation_note.set(detail+"  |  "+" · ".join(count_by_type)+
+                "  |  Absent values are NOT CALCULATED IN SOURCE, not 0 mm.")
 
             self.refresh_foundations()
         except Exception as exc:messagebox.showerror("Foundation import failed",str(exc))
