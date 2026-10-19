@@ -66,6 +66,16 @@ body{background:#eef3f7!important;font-family:Segoe UI,Inter,Arial,sans-serif}
 .atlas-fences{padding:0 12px 10px;background:#f4f8fb}
 .atlas-fences summary{padding:12px;cursor:pointer;font-weight:700}
 #cpt-atlas-2d{position:absolute;inset:0;z-index:2;background:#fff}
+#cpt-atlas-svg3d{position:absolute;inset:0;z-index:3;background:linear-gradient(155deg,#f5fafe,#ffffff);
+ cursor:grab;touch-action:none;overflow:hidden}
+#cpt-atlas-svg3d:active{cursor:grabbing}
+#cpt-atlas-svg3d svg{width:100%;height:100%;display:block}
+#cpt-atlas-svg3d .soil-svg-body{transition:stroke-width .12s}
+#cpt-atlas-svg3d .soil-svg-body:hover{stroke:#102d43!important;stroke-width:1.8px!important}
+#cpt-atlas-svg3d .soil-svg-top:hover{stroke:#102d43!important}
+#cpt-atlas-svg3d .soil-svg-label{font:11px Segoe UI,Arial,sans-serif;fill:#233e54}
+#atlas-vertical{width:98px;vertical-align:middle}
+
 #cpt-atlas-header button:focus-visible,#cpt-atlas-rank button:focus-visible{
  outline:3px solid #4ca8dc;outline-offset:2px}
 body.atlas-focus-map #cpt-atlas-screen{grid-template-columns:minmax(0,1fr)!important}
@@ -306,7 +316,8 @@ function init(){
  "Unmeasured sensor depths remain unknown. No geotechnical design acceptance inferred.</section></aside>";
  let head=document.createElement("div");head.id="cpt-atlas-header";
  head.innerHTML="<strong>CPT ATLAS / Engineering soil maps</strong>"+
- "<button id='atlas-2d' class='chosen'>2D SOIL PLAN</button><button id='atlas-3d'>3D SUBSURFACE</button>"+
+ "<button id='atlas-2d' class='chosen'>2D SOIL PLAN</button><button id='atlas-3d'>3D SOIL COLUMNS</button>"+
+ "<button id='atlas-webgl' title='Optional graphics-accelerated 3D'>WEBGL (GPU)</button>"+
  "<label for='atlas-mode'>MAP VALUE</label><select id='atlas-mode'>"+
  "<option value='soil'>Soil behavior at depth</option><option value='max'>Max observed silt thickness</option>"+
  "<option value='cum'>Cumulative silt thickness</option><option value='start'>First silt-screen depth</option>"+
@@ -320,13 +331,18 @@ function init(){
  bar.innerHTML="<span>Depth below ground</span><input type='range' id='atlas-depth' min='0' max='15' step='.05' value='4.5'>"+
  "<strong id='atlas-depth-label'>4.50 m</strong>"+
  "<label for='atlas-depth-number'>SET DEPTH</label><input type='number' id='atlas-depth-number' step='.05' min='0' value='4.5'>"+
- "<span>Wheel to zoom · drag to pan · click a surveyed CPT to inspect</span>";
+ "<span>Wheel zoom / drag pan · click CPT for measurements</span>"+
+ "<label for='atlas-vertical' id='atlas-vertical-label' class='atlas-hide'>3D depth exaggeration</label>"+
+ "<input type='range' id='atlas-vertical' class='atlas-hide' min='2' max='12' step='.5' value='6'>";
  document.body.insertBefore(head,document.body.firstChild);
  document.body.insertBefore(bar,head.nextSibling);
  document.body.insertBefore(host,bar.nextSibling);
  const graphs=$("cpt-atlas-graphs");
  graphs.appendChild(mainGraph);
  let two=document.createElement("div");two.id="cpt-atlas-2d";graphs.appendChild(two);
+ let isoview=document.createElement("div");isoview.id="cpt-atlas-svg3d";
+ isoview.className="atlas-hide";graphs.appendChild(isoview);
+ isoview.innerHTML="<svg id='cpt-atlas-isometric' aria-label='Interactive measured CPT 3D soil columns'></svg>";
  const studio=$("cpt-studio");
  graphs.parentNode.insertBefore(studio,graphs);
  // Keep the original E-W and N-S fence plots as expandable secondary views.
