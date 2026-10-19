@@ -215,6 +215,10 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         controls=tk.Frame(self.foundation_tab,bg="#ffffff")
         controls.pack(fill="x",padx=16,pady=6)
         self._btn(controls,"LOAD ORIGINAL XLSB / XLSX",self.load_foundation_summary,primary=True).pack(side="left")
+        self.foundation_case=tk.StringVar(value="Isolated")
+        ttk.Combobox(controls,textvariable=self.foundation_case,state="readonly",
+                     values=["Isolated","Raft","Both"],width=11).pack(side="left",padx=(10,5))
+        self.foundation_case.trace_add("write",lambda *_:self.refresh_foundations())
         self.foundation_metric=tk.StringVar(value="Settlement (mm)")
         c=ttk.Combobox(controls,textvariable=self.foundation_metric,state="readonly",width=20,
                         values=["Settlement (mm)","Minimum FOS"])
@@ -237,6 +241,8 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.foundation_fig=Figure(figsize=(10,6),dpi=100,facecolor="#ffffff")
         self.foundation_ax=self.foundation_fig.add_subplot(111)
         self.foundation_canvas=self._plot(self.foundation_tab,self.foundation_fig)
+        self._foundation_plotted={}
+        self.foundation_canvas.mpl_connect("pick_event",self._foundation_pick)
         self.foundation_points=[]
 
     def load_foundation_summary(self):
@@ -295,32 +301,65 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         except Exception as exc:
             messagebox.showerror("Foundation validation failed",str(exc))
 
+    def _foundation_pick(self,event):
+        hit=self._foundation_plotted.get(id(event.artist))
+        chosen=getattr(event,"ind",())
+        if not hit or len(chosen)==0:return
+        i=int(chosen[0])
+        if i<0 or i>=len(hit):return
+        p=hit[i]
+        settlement=p.metrics.get("settlement_mm")
+        fos=p.metrics.get("fos")
+        self.foundation_note.set(
+            f"{p.foundation} | {p.reference} | Settlement: "+
+            (f"{settlement:.2f} mm" if settlement is not None else "not available")+
+            " | Min FOS: "+(f"{fos:.3f}" if fos is not None else "not available")+
+            " | Easting "+str(p.east)+" / Northing "+str(p.north)+
+            " | SOURCE REFERENCE ONLY — No independent footing-model sign-off.")
+
     def refresh_foundations(self):
-        if not hasattr(self,"foundation_ax"):return
+        if not hasattr(self,"foundation_fig"):return
         self.foundation_fig.clear()
         ax=self.foundation_fig.add_subplot(111);self.foundation_ax=ax
+        self._foundation_plotted={}
         key="settlement_mm" if self.foundation_metric.get()=="Settlement (mm)" else "fos"
+        chosen_case=self.foundation_case.get() if hasattr(self,"foundation_case") else "Both"
         cases={"RAFT":[v for v in self.foundation_points if v.foundation=="RAFT"],
                "ISOLATED":[v for v in self.foundation_points if v.foundation=="ISOLATED"]}
         marks={"RAFT":"s","ISOLATED":"o"}
-        all_vals=[v.metrics.get(key) for v in self.foundation_points if v.metrics.get(key) is not None]
+        displayed=[]
+        for typ,items in cases.items():
+            if chosen_case.lower() not in ("both",typ.lower()):continue
+            source_rows=[v for v in items if v.east is not None and v.north is not None
+                         and v.metrics.get(key) is not None]
+            mapped,excluded=filter_coordinate_outliers([
+                 (v.reference,v.east,v.north,v) for v in source_rows])
+            rows=[t[3] for t in mapped]
+            if rows:displayed.append((typ,rows))
+        all_vals=[v.metrics[key] for _,items in displayed for v in items]
         import matplotlib.colors as colors
         norm=colors.Normalize(vmin=min(all_vals),vmax=max(all_vals)+1e-9) if all_vals else None
         last=None
-        for typ,items in cases.items():
-            source_rows=[v for v in items if v.east is not None and v.north is not None and v.metrics.get(key) is not None]
-            mapped,excluded=filter_coordinate_outliers([(v.reference,v.east,v.north,v) for v in source_rows])
-            rows=[t[3] for t in mapped]
-            if not rows:continue
-            last=ax.scatter([v.east for v in rows],[v.north for v in rows],
-                            c=[v.metrics[key] for v in rows],marker=marks[typ],
-                            cmap="viridis",norm=norm,edgecolor="white",s=43,label=typ)
+        for typ,items in displayed:
+            points=ax.scatter([v.east for v in items],[v.north for v in items],
+                   c=[v.metrics[key] for v in items],marker=marks[typ],
+                   cmap="viridis",norm=norm,edgecolor="white",linewidth=.45,
+                   s=65,label=typ,picker=8)
+            self._foundation_plotted[id(points)]=items
+            last=points
         if last:self.foundation_fig.colorbar(last,ax=ax,label=self.foundation_metric.get())
-        if all_vals:ax.legend()
-        if not self.foundation_points:ax.text(.5,.5,"Load an approved foundation summary",transform=ax.transAxes,ha="center")
-        ax.set_xlabel("Easting");ax.set_ylabel("Northing");ax.grid(alpha=.13)
+        if displayed:ax.legend(title="Foundation case",loc="best")
+        if not displayed:
+            ax.text(.5,.5,
+                "No imported "+chosen_case+" "+self.foundation_metric.get()+
+                " values to map.\nLoad the Pre CPT Summary.xlsx in Foundations.",
+                ha="center",va="center",transform=ax.transAxes)
+        ax.set_xlabel("Survey Easting (project grid)")
+        ax.set_ylabel("Survey Northing (project grid)")
+        ax.grid(alpha=.15)
         ax.set_aspect("equal",adjustable="datalim")
-        ax.set_title("IMPORTED "+self.foundation_metric.get()+" — REFERENCE ONLY",loc="left",fontsize=11)
+        ax.set_title("IMPORTED "+chosen_case.upper()+" · "+self.foundation_metric.get()+
+                     " — reference source only",loc="left",fontsize=11)
         self.foundation_fig.tight_layout()
         self.foundation_canvas.draw_idle()
 
