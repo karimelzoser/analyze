@@ -109,12 +109,25 @@ function value(p){
  return $("atlas-mode").value==="max"?p.max:$("atlas-mode").value==="cum"?p.cum:
         $("atlas-mode").value==="start"?p.start:$("atlas-mode").value==="depth"?p.depth:null;
 }
+function sampleAt(p,z){
+ if(!p.samples||!p.samples.length)return null;
+ let chosen=null,gap=Infinity;
+ for(const row of p.samples){
+   const d=Math.abs(row[0]-z);
+   if(d<gap){gap=d;chosen=row}
+ }
+ return chosen&&gap<=.055&&chosen[8]?chosen:null;
+}
 function hover(p){
- const layer=zone(p,depth);
+ const layer=zone(p,depth),sample=sampleAt(p,depth);
  return "<b>"+clean(p.ref)+"</b><br>Easting "+fmt(p.east,3)+" · Northing "+fmt(p.north,3)+
   "<br>Ground RL "+fmt(p.rl,3)+" m · CPT depth "+fmt(p.depth,2)+
   " m<br>Max silt "+fmt(p.max,3)+" m · Cumulative "+fmt(p.cum,3)+
   " m<br>"+(layer?layer.category+" · "+fmt(layer.top,2)+"–"+fmt(layer.bottom,2)+" m BGL":"UNKNOWN at selected depth")+
+  (sample?"<br>qc "+fmt(sample[1],2)+" MPa · fs "+fmt(sample[2],4)+
+       " MPa · u2 "+fmt(sample[3],4)+" MPa<br>Ic "+fmt(sample[7],3)+
+       " · Fr "+fmt(sample[5],2)+"% · Qtn "+fmt(sample[6],2):
+       "<br>Raw measurement at this depth: unavailable")+
   "<br>"+clean(p.status)+"<extra></extra>";
 }
 function inspect(p){
@@ -126,7 +139,17 @@ function inspect(p){
   ["Maximum silt",fmt(p.max,3)+" m"],["Cumulative silt",fmt(p.cum,3)+" m"],
   ["First silt start",fmt(p.start,2)+" m"],["Source",clean(p.source)],["Status",clean(p.status)]];
  let table=rows.map(r=>"<tr><td>"+r[0]+"</td><td>"+r[1]+"</td></tr>").join("");
- let at=zone(p,depth);
+ let at=zone(p,depth),raw=sampleAt(p,depth);
+ if(raw){
+   rows.push(["qc at "+fmt(depth,2)+"m",fmt(raw[1],3)+" MPa"],
+             ["fs at depth",fmt(raw[2],5)+" MPa"],
+             ["u2 at depth",fmt(raw[3],5)+" MPa"],
+             ["qt at depth",fmt(raw[4],3)+" MPa"],
+             ["Fr at depth",fmt(raw[5],3)+"%"],
+             ["Qtn at depth",fmt(raw[6],3)],
+             ["Ic at depth",fmt(raw[7],3)]);
+   table=rows.map(r=>"<tr><td>"+r[0]+"</td><td>"+r[1]+"</td></tr>").join("");
+ }
  let detail=blocks.slice(0,320).map(x=>"<tr><td>"+fmt(x.top,2)+"–"+fmt(x.bottom,2)+" m</td><td>"+x.category+"</td><td>"+fmt(x.bottom-x.top,3)+"</td></tr>").join("");
  $("cpt-atlas-details").innerHTML="<h2>"+clean(p.ref)+"</h2><p class='atlas-note'>"+
  (at?("Depth "+fmt(depth,2)+" m: "+at.category+" / "+fmt(at.ic,3)+" Ic"):("Depth "+fmt(depth,2)+" m: no valid classification"))+
@@ -347,11 +370,38 @@ def export_geo_atlas(data, path, *, boundary=None, warning_m=.10, high_m=.30,
         tri.mask if tri is not None and tri.mask is not None else [])
     faces=(np.asarray(indices,dtype=int)[tri.triangles[~mask]].tolist()
            if tri is not None else [])
+    source_by_ref={}
+    for item in data:
+        ref=item.get("reference") if isinstance(item,dict) else getattr(item,"reference",None)
+        if ref is not None:source_by_ref.setdefault(str(ref),item)
+    def observed_samples(item):
+        if item is None or isinstance(item,dict) or not hasattr(item,"depth"):
+            return []
+        try:
+            depth=np.asarray(item.depth,dtype=float)
+            valid=np.asarray(getattr(item,"valid_sensor",np.ones(len(depth),dtype=bool)),dtype=bool)
+            if len(depth)<1:return []
+            take=np.unique(np.r_[np.arange(0,len(depth),max(1,int(np.ceil(len(depth)/500)))),len(depth)-1])
+            result=[]
+            for i in take:
+                row=[round(float(depth[i]),4)]
+                for field in ("qc","fs","u2","qt","fr","qtn","ic"):
+                    try:
+                        v=float(getattr(item,field)[i])
+                        row.append(round(v,5) if np.isfinite(v) else None)
+                    except (IndexError,TypeError,ValueError,AttributeError):
+                        row.append(None)
+                row.append(bool(valid[i] and row[-1] is not None))
+                result.append(row)
+            return result
+        except (ValueError,TypeError,IndexError):
+            return []
     data_rows=[{"ref":p.reference,"x":p.x-origin[0],"y":p.y-origin[1],
                 "east":p.x,"north":p.y,"rl":p.elevation,"depth":p.depth,
                 "max":p.maximum_m,"cum":p.cumulative_m,
                 "start":min((r[0] for r in p.intervals),default=None),
-                "source":p.source,"status":p.status} for p in pts]
+                "source":p.source,"status":p.status,
+                "samples":observed_samples(source_by_ref.get(p.reference))} for p in pts]
     boundary_rows=None
     if boundary is not None:
         polygon=np.asarray(boundary,dtype=float)
