@@ -566,9 +566,31 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
         finally:
             if pending.exists():
                 pending.unlink(missing_ok=True)
-        # Preserve ONE workbook per run. The UI already knows the exact
-        # completed timestamped path; duplicating it as *_Latest.xlsx
-        # created an unnecessary second Excel deliverable.
+        # Publish the *same fully interactive* Plotly/SVG soil atlas that is
+        # available from Site Map, next to the one consolidated Excel workbook.
+        # Do not silently substitute a scatter/PNG for the layer explorer.
+        # A separate local HTML is needed: Excel cannot execute an offline
+        # interactive WebGL/SVG application inside a worksheet.
+        self._latest_atlas_path = None
+        try:
+            from engineering_geo_atlas import export_geo_atlas
+            from engineering_geo_explorer import spatial_points
+            observed, excluded = spatial_points(results)
+            if observed:
+                atlas = out / "CPT_Interactive_2D_3D_Atlas.html"
+                export_geo_atlas(results, atlas,
+                    boundary=getattr(self,"site_boundary",None),
+                    warning_m=float(getattr(self,"risk_watch",tk.StringVar(value="0.10")).get()),
+                    high_m=float(getattr(self,"risk_high",tk.StringVar(value="0.30")).get()))
+                if atlas.exists() and atlas.stat().st_size > 100000:
+                    self._latest_atlas_path=atlas
+                    self.messages.put(("batch_stage",99,
+                        "Interactive soil atlas ready",
+                        f"Measured CPT layers, 2D soil colors, 3D scene: {len(observed)} location(s)"))
+                else:
+                    errors.append(("Interactive soil atlas","Generated HTML was incomplete"))
+        except Exception as exc:
+            errors.append(("Interactive soil atlas",str(exc)))
         self.messages.put(("done", out, pdfs if make_pdfs else None, excel, results, errors))
 
 
