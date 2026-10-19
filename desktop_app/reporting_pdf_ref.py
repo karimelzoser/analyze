@@ -71,7 +71,11 @@ def report_page(a: CPTAnalysis) -> Figure:
                 if e is not None and n is not None else "NOT RECORDED IN SOURCE")],
           ["Cone ID:",str(md.get("cone_id") or "NOT RECORDED IN SOURCE")],
           ["Test Date:",_date_display(md.get("test_date")) if md.get("test_date") else
-                        "NOT PROVIDED (FILEDATE is not test date)"]]
+                        "NOT RECORDED (SEE FILE DATE BELOW)"],
+          ["GEF File Date:",_date_display(md.get("file_date")) if md.get("file_date") else
+                        "NOT RECORDED IN SOURCE"],
+          ["Source / data quality:",str(md.get("pore_pressure_source") or
+                                     "Original CPT numerical source; verify instrumentation")]]
     tbl=meta.table(cellText=rows,colWidths=[.34,.66],loc="center",cellLoc="left"); tbl.auto_set_font_size(False); tbl.set_fontsize(5.9); tbl.scale(1,1.18)
     for (r,c),cell in tbl.get_celld().items(): cell.set_edgecolor("#999"); cell.set_linewidth(.45); cell.set_facecolor("#ddd") if c==0 else None; cell.set_text_props(weight="bold") if c==0 else None
     sbt=fig.add_subplot(gs[19:30,8:14]); draw_reference_sbtn(sbt,a)
