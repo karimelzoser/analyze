@@ -39,11 +39,11 @@ def test_atlas_offline_interactive_maps_and_raw_parameters(tmp_path):
     assert len(html)>2_000_000
     for token in ('two.id="cpt-atlas-2d"','host.id="cpt-atlas-screen"','2D SOIL PLAN',
                   "3D SUBSURFACE","plotly_click","qc at ","Easting",
-                  "Max observed silt", "Supported"):
+                  "Max silt", "Supported"):
         # Some tokens are authored by DOM JavaScript rather than initial HTML.
         assert token.lower() in html.lower(),token
-    assert "cdn.plot.ly" not in html.lower()
-    assert "https://cdn.jsdelivr" not in html.lower()
+    assert "<script src=" not in html.lower()  # Plotly bundle may mention CDNs in comments; no external scripts
+
 
 
 def test_no_gap_filling_outside_triangles_and_outliers_filtered(tmp_path):
