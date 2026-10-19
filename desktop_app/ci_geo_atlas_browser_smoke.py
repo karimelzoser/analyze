@@ -145,6 +145,17 @@ def main():
                 page.wait_for_function(
                     "() => document.querySelectorAll('#atlas-inferred-layer-volume polygon.soil-layer-ribbon').length>=3",
                     timeout=12000)
+                assert page.locator("#atlas-measured").is_checked()
+                page.locator("#atlas-measured").uncheck()
+                page.wait_for_function(
+                    "() => document.querySelectorAll('#cpt-atlas-svg3d polygon.soil-svg-body').length===0",
+                    timeout=12000)
+                assert page.locator("#atlas-inferred-layer-volume polygon.soil-layer-ribbon").count()>=3
+                page.screenshot(path=str(screenshots/"03b-soil-volume-without-cpt-rods.png"),full_page=True)
+                page.locator("#atlas-measured").check()
+                page.wait_for_function(
+                    "() => document.querySelectorAll('#cpt-atlas-svg3d polygon.soil-svg-body').length>=4",
+                    timeout=12000)
                 # Depth slider changes the selected 3D soil band, not just 2D.
                 page.locator("#atlas-depth-number").fill("5.00")
                 page.locator("#atlas-depth-number").press("Tab")
