@@ -43,3 +43,17 @@ def test_point_regions_are_deterministic():
     assert zones.shape == fr.shape
     assert np.all((zones >= 1) & (zones <= 9))
     assert len(set(zones.tolist())) >= 3
+
+
+def test_pdf_vertical_axis_tracks_actual_ground_and_measured_depth():
+    from types import SimpleNamespace
+    import numpy as np
+    from reporting_pdf_ref import _level_axis
+    depths=np.array([0.,1.,2.,3.,4.,5.8])
+    example=SimpleNamespace(depth=depths,metadata={"ground_elevation":3.93})
+    values,label,limits=_level_axis(example)
+    assert label=="Elevation RL, m"
+    assert limits[0]>values[0] and limits[1]<values[-1]
+    assert limits[0]-limits[1]<8.0  # no empty +/-10m fixed report panels
+    for d in values:
+        assert limits[1]<=d<=limits[0]
