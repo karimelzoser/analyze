@@ -580,8 +580,8 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
                 atlas = out / "CPT_Interactive_2D_3D_Atlas.html"
                 export_geo_atlas(results, atlas,
                     boundary=getattr(self,"site_boundary",None),
-                    warning_m=float(getattr(self,"risk_watch",tk.StringVar(value="0.10")).get()),
-                    high_m=float(getattr(self,"risk_high",tk.StringVar(value="0.30")).get()))
+                    warning_m=float(self.risk_watch.get()) if hasattr(self,"risk_watch") else .10,
+                    high_m=float(self.risk_high.get()) if hasattr(self,"risk_high") else .30)
                 if atlas.exists() and atlas.stat().st_size > 100000:
                     self._latest_atlas_path=atlas
                     self.messages.put(("batch_stage",99,
