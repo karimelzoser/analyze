@@ -86,10 +86,13 @@ class CPTAnalysis:
 
     @property
     def sand_layer_thickness(self) -> Optional[float]:
-        if self.status == "REVIEW":
-            return None
+        # REVIEW may have an observed quantitative interval that is not yet
+        # approved because two genuinely full-depth test revisions conflict.
+        # Preserve the numeric evidence, but never relabel it VERIFIED.
         if self.final_interval is not None:
             return self.final_interval.start
+        if self.status == "REVIEW":
+            return None
         if self.status == "NO SILT":
             return self.test_depth
         return None
