@@ -15,7 +15,7 @@ def test_qa_flags_sensor_dropouts_and_uncertain_classification():
     row=qa_record(_example())
     assert row["status"]=="REVIEW"
     assert len(row["issues"])>=2
-    assert "Terminal sensor dropout" in row["issues"][1]
+    assert any("Terminal sensor dropout" in issue for issue in row["issues"])
     assert qa_summary([row])["Review"]==1
     assert qa_summary([row])["QC flags"]==1
 
@@ -33,3 +33,16 @@ def test_qa_pdf_confidence_visible_and_utf8_csv(tmp_path):
 
 def test_empty_project_qa_counts():
     assert qa_summary([])=={"CPTs":0,"Verified":0,"No silt":0,"Review":0,"QC flags":0}
+
+
+def test_pdf_review_ui_shows_observed_positive_thickness_not_empty():
+    sample=_example(ref="CPT-A1-B56-100",kind=".pdf")
+    sample.metadata["thin_interval_unrounded_start"]=4.851
+    sample.metadata["thin_interval_unrounded_end"]=4.921
+    sample.metadata["thin_interval_unrounded_thickness"]=.070
+    row=qa_record(sample)
+    assert row["status"]=="REVIEW"
+    assert row["review_category"]=="OBSERVED THIN INTERVAL"
+    assert row["silt_thickness"] is None  # engineering value not yet approved
+    assert row["observed_candidate_thickness"]==.070
+    assert any("OBSERVED THIN INTERVAL" in issue for issue in row["issues"])
