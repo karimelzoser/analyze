@@ -739,8 +739,27 @@ function init(){
  move.forEach(el=>rest.appendChild(el));
  document.body.appendChild(rest);
  const grand=Math.ceil(Math.max(1,...SEG.map(s=>s.bottom))*10)/10;
- $("atlas-depth").max=grand;$("atlas-depth").value=Math.min(4.5,grand);
+ // Choose a representative starting depth with actual class diversity.
+ // Showing 4.50m for every project can yield a flat yellow sand map even
+ // when strong soil contrasts exist at 4.8 or 5.2m.
+ let suggestedDepth=Math.min(4.5,grand),bestScore=-Infinity;
+ for(let d=1.0;d<=Math.min(grand,9);d+=.10){
+   const classified=SOURCE.map(p=>p.status==="REVIEW"?null:zone(p,d)?.category??null)
+      .filter(Boolean);
+   const coverage=classified.length/Math.max(1,SOURCE.length);
+   if(coverage<.55)continue;
+   const count=Object.fromEntries(CLASSES.map(k=>[k,classified.filter(x=>x===k).length]));
+   const richness=CLASSES.filter(k=>count[k]>0).length;
+   const entropy=-CLASSES.reduce((s,k)=>{
+      const f=count[k]/Math.max(1,classified.length);
+      return s+(f?f*Math.log(f):0);
+   },0);
+   const score=richness*4+entropy*3+coverage-0.06*Math.abs(d-4.5);
+   if(score>bestScore){bestScore=score;suggestedDepth=d;}
+ }
+ $("atlas-depth").max=grand;$("atlas-depth").value=suggestedDepth.toFixed(2);
  depth=Number($("atlas-depth").value);
+ $("atlas-depth-number").value=depth.toFixed(2);
  $("atlas-depth-label").textContent=fmt(depth)+" m";
  $("atlas-2d").onclick=show2d;$("atlas-3d").onclick=show3d;
  $("atlas-webgl").onclick=showWebgl;
