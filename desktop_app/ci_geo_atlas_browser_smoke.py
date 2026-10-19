@@ -48,6 +48,24 @@ def main():
                 page.wait_for_function("() => document.getElementById('cpt-atlas-details')?.textContent.includes('CPT-A2-B1-100')",timeout=20000)
                 assert "qc" in page.locator("#cpt-atlas-details").inner_text().lower()
                 page.screenshot(path=str(screenshots/"02-thickness-selected-cpt.png"),full_page=True)
+                # Map interactions must work beyond the initial screenshot.
+                page.locator("#atlas-zoom-in").click()
+                page.wait_for_timeout(200)
+                xr=page.evaluate("() => document.getElementById('cpt-atlas-2d').layout.xaxis.range")
+                assert xr and xr[1]>xr[0],"Explicit 2D zoom must provide a valid coordinate extent"
+                page.locator("#atlas-box").click()
+                assert "chosen" in page.locator("#atlas-box").get_attribute("class")
+                page.locator("#atlas-pan").click()
+                assert "chosen" in page.locator("#atlas-pan").get_attribute("class")
+                page.locator("#atlas-expand").click()
+                assert "atlas-focus-map" in page.locator("body").get_attribute("class")
+                page.locator("#atlas-expand").click()
+                page.locator("#atlas-depth-number").fill("5.00")
+                page.locator("#atlas-depth-number").press("Tab")
+                assert "5.00" in page.locator("#atlas-depth-label").inner_text()
+                page.locator("#cpt-atlas-rank button").first.click()
+                assert "CPT-A2-" in page.locator("#cpt-atlas-details").inner_text()
+
                 page.locator("#atlas-3d").click()
                 page.wait_for_function("() => !document.getElementById('cpt-atlas-screen')?.classList.contains('atlas-hide') && !document.getElementById('cpt-atlas-2d')?.offsetParent",timeout=20000)
                 page.wait_for_timeout(600)
@@ -55,6 +73,12 @@ def main():
                 mesh_count=page.evaluate(
                     "() => Array.from(document.querySelectorAll('.plotly-graph-div')).filter(x=>x.data).flatMap(x=>x.data).filter(t=>t.type==='mesh3d').length")
                 assert mesh_count>=1,"Expected actual WebGL 3D soil meshes"
+                assert page.locator("#cpt-thickness-color").is_checked(),"3D must support numeric thickness color mode"
+                page.locator("#cpt-thickness-color").uncheck()
+                page.locator("#cpt-thickness-color").check()
+                page.wait_for_timeout(300)
+                assert not exceptions,"Browser errors during 3D block recoloring: "+" | ".join(exceptions[:5])
+
                 assert not exceptions,"Browser JS errors: "+" | ".join(exceptions[:5])
                 print("PASS: offline 2D/3D atlas visually rendered, zoom/hover data present, search and inspector responded, 3D mesh loaded.")
             finally:
