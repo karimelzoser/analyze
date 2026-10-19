@@ -37,6 +37,22 @@ jobs:
         run: |
           python -m pytest -q
 
+      - name: Browser-test the offline interactive 2D/3D Atlas in Microsoft Edge
+        shell: pwsh
+        working-directory: desktop_app
+        run: |
+          python -m pip install playwright
+          python ci_geo_atlas_browser_smoke.py
+
+      - name: Upload interactive 2D/3D Atlas screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CPT-Atlas-Browser-Visual-QA
+          path: desktop_app/geo-atlas-visual-qa/*.png
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Professional application smoke test
         shell: pwsh
         working-directory: desktop_app
