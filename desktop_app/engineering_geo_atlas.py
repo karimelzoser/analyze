@@ -226,7 +226,8 @@ function render2d(){
  let pmap={type:"heatmap",x:g.xs,y:g.ys,z:g.z,zsmooth:false,hoverinfo:"skip",
   colorscale:type==="soil"?soilColors:continuous,opacity:.72,zmin:0,zmax:vmax,
   showscale:type!=="soil",colorbar:{title:{text:type==="max"?"Max layer (m)":"BGL / thickness (m)",side:"right"},thickness:13}};
- const markers={type:"scattergl",mode:"markers",name:"CPT observations",
+ // SVG markers stay interactive even when Edge/Chrome disables extra WebGL contexts.
+ const markers={type:"scatter",mode:"markers",name:"CPT observations",
   x:SOURCE.map(p=>p.x),y:SOURCE.map(p=>p.y),customdata:SOURCE.map((p,i)=>i),
   marker:{size:SOURCE.map(p=>p.ref===selected?16:10),
    color:SOURCE.map((p,i)=>type==="soil"?(g.vals[i]===null?"#9ca3af":
@@ -393,6 +394,10 @@ function init(){
     "<button data-id='"+clean(p.ref)+"'>#"+(i+1)+" · "+clean(p.ref)+" — "+fmt(p.max,3)+" m</button>").join("")+
     "<p class='atlas-note'>"+absent+" CPTs have no qualifying observed silt screen; they are not counted as thin positive layers.</p>";
  $("cpt-atlas-minrank").querySelectorAll("button").forEach(el=>el.onclick=()=>inspect(byref[el.dataset.id]));
+ // Initialize the important 2D engineering view immediately. It must NOT
+ // depend on the GPU-intensive 3D scene finishing its asynchronous traces.
+ // This isolates the 2D map from WebGL context limits on engineering laptops.
+ show2d();
  // New overlay markers with continuous silt-thickness color, independent
  // from categorical SBT body block colors. All ties remain inspectable.
  const stem=SOURCE.map(p=>p.rl??0);
@@ -407,7 +412,10 @@ function init(){
     if(hit)inspect(byref[hit.customdata]);
    });
    for(const id of ["cpt-top","cpt-bottom"])$(id).addEventListener("input",()=>setTimeout(recolor3d,80));
-   recolor3d();show2d();
+   recolor3d();
+ }).catch(error=>{
+   console.warn("3D collar overlay unavailable; independent 2D map remains functional",error);
+   $("cpt-atlas-status").textContent="2D working. 3D graphics acceleration unavailable; inspect source CPTs in the 2D plan.";
  });
  window.addEventListener("resize",()=>{let el=active2d?$("cpt-atlas-2d"):mainGraph;
  if(el?.data)Plotly.Plots.resize(el)});
