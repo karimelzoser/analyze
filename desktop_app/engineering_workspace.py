@@ -620,7 +620,16 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                       "warning_m":float(self.risk_watch.get()),
                       "high_m":float(self.risk_high.get()),
                       "show_interpretive_surface":self.show_interpolated.get()}
-            if self.map_projection.get() in ("Depth slice plan","Soil-behaviour color map"):
+            if self.map_projection.get()=="Soil-behaviour color map":
+                # Full screen must render exactly the same categorical soil
+                # level colors as the embedded plan, not fall back to a
+                # thickness/risk plot with CPT point symbols.
+                drawn=soil_depth_plan(
+                    figure,dataset,
+                    depth_m=(float(self.slice_top.get())+float(self.slice_bottom.get()))/2,
+                    boundary=self.site_boundary,
+                    fill_interpretation=self.show_interpolated.get())
+            elif self.map_projection.get()=="Depth slice plan":
                 drawn=depth_window_plan(figure,dataset,
                     top_m=float(self.slice_top.get()),
                     bottom_m=float(self.slice_bottom.get()),**settings)
@@ -635,9 +644,12 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         except tk.TclError:popup.geometry("1360x870")
         bar=tk.Frame(popup,bg="#f0f5fa")
         bar.pack(fill="x",padx=8,pady=5)
-        tk.Label(bar,text=f"{len(drawn['points'])} CPT points  |  "
-              f"{len(drawn['high'])} HIGH  |  "
-              f"{len(drawn['outliers'])} survey exceptions — click CPT pins to inspect",
+        quantity=drawn.get("classified",len(drawn.get("points",[])))
+        high_count=len(drawn.get("high",[]))
+        mode_desc=("categorized CPT soil readings" if self.map_projection.get()=="Soil-behaviour color map"
+                   else f"HIGH screening CPTs: {high_count}")
+        tk.Label(bar,text=f"{quantity} {mode_desc}  |  "
+              f"{len(drawn['outliers'])} survey exceptions | Click a source marker to inspect",
               bg="#f0f5fa",fg="#18364f",
               font=("Segoe UI Semibold",10)).pack(side="left",padx=8)
         self._btn(bar,"ALL HIGH CPTs",self.show_all_high_points).pack(side="right",padx=5)
@@ -650,7 +662,9 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             found=drawn["artists"].get(getattr(event,"artist",None),[])
             indices=getattr(event,"ind",[])
             if len(indices) and int(indices[0])<len(found):
-                self._open_map_reference(found[int(indices[0])].reference)
+                item=found[int(indices[0])]
+                ref=(item.get("reference") if isinstance(item,dict) else item.reference)
+                self._open_map_reference(ref)
                 popup.destroy()  # reveal the selected full CPT profile
         canvas.mpl_connect("pick_event",clicked)
         canvas.draw_idle()
