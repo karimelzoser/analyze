@@ -33,9 +33,23 @@ def draw_reference_sbtn(ax, a: CPTAnalysis):
 
 
 def _level_axis(a):
+    """Use measured sounding extents, not a fixed ±10m axis that hides detail."""
+    depth=np.asarray(a.depth,dtype=float)
+    valid=depth[np.isfinite(depth)]
+    if not len(valid):
+        return depth,"Depth below ground, m",(0,1)
     g=a.metadata.get("ground_elevation")
-    if isinstance(g,(int,float)): return float(g)-a.depth,"Level, m",(-10,10)
-    return a.depth,"Depth below ground, m",(10,0)
+    if isinstance(g,(int,float)) and math.isfinite(float(g)):
+        level=float(g)-depth
+        measured=level[np.isfinite(level)]
+        upper=math.ceil((float(np.max(measured))+.03)*2)/2
+        lower=math.floor((float(np.min(measured))-.03)*2)/2
+        if upper-lower<.5:lower=upper-.5
+        return level,"Elevation RL, m",(upper,lower)
+    top=max(0.,math.floor((float(np.min(valid))-.03)*2)/2)
+    bottom=math.ceil((float(np.max(valid))+.03)*2)/2
+    if bottom-top<.5:bottom=top+.5
+    return depth,"Depth BGL, m",(top,bottom)
 
 
 def report_page(a: CPTAnalysis) -> Figure:
