@@ -86,9 +86,16 @@ def main():
                 assert "CPT-A2-" in page.locator("#cpt-atlas-details").inner_text()
 
                 page.locator("#atlas-3d").click()
-                page.wait_for_function("() => !document.getElementById('cpt-atlas-screen')?.classList.contains('atlas-hide') && !document.getElementById('cpt-atlas-2d')?.offsetParent",timeout=20000)
-                page.wait_for_timeout(600)
+                page.wait_for_function(
+                    "() => {let panel=document.getElementById('cpt-atlas-svg3d');return !!panel && !!panel.offsetParent && panel.querySelectorAll('svg polygon').length>=4;}",
+                    timeout=20000)
+                assert page.locator("#atlas-vertical").is_visible()
+                assert page.locator("#cpt-atlas-svg3d svg circle").count()>=4
+                page.wait_for_timeout(300)
                 page.screenshot(path=str(screenshots/"03-layered-3d.png"),full_page=True)
+                # GPU-free column view must show actual soil shapes, not a
+                # blank WebGL scene with only Plotly legends.
+                assert page.locator("#cpt-atlas-svg3d svg polygon").count()>=4
                 mesh_count=page.evaluate(
                     "() => Array.from(document.querySelectorAll('.plotly-graph-div')).filter(x=>x.data).flatMap(x=>x.data).filter(t=>t.type==='mesh3d').length")
                 assert mesh_count>=1,"Expected actual WebGL 3D soil meshes"
