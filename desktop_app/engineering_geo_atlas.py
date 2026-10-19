@@ -74,10 +74,12 @@ body{background:#eef3f7!important;font-family:Segoe UI,Inter,Arial,sans-serif}
 #cpt-atlas-svg3d .soil-svg-body:hover{stroke:#102d43!important;stroke-width:1.8px!important}
 #cpt-atlas-svg3d .soil-svg-top:hover{stroke:#102d43!important}
 #cpt-atlas-svg3d .soil-svg-label{font:11px Segoe UI,Arial,sans-serif;fill:#233e54}
-body.atlas-mode-3d #atlas-depth-tools > *:not(#atlas-vertical):not(#atlas-vertical-label):not(#atlas-silt-only):not(#atlas-all-layers):not(#atlas-depth):not(#atlas-depth-label):not(#atlas-depth-number):not(#atlas-geology-wrap):not(#atlas-slab-wrap){display:none!important}
+body.atlas-mode-3d #atlas-depth-tools > *:not(#atlas-vertical):not(#atlas-vertical-label):not(#atlas-silt-only):not(#atlas-all-layers):not(#atlas-depth):not(#atlas-depth-label):not(#atlas-depth-number):not(#atlas-geology-wrap):not(#atlas-slab-wrap):not(#atlas-measured-wrap){display:none!important}
 #atlas-geology-wrap,#atlas-slab-wrap{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;line-height:1.3;font:600 12px Segoe UI,Arial,sans-serif;color:#1b4963}
 #atlas-slab-wrap input{flex:1;min-width:85px;accent-color:#11748e}
 #atlas-geology{width:18px;height:18px;accent-color:#11748e}
+#atlas-measured{width:18px;height:18px;accent-color:#11748e}
+#atlas-measured-wrap{grid-column:1/-1;display:flex;gap:8px;align-items:center;line-height:1.3;font:600 12px Segoe UI,Arial,sans-serif;color:#1b4963}
 .soil-layer-ribbon{stroke:#526c80;stroke-width:.6;stroke-dasharray:2 3;cursor:help}
 #cpt-atlas-details .atlas-depth-column{height:240px;width:42px;position:relative;border:1px solid #9cb5c7;flex:none;background:#edf2f6;border-radius:4px;overflow:hidden}
 #cpt-atlas-details .atlas-profile-grid{display:flex;align-items:flex-start;gap:13px;padding:9px;border:1px solid #e4edf4;border-radius:9px;background:#fbfdff;margin:7px 0}
@@ -478,6 +480,7 @@ function renderSvg3d(preview=false){
   .map(s=>({...s,sort:(project(s.x,s.y,s.z0)[1])}))
   .sort((a,b)=>a.sort-b.sort);
  const previewStep=preview?Math.max(1,Math.ceil(candidates.length/650)):1;
+ if($("atlas-measured")?.checked!==false)
  for(let pass=0;pass<candidates.length;pass+=previewStep){
   const s=candidates[pass];
   const collar=byref[s.ref];if(!collar)continue;
@@ -557,6 +560,7 @@ function setSvg3dVisible(visible){
  $("atlas-all-layers").classList.toggle("atlas-hide",!visible);
  $("atlas-geology-wrap")?.classList.toggle("atlas-hide",!visible);
  $("atlas-slab-wrap")?.classList.toggle("atlas-hide",!visible);
+ $("atlas-measured-wrap")?.classList.toggle("atlas-hide",!visible);
 }
 let isoFrame=0,isoPendingFull=false;
 function scheduleIsoFrame(preview=false){
@@ -602,6 +606,7 @@ function initIsoInteraction(){
    el.addEventListener("change",()=>{if(!host.classList.contains("atlas-hide"))renderSvg3d();}));
  $("cpt-thickness-color")?.addEventListener("change",()=>renderSvg3d());
  $("atlas-geology")?.addEventListener("change",()=>scheduleIsoFrame(false));
+ $("atlas-measured")?.addEventListener("change",()=>scheduleIsoFrame(false));
  $("atlas-slab")?.addEventListener("input",event=>{
     $("atlas-slab-label").textContent=fmt(Number(event.target.value),2)+" m";
     scheduleIsoFrame(false);
@@ -704,6 +709,7 @@ function init(){
  "<label for='atlas-vertical' id='atlas-vertical-label' class='atlas-hide'>3D depth exaggeration</label>"+
  "<input type='range' id='atlas-vertical' class='atlas-hide' min='2' max='12' step='.5' value='6'>"+
  "<label id='atlas-geology-wrap' class='atlas-hide'><input type='checkbox' id='atlas-geology' checked>INTERPRETED SOIL-LAYER VOLUME <small>(not measured between CPTs)</small></label>"+
+ "<label id='atlas-measured-wrap' class='atlas-hide'><input type='checkbox' id='atlas-measured' checked>SHOW SURVEYED CPT COLUMNS</label>"+
  "<label id='atlas-slab-wrap' class='atlas-hide'>Visible depth band <input type='range' min='.1' max='1.5' step='.1' value='.5' id='atlas-slab'><output id='atlas-slab-label'>0.50 m</output></label>";
  document.body.insertBefore(head,document.body.firstChild);
  document.body.insertBefore(bar,head.nextSibling);
