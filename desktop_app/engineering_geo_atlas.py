@@ -143,6 +143,20 @@ function hover(p){
        "<br>Raw measurement at this depth: unavailable")+
   "<br>"+clean(p.status)+"<extra></extra>";
 }
+function focusCpt(p){
+ if(!p)return;
+ inspect(p);
+ if(!active2d)show2d();
+ const graph=$("cpt-atlas-2d");
+ let rx=20,ry=20;
+ try{
+  let x=graph.layout.xaxis.range,y=graph.layout.yaxis.range;
+  if(x&&y){rx=Math.min(40,Math.max(10,Math.abs(x[1]-x[0])*.18));
+            ry=Math.min(40,Math.max(10,Math.abs(y[1]-y[0])*.18));}
+ }catch(e){}
+ Plotly.relayout(graph,{"xaxis.range":[p.x-rx,p.x+rx],
+                        "yaxis.range":[p.y-ry,p.y+ry]});
+}
 function inspect(p){
  if(!p)return;
  selected=p.ref;
@@ -338,7 +352,7 @@ function init(){
  $("atlas-depth-number").onchange=()=>setDepth($("atlas-depth-number").value);
  $("atlas-mode").onchange=()=>{if(active2d)render2d();recolor3d()};
  $("atlas-find").onchange=()=>{let v=$("atlas-find").value.toLowerCase().trim();const p=SOURCE.find(p=>p.ref.toLowerCase()===v)||
- SOURCE.find(p=>p.ref.toLowerCase().includes(v));if(p)inspect(p)};
+ SOURCE.find(p=>p.ref.toLowerCase().includes(v));if(p)focusCpt(p)};
  const pan=$("atlas-pan"),zoom=$("atlas-box");
  pan.onclick=()=>{navMode="pan";pan.classList.add("chosen");zoom.classList.remove("chosen");
   if(active2d)Plotly.relayout("cpt-atlas-2d",{dragmode:"pan"});};
@@ -372,7 +386,7 @@ function init(){
  const ranked=SOURCE.filter(p=>Number.isFinite(p.max)).sort((a,b)=>b.max-a.max);
  $("cpt-atlas-rank").innerHTML=ranked.slice(0,12).map((p,i)=>
   "<button data-id='"+clean(p.ref)+"'>#"+(i+1)+" · "+clean(p.ref)+" — "+fmt(p.max,3)+" m</button>").join("");
- $("cpt-atlas-rank").querySelectorAll("button").forEach(el=>el.onclick=()=>inspect(byref[el.dataset.id]));
+ $("cpt-atlas-rank").querySelectorAll("button").forEach(el=>el.onclick=()=>focusCpt(byref[el.dataset.id]));
  const lows=SOURCE.filter(p=>Number.isFinite(p.max)&&p.max>0).sort((a,b)=>a.max-b.max);
  const absent=SOURCE.filter(p=>p.max===0).length;
  $("cpt-atlas-minrank").innerHTML=lows.slice(0,10).map((p,i)=>
