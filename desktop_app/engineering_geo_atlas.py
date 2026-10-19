@@ -151,6 +151,12 @@ body.atlas-focus-map #cpt-atlas-map{grid-column:1}
   z-index:50;box-shadow:4px 0 25px #112b4670}
  body.atlas-focus-map #cpt-atlas-aside{display:none}
 }
+
+/* Accessible restore control remains visible when the sidebar is collapsed. */
+#atlas-show-panel{display:none;position:absolute;top:14px;left:14px;z-index:25;
+ border:1px solid #bed4e5;background:#fff;color:#14516e;padding:10px 14px;
+ border-radius:9px;box-shadow:0 3px 16px #153b5944;cursor:pointer;font:700 12px Segoe UI,Arial,sans-serif}
+body.atlas-focus-map #atlas-show-panel{display:block}
 </style>
 """
 
@@ -628,6 +634,15 @@ function init(){
  let isoview=document.createElement("div");isoview.id="cpt-atlas-svg3d";
  isoview.className="atlas-hide";graphs.appendChild(isoview);
  isoview.innerHTML="<svg id='cpt-atlas-isometric' aria-label='Interactive measured CPT 3D soil columns'></svg>";
+ // In focus-map mode the entire sidebar is hidden; a permanently reachable
+ // restore button MUST remain on the map canvas, not inside the hidden rail.
+ const showPanel=document.createElement("button");
+ showPanel.id="atlas-show-panel";showPanel.type="button";
+ showPanel.textContent="SHOW MAP CONTROLS";
+ showPanel.setAttribute("aria-label","Restore map controls sidebar");
+ $("cpt-atlas-map").appendChild(showPanel);
+ showPanel.onclick=()=>{document.body.classList.remove("atlas-focus-map");
+   $("atlas-expand").textContent="HIDE DETAILS";requestAnimationFrame(resizeVisibleAtlas)};
  const studio=$("cpt-studio");
  // Relocate the existing REAL controls instead of duplicating them. All
  // event handlers keep operating on the same DOM nodes and one map canvas.
