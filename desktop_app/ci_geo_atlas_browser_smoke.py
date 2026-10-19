@@ -108,6 +108,15 @@ def main():
                   return y.length ? Math.max(...y)-Math.min(...y) : 0;
                 }""")
                 assert column_height>120, f"3D CPT layers too small to inspect: {column_height:.1f}px high"
+                fitted=page.evaluate("""() => {
+                  const host=document.getElementById('cpt-atlas-svg3d');
+                  const shapes=[...host.querySelectorAll('polygon.soil-svg-body')];
+                  const y=shapes.flatMap(p=>p.getAttribute('points').trim().split(/\\s+/)
+                               .map(pair=>Number(pair.split(',')[1])));
+                  return {lo:Math.min(...y),hi:Math.max(...y),height:host.clientHeight};
+                }""")
+                assert fitted["lo"]>=55 and fitted["hi"]<=fitted["height"]-50, (
+                    f"3D CPT columns clipped outside visible engineering viewport: {fitted}")
                 # GPU-independent SVG is the primary 3D model. Requiring a
                 # WebGL mesh in the hidden optional plot prevents this app
                 # working on engineering PCs without stable graphics drivers.
