@@ -85,6 +85,19 @@ def restore_project_charts(book, spatial, analyses, measurement_ranges=()):
         chart.set_size({"width":670,"height":380})
         return chart
 
+    # A project may contain only an externally supplied raft/isolated-footing
+    # summary without any raw CPTs yet. Do NOT create chart objects with zero
+    # data series: XlsxWriter cannot package them, and users should still get
+    # a complete reference-values Excel for the foundation source.
+    if n==0:
+        sheet.write("A6","No analyzed CPT measurements loaded. See Foundation Results and Footing Calculation QA.",styles["note"])
+        curves=book.add_worksheet("CPT Curves")
+        curves.set_tab_color("#2c8094")
+        curves.set_column("A:X",10.5)
+        curves.write("A1","No source CPT depth traces loaded",styles["heading"])
+        curves.write("A3","Import raw GEF/GFF data to generate measured CPT profiles.",styles["note"])
+        return {"chart_count":0,"source_point_count":0,"raw_cpt_curves":[]}
+
     top=book.add_chart({"type":"bar"})
     if ranked:
         top.add_series({"name":"Maximum observed qualifying interval",
