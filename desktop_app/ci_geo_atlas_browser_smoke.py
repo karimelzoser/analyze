@@ -171,6 +171,47 @@ def main():
 
                 assert not exceptions,"Browser JS errors: "+" | ".join(exceptions[:5])
                 print("PASS: offline 2D/3D atlas visually rendered, zoom/hover data present, search and inspector responded, 3D soil SVG blocks and thickness color toggle verified.")
+
+                # A realistic larger CPT batch should not rebuild several
+                # thousand 3-face SVG polygons during each mouse movement.
+                import numpy as np
+                large=[]
+                for i in range(68):
+                    p=_raw(i+101,421000+(i%12)*18,2927000+(i//12)*22,2.8)
+                    categories=np.array([1.8,2.54,2.80,3.18])
+                    p.ic=categories[(np.arange(len(p.depth))//3+i)%4]
+                    large.append(p)
+                large_html=Path(temp)/"large_project_atlas.html"
+                export_geo_atlas(large,large_html)
+                performance=browser.new_page(viewport={"width":1440,"height":900})
+                perf_errors=[]
+                performance.on("pageerror",lambda e:perf_errors.append(str(e)))
+                performance.goto(large_html.as_uri(),wait_until="load",timeout=100000)
+                performance.wait_for_function(
+                    "() => !!document.getElementById('cpt-atlas-2d')?.data",timeout=35000)
+                assert performance.locator("#atlas-2d").is_visible()
+                performance.locator("#atlas-3d").click()
+                performance.wait_for_function(
+                    "() => document.querySelectorAll('#cpt-atlas-svg3d polygon.soil-svg-body').length > 900",
+                    timeout=45000)
+                full_shapes=performance.locator("#cpt-atlas-svg3d polygon.soil-svg-body").count()
+                box=performance.locator("#cpt-atlas-svg3d").bounding_box()
+                assert box is not None
+                x,y=box["x"]+box["width"]*.55,box["y"]+box["height"]*.53
+                performance.mouse.move(x,y)
+                performance.mouse.down()
+                performance.mouse.move(x+72,y+26)
+                performance.wait_for_timeout(140)
+                preview_shapes=performance.locator("#cpt-atlas-svg3d polygon.soil-svg-body").count()
+                assert 0<preview_shapes<=720,(preview_shapes,full_shapes)
+                performance.mouse.up()
+                performance.wait_for_function(
+                    f"() => document.querySelectorAll('#cpt-atlas-svg3d polygon.soil-svg-body').length >= {full_shapes}",
+                    timeout=45000)
+                assert not perf_errors,perf_errors[:3]
+                performance.screenshot(path=str(screenshots/"04-large-project-sidebar-and-3d.png"),full_page=True)
+                print(f"PASS: 68-CPT interactive atlas: full={full_shapes} measured segment polygons; during drag={preview_shapes}, restored after release.")
+                performance.close()
             finally:
                 browser.close()
 
