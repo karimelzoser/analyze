@@ -139,7 +139,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         projection.pack(side="left",padx=8)
         projection.bind("<<ComboboxSelected>>",lambda event:self.refresh_map())
         self._btn(map_actions,"MAP OPTIONS",self.show_map_options).pack(side="right",padx=3)
-        self._btn(map_actions,"FULL SCREEN PLAN",self.show_fullscreen_plan,
+        self._btn(map_actions,"FULL SCREEN INTERACTIVE MAP",self.open_interactive_3d,
                   primary=True).pack(side="right",padx=4)
         # Keep data selectors and action buttons on separate rows; this is
         # essential on 1024px displays and at 125-150% Windows DPI.
@@ -163,9 +163,9 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         modelbar=tk.Frame(self.map_tab,bg="#ffffff")
         modelbar.pack(fill="x",padx=16,pady=(1,4))
         self._btn(modelbar,"ALL HIGH CPTs · OPEN LIST",self.show_all_high_points).pack(side="left")
-        self._btn(modelbar,"OPEN PROFESSIONAL 3D LAYER EXPLORER",self.open_interactive_3d,
+        self._btn(modelbar,"OPEN INTERACTIVE 2D / 3D ATLAS",self.open_interactive_3d,
                   primary=True).pack(side="left",padx=8)
-        self._btn(modelbar,"SAVE 3D HTML",self.save_interactive_3d).pack(side="left",padx=4)
+        self._btn(modelbar,"SAVE ATLAS HTML",self.save_interactive_3d).pack(side="left",padx=4)
         self.slice_controls=tk.Frame(self.map_tab,bg="#edf4f9")
         self.slice_top=tk.StringVar(value="4.0")
         self.slice_bottom=tk.StringVar(value="5.0")
@@ -189,10 +189,10 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         # model as a visible primary action without opening Map Options.
         visible3d=tk.Frame(self.map_tab,bg="#ffffff")
         visible3d.pack(fill="x",padx=16,pady=(2,3))
-        self.map_open_3d_btn=self._btn(visible3d,"OPEN FULL 3D LAYER EXPLORER",
+        self.map_open_3d_btn=self._btn(visible3d,"OPEN INTERACTIVE 2D / 3D ATLAS",
                   self.open_interactive_3d,primary=True)
         self.map_open_3d_btn.pack(side="left")
-        self._btn(visible3d,"SAVE 3D MODEL HTML",
+        self._btn(visible3d,"SAVE 2D / 3D ATLAS HTML",
                   self.save_interactive_3d).pack(side="left",padx=8)
         tk.Label(visible3d,text="3D shows observed CPT intervals; scale is adjustable.",
                  bg="#ffffff",fg="#64748b",font=("Segoe UI",8)).pack(side="right")
@@ -602,7 +602,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                   row=1,column=0,sticky="ew",padx=(0,8),pady=4)
         self._btn(actions,"SAVE 2D PLAN PNG",self.save_map_image).grid(
                   row=1,column=1,sticky="ew",pady=4)
-        self._btn(actions,"OPEN INTERACTIVE 3D",self.open_interactive_3d).grid(
+        self._btn(actions,"OPEN 2D / 3D ATLAS",self.open_interactive_3d).grid(
                   row=2,column=0,sticky="ew",padx=(0,8),pady=4)
         self._btn(actions,"EXPORT 3D HTML",self.save_interactive_3d).grid(
                   row=2,column=1,sticky="ew",pady=4)
@@ -701,9 +701,9 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
 
     def save_interactive_3d(self):
         output=filedialog.asksaveasfilename(
-            title="Save portable offline 3D geotechnical model",
+            title="Save portable offline interactive 2D/3D geotechnical atlas",
             defaultextension=".html",
-            initialfile="CPT_Site_3D_Soil_Model.html",
+            initialfile="CPT_Geotechnical_2D_3D_Atlas.html",
             filetypes=[("Offline interactive HTML","*.html")])
         if not output:return
         try:
@@ -730,7 +730,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             if not hasattr(self,"_geo_html_dir"):
                 from tempfile import TemporaryDirectory
                 self._geo_html_dir=TemporaryDirectory(prefix="cpt_3d_explorer_")
-            target=Path(self._geo_html_dir.name)/"CPT_Interactive_3D.html"
+            target=Path(self._geo_html_dir.name)/"CPT_Interactive_2D_3D_Atlas.html"
             result=export_interactive_3d(dataset,target,boundary=self.site_boundary,
                          warning_m=float(self.risk_watch.get()),
                          high_m=float(self.risk_high.get()))
