@@ -3,9 +3,10 @@ from __future__ import annotations
 import os
 import math
 import re
+import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 
 import app_modern
 import app_modern_v2
@@ -374,15 +375,28 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
         chosen = filedialog.askopenfilenames(
             title="Select CPT GEF/GFF/PDF files",
             filetypes=[
-                ("Supported CPT files", "*.GEF *.gef *.GFF *.gff *.PDF *.pdf"),
+                ("CPT inputs including ZIP", "*.GEF *.gef *.GFF *.gff *.PDF *.pdf *.ZIP *.zip"),
                 ("Raw CPT files", "*.GEF *.gef *.GFF *.gff"),
                 ("CPT PDF reports", "*.PDF *.pdf"),
                 ("All files", "*.*"),
             ],
         )
         if chosen:
-            self.files = collect_candidate_sources(Path(v) for v in chosen)
-            self.skipped_duplicate_sources = []
+            from engineering_zip_inputs import extract_project_zip
+            expanded=[]
+            try:
+                for item in chosen:
+                    p=Path(item)
+                    if p.suffix.lower()==".zip":
+                        _,extracted=extract_project_zip(p)
+                        expanded.extend(extracted)
+                    else:
+                        expanded.append(p)
+            except (ValueError,OSError,zipfile.BadZipFile) as exc:
+                messagebox.showerror("CPT ZIP input problem",str(exc))
+                return
+            self.files=collect_candidate_sources(expanded)
+            self.skipped_duplicate_sources=[]
             self._after_select()
             self._describe_selection()
 
