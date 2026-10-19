@@ -97,10 +97,15 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
         cumulative=observed.cumulative_silt_m if observed else None
         unknown=observed.unknown_m if observed else None
         count=observed.silt_count if observed else None
+        # A genuine conflicting full-depth CPT remains REVIEW, but the
+        # measured candidate is still a quantitative observation. Do not
+        # erase it from the five-column summary. Make its provisional
+        # status unmistakable through cell comments / amber formatting.
         quick.append((i,a.reference,
-                "REVIEW" if a.status=="REVIEW" else
-                "NO SILT" if z is None else z.start,
-                None if a.status=="REVIEW" else 0.0 if z is None else z.thickness,
+                z.start if z is not None else
+                ("NO SILT" if a.status=="NO SILT" else "REVIEW"),
+                z.thickness if z is not None else
+                (0.0 if a.status=="NO SILT" else None),
                 a.sand_layer_thickness))
         detail.append((a.reference,a.status,num(md.get("easting")),num(md.get("northing")),
             num(md.get("ground_elevation")),num(getattr(a,"test_depth_raw",None)),
@@ -186,9 +191,21 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
                {0:28,1:46,3:34,4:105})
 
     # Main deliverable: the user's original five columns; no extra fields here.
-    _sheet(book,style,"CPT Analysis",
+    quick_summary=_sheet(book,style,"CPT Analysis",
            ["SI.No","CPT REFERENCE","Silt start depth after (m)","silt depth (m)",
             "Sand layer thickness before silt (m)"],quick,{1:29,2:25,3:19,4:25})
+    # Five numeric columns remain unchanged. Source conflicts show the
+    # provisional numeric interpretation with an amber marker/comment;
+    # Full Analysis and Source Audit retain REVIEW, never VERIFIED.
+    for idx,a in enumerate(analyses,1):
+        if a.status=="REVIEW":
+            quick_summary.set_row(idx,None,style["review"])
+            explanation=("ENGINEERING REVIEW — NOT VERIFIED. "+
+                         str(getattr(a,"verification_note",""))+
+                         " If numerical silt is shown, it is the selected"
+                         " candidate only; competing full-depth revisions"
+                         " must be independently reconciled.")
+            quick_summary.write_comment(idx,1,explanation[:30000])
     _sheet(book,style,"Full Analysis",
            ["CPT REFERENCE","Status","Easting","Northing","Ground elevation RL (m)",
             "Sounding depth BGL (m)","Reported silt start (m)","Reported silt end (m)",
