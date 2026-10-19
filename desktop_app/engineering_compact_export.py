@@ -191,7 +191,7 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
                {0:28,1:46,3:34,4:105})
 
     # Main deliverable: the user's original five columns; no extra fields here.
-    quick_summary=_sheet(book,style,"CPT Analysis",
+    quick_summary,_quick_count=_sheet(book,style,"CPT Analysis",
            ["SI.No","CPT REFERENCE","Silt start depth after (m)","silt depth (m)",
             "Sand layer thickness before silt (m)"],quick,{1:29,2:25,3:19,4:25})
     # Five numeric columns remain unchanged. Source conflicts show the
@@ -199,7 +199,8 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
     # Full Analysis and Source Audit retain REVIEW, never VERIFIED.
     for idx,a in enumerate(analyses,1):
         if a.status=="REVIEW":
-            quick_summary.set_row(idx,None,style["review"])
+            quick_summary.conditional_format(idx,0,idx,4,{
+                "type":"formula","criteria":"=TRUE","format":style["review"]})
             explanation=("ENGINEERING REVIEW — NOT VERIFIED. "+
                          str(getattr(a,"verification_note",""))+
                          " If numerical silt is shown, it is the selected"
