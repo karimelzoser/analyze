@@ -17,7 +17,7 @@ from engineering_geo_explorer import export_interactive_3d, spatial_points
 GROUPS = {
     "sand": ("Sand-like SBT", "#e6b86c"),
     "transition": ("Transitional sand/silt SBT", "#eaa352"),
-    "silt": ("Fine-grained/silt-mixture SBT", "#e65f4b"),
+    "silt": ("Fine-grained/silt-mixture SBT", "#67b4af"),
     "clay": ("Clay-like/organic SBT", "#8e77c6"),
     "unknown": ("UNKNOWN / unmeasured depth", "#9aa6b2"),
 }
@@ -178,7 +178,7 @@ def _script(segment_data, chart_id):
 (function(){
 "use strict";
 const SEGMENTS=__SEGMENTS__, CHART=__CHART__;
-const COLORS={sand:"#e6b86c",transition:"#eaa352",silt:"#e65f4b",clay:"#8e77c6",unknown:"#9aa6b2"};
+const COLORS={sand:"#e6b86c",transition:"#eaa352",silt:"#67b4af",clay:"#8e77c6",unknown:"#9aa6b2"};
 const LABELS={sand:"Sand-like SBT",transition:"Transitional SBT",silt:"Silt-mixture SBT",
               clay:"Clay/organic-like SBT",unknown:"UNKNOWN sensor coverage"};
 const categories=Object.keys(COLORS);
