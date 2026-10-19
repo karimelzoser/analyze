@@ -132,6 +132,13 @@ def main():
                 colors_heat=page.locator("#cpt-atlas-svg3d polygon.soil-svg-body").evaluate_all(
                     "(items) => [...new Set(items.map(x => x.getAttribute('fill')))]")
                 assert colors_heat!=colors_classes, "3D silt thickness heat toggle did not recolor soil blocks"
+                full_layer_count=page.locator("#cpt-atlas-svg3d polygon.soil-svg-body").count()
+                page.locator("#atlas-silt-only").click()
+                focused_count=page.locator("#cpt-atlas-svg3d polygon.soil-svg-body").count()
+                assert 0<focused_count<full_layer_count, (
+                    "Silt Only preset must hide unrelated sand/clay/unknown strata")
+                page.locator("#atlas-all-layers").click()
+                assert page.locator("#cpt-atlas-svg3d polygon.soil-svg-body").count()==full_layer_count
                 page.locator("#cpt-atlas-svg3d polygon.soil-svg-body").first.click(force=True)
                 assert "CPT-A2-" in page.locator("#cpt-atlas-details").inner_text()
                 page.locator("#atlas-expand").click()
