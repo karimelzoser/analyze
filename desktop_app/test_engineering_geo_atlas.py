@@ -48,11 +48,11 @@ def test_atlas_offline_interactive_maps_and_raw_parameters(tmp_path):
 
 def test_no_gap_filling_outside_triangles_and_outliers_filtered(tmp_path):
     cpts=[_raw(i,421000+(i%3)*20,2927000+(i//3)*20,2.8)
-          for i in range(1,7)]
-    bad=_raw(7,4_210_000,2927000,3.2)
+          for i in range(1,10)]
+    bad=_raw(10,4_210_000,2927000,3.2)
     result=export_geo_atlas(cpts+[bad],tmp_path/"site.html")
     assert result["withheld"]==1
-    assert result["points"]==6
+    assert result["points"]==9
     assert result["plan_faces"]>=1
 
 
