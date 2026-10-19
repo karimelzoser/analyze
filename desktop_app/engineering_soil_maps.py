@@ -165,7 +165,11 @@ def soil_depth_plan(fig:Figure,data,*,depth_m,boundary=None,
                 bbox={"facecolor":"white","alpha":.90,"edgecolor":"none","pad":5})
     legends=[Patch(facecolor=c,label=n) for c,n in zip(SOIL_COLORS,SOIL_CLASSES)]
     legends.append(Patch(facecolor="#b5bec9",label="Unmeasured / conflicting (no interpretation)"))
-    ax.legend(handles=legends,loc="best",fontsize=8,framealpha=.93)
+    # Put the complete SBT legend OUTSIDE the engineering map; otherwise
+    # it hides northern/eastern CPTs and obscures the very soil colors the
+    # user needs to inspect.
+    ax.legend(handles=legends,loc="upper left",bbox_to_anchor=(1.01,1.0),
+              fontsize=8,framealpha=.96,borderaxespad=0.0)
     ax.set_xlabel("Project Easting (m)");ax.set_ylabel("Project Northing (m)")
     ax.set_aspect("equal",adjustable="datalim");ax.grid(alpha=.07,zorder=0)
     ax.set_title(f"Soil-behaviour zones at {depth_m:.2f} m BGL | locally supported categorical map",
@@ -175,7 +179,7 @@ def soil_depth_plan(fig:Figure,data,*,depth_m,boundary=None,
              f"{len(excluded)} survey outliers • {triangles} supported triangles. "
              "Fill is indicative nearest-observation interpolation, NOT verified soil geology.",
              fontsize=8,color="#56687d")
-    fig.tight_layout(rect=(0,.04,1,.97))
+    fig.tight_layout(rect=(0,.04,.77,.97))
     return {"points":points,"outliers":excluded,"classified":len(valid),
             "unknown":len(unknown),"supported_triangles":triangles,
             "filled_cells":filled,"artists":grouped,"depth_m":depth_m}
