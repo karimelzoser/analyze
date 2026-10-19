@@ -60,6 +60,23 @@ def main():
                     raise
                 assert page.locator("#atlas-2d").is_visible()
                 assert page.locator("#cpt-atlas-2d").is_visible()
+                # User-requested professional layout: ALL atlas controls sit
+                # in a scrollable left rail, while model owns the main viewport.
+                positions=page.evaluate("""() => {
+                   let rail=document.querySelector('#cpt-atlas-aside').getBoundingClientRect();
+                   let graph=document.querySelector('#cpt-atlas-graphs').getBoundingClientRect();
+                   return {railX:rail.x,railR:rail.right,railW:rail.width,
+                     graphX:graph.x,graphW:graph.width,graphH:graph.height,
+                     headInRail:document.getElementById('cpt-atlas-aside').contains(
+                        document.getElementById('cpt-atlas-header')),
+                     sliderInRail:document.getElementById('cpt-atlas-aside').contains(
+                        document.getElementById('cpt-studio'))};
+                }""")
+                assert positions["headInRail"] and positions["sliderInRail"],positions
+                assert positions["railR"]<=positions["graphX"]+4,positions
+                assert positions["graphW"]>850,positions
+                assert positions["graphH"]>540,positions
+
                 page.screenshot(path=str(screenshots/"01-soil-plan.png"),full_page=True)
                 page.locator("#atlas-mode").select_option("max")
                 page.wait_for_function(
@@ -88,6 +105,11 @@ def main():
                 page.locator("#cpt-atlas-rank button").first.click()
                 assert "CPT-A2-" in page.locator("#cpt-atlas-details").inner_text()
 
+                # Avoid building all 3D polygons on every intermediate mouse
+                # move; drag uses the low-detail requestAnimationFrame preview.
+                # Final pointer release restores the full visible soil layers.
+                assert "scheduleIsoFrame" in page.content()
+                assert "previewStep=preview" in page.content()
                 page.locator("#atlas-3d").click()
                 page.wait_for_function(
                     "() => {let panel=document.getElementById('cpt-atlas-svg3d');return !!panel && !!panel.offsetParent && panel.querySelectorAll('svg polygon').length>=4;}",
