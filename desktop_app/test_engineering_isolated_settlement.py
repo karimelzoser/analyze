@@ -85,3 +85,28 @@ def test_new_campaign_raw_points_absent_from_old_summary_are_not_lost():
     assert results[1].reference=="CPT-A2-B190-100"
     assert results[1].calculated_settlement_mm is not None
     assert "NO MATCHING ISOLATED REFERENCE RECORD" in results[1].warning
+
+
+def test_near_footing_missing_measurements_are_more_serious_than_deep_gap():
+    """Equal missing depth is not equal coverage of footing-induced stress."""
+    near=_cpt(depth_end=9.)
+    far=_cpt(depth_end=9.)
+    near.qt[(near.depth>=1.10)&(near.depth<=1.48)]=np.nan
+    far.qt[(far.depth>=6.10)&(far.depth<=6.48)]=np.nan
+    cfg=IsolatedInputs(influence_b=2.0,min_coverage=.95)
+    ra=derive_isolated_settlement(near,cfg)
+    rb=derive_isolated_settlement(far,cfg)
+    assert abs(ra.coverage_percent-rb.coverage_percent)<1.0
+    assert ra.stress_coverage_percent<rb.stress_coverage_percent
+    assert ra.missing_intervals_bgl and rb.missing_intervals_bgl
+    assert ra.missing_depth_m>0 and rb.missing_depth_m>0
+    assert ra.calculated_settlement_mm is None  # nearby missing stress remains unknown
+    assert any(a<=1.30<=b for a,b in ra.missing_intervals_bgl)
+
+
+def test_complete_observed_influence_has_full_stress_coverage():
+    r=derive_isolated_settlement(_cpt(depth_end=9.0),IsolatedInputs())
+    assert r.status=="ESTIMATE — COVERAGE SUFFICIENT"
+    assert r.stress_coverage_percent==pytest.approx(100.,abs=.05)
+    assert r.missing_depth_m==pytest.approx(0.)
+    assert r.missing_intervals_bgl==[]
