@@ -570,6 +570,7 @@ function setSvg3dVisible(visible){
  $("atlas-geology-wrap")?.classList.toggle("atlas-hide",!visible);
  $("atlas-slab-wrap")?.classList.toggle("atlas-hide",!visible);
  $("atlas-measured-wrap")?.classList.toggle("atlas-hide",!visible);
+ $("atlas-detail-wrap")?.classList.toggle("atlas-hide",!visible);
 }
 let isoFrame=0,isoPendingFull=false;
 function scheduleIsoFrame(preview=false){
@@ -616,13 +617,13 @@ function initIsoInteraction(){
  $("cpt-thickness-color")?.addEventListener("change",()=>renderSvg3d());
  $("atlas-geology")?.addEventListener("change",()=>scheduleIsoFrame(false));
  $("atlas-measured")?.addEventListener("change",()=>scheduleIsoFrame(false));
+ $("atlas-detail")?.addEventListener("change",()=>scheduleIsoFrame(false));
  $("atlas-slab")?.addEventListener("input",event=>{
     $("atlas-slab-label").textContent=fmt(Number(event.target.value),2)+" m";
     scheduleIsoFrame(false);
  });
 }
 function show3d(){
- $("atlas-detail")?.addEventListener("change",()=>renderSvg3d(),{once:true});
  active2d=false;document.body.classList.add("atlas-mode-3d");
  $("cpt-atlas-2d").classList.add("atlas-hide");
  mainGraph.classList.add("atlas-hide");
