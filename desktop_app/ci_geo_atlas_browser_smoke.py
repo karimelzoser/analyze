@@ -160,7 +160,11 @@ def main():
                 page.locator("#atlas-depth-number").fill("5.00")
                 page.locator("#atlas-depth-number").press("Tab")
                 assert page.locator("#atlas-depth-label").inner_text().startswith("5.00")
-                assert "5.00" in page.locator("#atlas-inferred-layer-volume polygon title").first.text_content()
+                # Multi-slice volumetric rendering intentionally includes
+                # neighbors ABOVE/BELOW selected 5.00m. Check that the
+                # selected depth is represented by at least one slice.
+                assert page.locator("#atlas-inferred-layer-volume polygon title").filter(
+                    has_text="5.00").count()>0
                 assert page.locator("#cpt-atlas-svg3d svg circle").count()>=4
                 page.wait_for_timeout(300)
                 page.screenshot(path=str(screenshots/"03-layered-3d.png"),full_page=True)
