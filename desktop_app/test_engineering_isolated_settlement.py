@@ -29,7 +29,7 @@ def test_higher_modulus_reduces_settlement_load_increases_settlement():
     baseline=derive_isolated_settlement(_cpt(),input)
     hard=derive_isolated_settlement(_cpt(qt=12),input)
     heavy=derive_isolated_settlement(_cpt(),IsolatedInputs(
-        net_pressure_kpa=300.,min_coverage=.95))
+        net_pressure_kpa=300.,influence_b=2.0,min_coverage=.95))
     assert baseline.status=="ESTIMATE — COVERAGE SUFFICIENT"
     assert baseline.calculated_settlement_mm>0
     assert hard.calculated_settlement_mm==pytest.approx(
