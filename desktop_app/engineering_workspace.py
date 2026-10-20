@@ -278,7 +278,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         tk.Label(table_tools,text="Click heading to sort",
                  bg="#ffffff",fg="#64748b",font=("Segoe UI",8)).pack(side="right")
         columns=("ref","case","area","e","n","settlement","fos","width","length",
-                 "settlecheck","foscheck","estimate","coverage","model_status")
+                 "settlecheck","foscheck","estimate","coverage","stress_cov","missing_bgl","model_status")
         tableholder=tk.Frame(self.foundation_table_view,bg="#ffffff")
         tableholder.pack(fill="both",expand=True,padx=8,pady=(0,8))
         self.foundation_table=ttk.Treeview(tableholder,columns=columns,show="headings",
@@ -289,7 +289,9 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             "settlement":("Settlement (mm)",130),"fos":("Min FOS",93),
             "width":("Width (m)",85),"length":("L/W",65),
             "settlecheck":("Source settlement check",150),"foscheck":("FOS check",95),
-            "estimate":("CPT estimate (mm)",155),"coverage":("Coverage %",110),
+            "estimate":("CPT estimate (mm)",155),"coverage":("Depth coverage %",120),
+            "stress_cov":("Stress coverage %",135),
+            "missing_bgl":("Unmeasured BGL range",205),
             "model_status":("Model/coverage QA",265)}
         self._foundation_sort_column="ref"
         self._foundation_sort_reverse=False
@@ -350,6 +352,10 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                     if attr=="estimate" and self._isolated_estimate_map.get(id(p)) else
                 self._isolated_estimate_map.get(id(p)).coverage_percent
                     if attr=="coverage" and self._isolated_estimate_map.get(id(p)) else
+                self._isolated_estimate_map.get(id(p)).stress_coverage_percent
+                    if attr=="stress_cov" and self._isolated_estimate_map.get(id(p)) else
+                str(self._isolated_estimate_map.get(id(p)).missing_intervals_bgl)
+                    if attr=="missing_bgl" and self._isolated_estimate_map.get(id(p)) else
                 self._isolated_estimate_map.get(id(p)).status
                     if attr=="model_status" and self._isolated_estimate_map.get(id(p)) else None)
             return (value is None, str(value).casefold() if isinstance(value,str) else
@@ -369,6 +375,11 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                 fmt(self._isolated_estimate_map[id(p)].calculated_settlement_mm,2)
                   if id(p) in self._isolated_estimate_map else "NOT CALCULATED",
                 fmt(self._isolated_estimate_map[id(p)].coverage_percent,1)
+                  if id(p) in self._isolated_estimate_map else "—",
+                fmt(self._isolated_estimate_map[id(p)].stress_coverage_percent,1)
+                  if id(p) in self._isolated_estimate_map else "—",
+                "; ".join("%.2f–%.2f"%(z0,z1) for z0,z1 in (
+                    self._isolated_estimate_map[id(p)].missing_intervals_bgl or []))
                   if id(p) in self._isolated_estimate_map else "—",
                 self._isolated_estimate_map[id(p)].status
                   if id(p) in self._isolated_estimate_map else "SOURCE ONLY"),
@@ -405,10 +416,13 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                 self._isolated_estimate_map[id(synthetic)]=estimate
             full=sum(r.calculated_settlement_mm is not None for r in estimates)
             source_count=sum(p.metrics.get("settlement_mm") is not None for p in sources)
+            qa_count=sum(e.status.startswith("INCOMPLETE") for e in estimates)
             self.foundation_note.set(
-                "%d/%d original source settlement entries; %d native provisional estimates with adequate CPT coverage. "
-                "Missing raw depth is NOT extrapolated. No native design PASS/FAIL."%
-                (source_count,len(sources),full))
+                "%d/%d imported source settlements · %d provisional screening estimates · "
+                "%d incomplete CPT influence zones. Both measured-depth and "
+                "stress-weighted coverage are shown; missing depth is never extrapolated. "
+                "NO native design PASS/FAIL."%
+                (source_count,len(sources),full,qa_count))
             self._refresh_foundation_table()
             self.foundation_metric.set("CPT screened settlement (mm)")
             self.refresh_foundations()
