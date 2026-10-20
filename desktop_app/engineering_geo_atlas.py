@@ -487,7 +487,7 @@ function renderSvg3d(preview=false){
  const selectable=[];
  const focusBand=Math.max(.12,Math.min(1.5,Number($("atlas-slab")?.value||.5)));
  const allLayers=$("atlas-detail")?.value==="all";
- const candidates=SEG.filter(s=>s.bottom>stTop&&s.top<stBot&&
+ let candidates=SEG.filter(s=>s.bottom>stTop&&s.top<stBot&&
    (allLayers || s.ref===selected || (s.top<=depth+focusBand&&s.bottom>=depth-focusBand))&&
    (document.querySelector("[data-layer='"+s.category+"']")?.checked!==false))
   .map(s=>({...s,drawTop:Math.max(s.top,stTop),
@@ -495,6 +495,39 @@ function renderSvg3d(preview=false){
   .filter(s=>s.drawBottom>s.drawTop)
   .map(s=>({...s,sort:(project(s.x,s.y,s.z0)[1])}))
   .sort((a,b)=>a.sort-b.sort);
+ const availableSegments=candidates.length;
+ // Engineering overview has a LEGIBILITY budget, not a data deletion.
+ // Preserve EVERY measured layer in SEG and the "ALL MEASURED LAYERS" mode.
+ // A deterministic round-robin selection gives each surveyed CPT a fair
+ // representation rather than allowing dense/noisy CPTs to monopolize 3D.
+ if(!allLayers && !preview && candidates.length>700){
+   const buckets=new Map();
+   for(const s of candidates){
+     if(!buckets.has(s.ref))buckets.set(s.ref,[]);
+     buckets.get(s.ref).push(s);
+   }
+   for(const [ref,group] of buckets){
+     group.sort((a,b)=>Math.abs((a.drawTop+a.drawBottom)/2-depth)-
+                       Math.abs((b.drawTop+b.drawBottom)/2-depth));
+   }
+   const references=[...buckets.keys()].sort((a,b)=>{
+     if(a===selected)return -1;if(b===selected)return 1;
+     return a.localeCompare(b);
+   });
+   const display=[];
+   let more=true;
+   while(more && display.length<700){
+     more=false;
+     for(const ref of references){
+       const group=buckets.get(ref);
+       if(group.length){
+         more=true;display.push(group.shift());
+         if(display.length===700)break;
+       }
+     }
+   }
+   candidates=display.sort((a,b)=>a.sort-b.sort);
+ }
  const previewStep=preview?Math.max(1,Math.ceil(candidates.length/650)):1;
  if($("atlas-measured")?.checked!==false)
  for(let pass=0;pass<candidates.length;pass+=previewStep){
@@ -564,8 +597,11 @@ function renderSvg3d(preview=false){
         "Drag to rotate · Shift+drag to pan · Wheel to zoom · Click a CPT"));
  svg.appendChild(svgNode("text",{x:20,y:h-16,fill:"#657e90",
         style:"font:11px Segoe UI,Arial,sans-serif"},
-        ribbonsDrawn ? ("INTERPRETED "+ribbonsDrawn+" soil cells (dashed) · actual CPT columns are measured")
-                     : "Only surveyed CPT columns shown · no inferred geological volume"));
+        (availableSegments>candidates.length ?
+          ("FOCUSED 3D: "+candidates.length+" of "+availableSegments+
+            " visible measured intervals · choose ALL for the complete set") :
+          ribbonsDrawn ? ("INTERPRETED "+ribbonsDrawn+" soil cells · CPT columns are measured") :
+            "Only surveyed CPT columns shown · no inferred geological volume")));
 }
 function setSvg3dVisible(visible){
  const svg=$("cpt-atlas-svg3d");
