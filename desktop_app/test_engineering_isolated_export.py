@@ -36,8 +36,9 @@ def test_393_isolated_rows_preserved_with_214_missing_source_results(tmp_path):
         assert b"Isolated Model QA" in names
         xml=b"".join(file.read(n) for n in file.namelist() if
                      n.startswith("xl/worksheets/sheet") and n.endswith(".xml"))
-        assert b"NOT AVAILABLE" in xml
-        assert b"CONFLICT: source says Pass but saved result exceeds 40 mm" in xml
+        shared=file.read("xl/sharedStrings.xml")
+        assert b"NOT AVAILABLE" in shared
+        assert b"CONFLICT: source says Pass but saved result exceeds 40 mm" in shared
         assert b"393" in xml and b"214" in xml
 
 
@@ -56,5 +57,6 @@ def test_observed_raw_qt_populates_computed_and_incremental_rows(tmp_path):
     with zipfile.ZipFile(out) as file:
         data=b"".join(file.read(n) for n in file.namelist() if
                   n.startswith("xl/worksheets/sheet") and n.endswith(".xml"))
-        assert b"ESTIMATE" in data
-        assert b"NOT ASSESSED" in data
+        shared=file.read("xl/sharedStrings.xml")
+        assert b"ESTIMATE" in shared
+        assert b"NOT ASSESSED" in shared
