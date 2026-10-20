@@ -71,3 +71,17 @@ def test_source_matching_requires_same_reference_and_location():
     assert results[0].source_delta_mm is not None
     assert results[1].calculated_settlement_mm is None
     assert results[1].status.startswith("NOT CALCULABLE")
+
+
+def test_new_campaign_raw_points_absent_from_old_summary_are_not_lost():
+    from engineering_comparison import SummaryPoint
+    existing=SummaryPoint("CPT-A1-B01-100","ISOLATED",420000,2927000,
+        {"settlement_mm":None},"Isolated Summary")
+    newer=_cpt(reference="CPT-A2-B190-100",depth_end=5.8)
+    results=attach_isolated_estimates([newer],[existing],IsolatedInputs(influence_b=1.5))
+    assert len(results)==2
+    assert results[0].reference=="CPT-A1-B01-100"
+    assert results[0].calculated_settlement_mm is None
+    assert results[1].reference=="CPT-A2-B190-100"
+    assert results[1].calculated_settlement_mm is not None
+    assert "NO MATCHING ISOLATED REFERENCE RECORD" in results[1].warning
