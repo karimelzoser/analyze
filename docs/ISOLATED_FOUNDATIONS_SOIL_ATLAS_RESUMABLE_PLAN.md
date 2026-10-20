@@ -48,5 +48,29 @@
 5. Run `python -m pytest -q` in `desktop_app`; then GitHub Windows workflow. Publish latest EXE only after automated tests, GUI smoke, HTML browser smoke and workbook validation succeed.
 6. Log actual last completed task, validation results, remaining dependencies and release path at bottom of this file.
 
+## Implementation evidence and source-data finding (2026-10-20)
+
+**Critical discovery:** The 71 new A2-B190..B272 GEF references have **zero matching CPT references** in the supplied historical `Pre CPT Summary.xlsx` isolated sheet. Source results must therefore be preserved while the new raw CPTs receive *separate* provisional screening rows; do not merge by nearby position or fabricate historical settlement.
+
+**Coverage:** New sounding corrected depth: 0.269 m to 6.687 m; median 5.709 m. None reaches 7.0 m BGL. A 3×3 m isolated footing at 1m embedment screened to 2B below base needs 7m; this would be INCOMPLETE for every one of these new GEFs. The implementation allows explicitly provisional 1.5B screening (to 5.5m BGL) and reports the depth window. 1.5B screening is NOT a complete approved settlement solution.
+
+**Implemented commits / files**
+- `a57bce6` `engineering_isolated_settlement.py`: deterministic 2:1 stress increment and calibrated-modulus-factor strain summation, no extrapolation, explicit valid coverage and trace data.
+- `775c444` `engineering_isolated_export.py`: separate source vs native values, full missing-value provenance, **Isolated Settlement Results**, **Isolated Strain Integration**, and **Isolated Model QA** worksheets.
+- `d0ba3f7`, `b69fbf9`: append native screening to the unified workbook even without historical foundation summaries.
+- `e5aa80d`, `7e3113e`: Foundations UI calculation inputs, sortable source+new-CPT table and colored map of screened settlement.
+- `8626fba`, `ccfb803`: 3D horizon slab stacks and default focused section + on-demand full measured-layer control, preserving per-point inspection and measurement/interpretation warnings.
+- `74a786e`: browser smoke now tests focused default, full-detail toggle and drag preview.
+- `c91f464`, `4dac034`: regressions for 393 source/214 missing entries, pressure vs modulus, deep unsounded profiles, and entirely unmatched new raw CPT campaign.
+- Initial CI at `c91f464` found 3 **test assertion** issues (shared string locations and nonmatching pressure-window input); updated test commits `4e47eeb` and `f37ca17`. Await latest complete Windows run; do not call completed until PASS.
+
+### Unresolved tasks after code implementation
+- [ ] Confirm latest **full** GitHub Actions run passes numerical + browser + source GUI + frozen EXE.
+- [ ] Inspect recent 1440×900 and 1024×768 browser screenshots for the 2D categorical soil map and stacked 3D volume, fix any clipped controls.
+- [ ] Benchmark actual 71 raw GEFs privately (not committed) against 393 source rows and summarize valid/partial/excluded coverage; no source overlap expected.
+- [ ] Confirm per-location input and approved empirical qt→M factor with project engineer; **must not claim licensed settlement design PASS**.
+- [ ] Test full source XLSB + historical `Pre CPT Summary.xlsx` integration on Windows with Excel availability as applicable.
+- [ ] Publish tested release ZIP and link latest SHA/run in this file.
+
 ## Status log
 2026-10-20: Confirmed via supplied `Pre CPT Summary.xlsx` workbook: 393 isolated source rows, 214 missing isolated settlement values; source settlement flags can read Pass despite >40 mm. Code work follows after this plan commit.
