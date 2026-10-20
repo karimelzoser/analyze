@@ -573,7 +573,8 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
                 results,pending,errors=errors,source_audit=audit_rows,
                 original_xlsb=original,foundation_xlsx=foundation_xlsx,
                 site_boundary=getattr(self,"site_boundary",None),
-                comparison_result=getattr(self,"compare_result",None))
+                comparison_result=getattr(self,"compare_result",None),
+                isolated_inputs=self.get_isolated_inputs() if hasattr(self,"get_isolated_inputs") else None)
             guard()
             pending.replace(excel_path)
             excel=excel_path
