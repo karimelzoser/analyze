@@ -248,7 +248,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.isolated_modulus_factor=tk.StringVar(value="5")
         ttk.Entry(estimate_bar,textvariable=self.isolated_modulus_factor,width=6).pack(side="left",padx=(4,10))
         tk.Label(estimate_bar,text="influence × B",bg="#f2f7fa").pack(side="left")
-        self.isolated_influence_factor=tk.StringVar(value="2")
+        self.isolated_influence_factor=tk.StringVar(value="1.5")
         ttk.Entry(estimate_bar,textvariable=self.isolated_influence_factor,width=5).pack(side="left",padx=(4,10))
         self._btn(estimate_bar,"COMPUTE CPT SCREENING",self.calculate_isolated_screening,
                   primary=True).pack(side="right")
