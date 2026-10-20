@@ -225,7 +225,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.foundation_case.trace_add("write",lambda *_:self.refresh_foundations())
         self.foundation_metric=tk.StringVar(value="Settlement (mm)")
         c=ttk.Combobox(controls,textvariable=self.foundation_metric,state="readonly",width=20,
-                        values=["Settlement (mm)","Minimum FOS"])
+                        values=["Settlement (mm)","Minimum FOS","CPT screened settlement (mm)"])
         c.pack(side="left",padx=8)
         c.bind("<<ComboboxSelected>>",lambda e:self.refresh_foundations())
         self._btn(controls,"SAVE FOUNDATION MAP",lambda:self._save_figure(
@@ -253,6 +253,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self._btn(estimate_bar,"COMPUTE CPT SCREENING",self.calculate_isolated_screening,
                   primary=True).pack(side="right")
         self._isolated_estimate_map={}
+        self._isolated_new_rows=[]
         self.isolated_inputs=None
         self.foundation_note=tk.StringVar(value="REFERENCE ONLY — Load the original raft / isolated summary XLSX.")
         tk.Label(self.foundation_tab,textvariable=self.foundation_note,bg="#ffffff",
@@ -327,7 +328,8 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             self.foundation_table.delete(*previous)
         selected=self.foundation_case.get().upper() if hasattr(self,"foundation_case") else "BOTH"
         query=self.foundation_search.get().strip().casefold()
-        data=[p for p in self.foundation_points if selected=="BOTH" or p.foundation==selected]
+        data=[p for p in (self.foundation_points+getattr(self,"_isolated_new_rows",[]))
+              if selected=="BOTH" or p.foundation==selected]
         if query:data=[p for p in data if query in p.reference.casefold()]
         filt=self.foundation_value_filter.get() if hasattr(self,"foundation_value_filter") else "All source records"
         if filt=="Only numeric settlements":
@@ -375,8 +377,8 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             self.foundation_note.set("No matching imported "+selected+" foundation records; clear the CPT search or choose another case.")
 
     def calculate_isolated_screening(self):
-        if not getattr(self,"foundation_points",None):
-            messagebox.showwarning("Foundation data required","Load Pre CPT Summary.xlsx first.")
+        if not self.results and not getattr(self,"foundation_points",None):
+            messagebox.showwarning("No data","Analyze CPT GEF/GFF files or load a foundation reference first.")
             return
         try:
             cfg=IsolatedInputs(net_pressure_kpa=float(self.isolated_pressure.get()),
@@ -387,6 +389,20 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             estimates=attach_isolated_estimates(self.results,sources,cfg)
             self.isolated_inputs=cfg
             self._isolated_estimate_map={id(p):e for p,e in zip(sources,estimates)}
+            from engineering_comparison import SummaryPoint
+            self._isolated_new_rows=[]
+            by_ref={a.reference:a for a in self.results}
+            for estimate in estimates[len(sources):]:
+                original=by_ref.get(estimate.reference)
+                if original is None:continue
+                md=getattr(original,"metadata",{}) or {}
+                synthetic=SummaryPoint(estimate.reference,"ISOLATED",
+                       md.get("easting"),md.get("northing"),
+                       {"settlement_mm":None,"fos":None},
+                       "NATIVE CPT — NO SOURCE REFERENCE",footing_width_m=cfg.width_m,
+                       footing_lb_ratio=cfg.length_m/cfg.width_m)
+                self._isolated_new_rows.append(synthetic)
+                self._isolated_estimate_map[id(synthetic)]=estimate
             full=sum(r.calculated_settlement_mm is not None for r in estimates)
             source_count=sum(p.metrics.get("settlement_mm") is not None for p in sources)
             self.foundation_note.set(
@@ -394,6 +410,8 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                 "Missing raw depth is NOT extrapolated. No native design PASS/FAIL."%
                 (source_count,len(sources),full))
             self._refresh_foundation_table()
+            self.foundation_metric.set("CPT screened settlement (mm)")
+            self.refresh_foundations()
             self.foundation_views.select(self.foundation_table_view)
         except Exception as exc:
             messagebox.showerror("Isolated screening calculation failed",str(exc))
@@ -485,27 +503,34 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.foundation_fig.clear()
         ax=self.foundation_fig.add_subplot(111);self.foundation_ax=ax
         self._foundation_plotted={}
+        screening=self.foundation_metric.get()=="CPT screened settlement (mm)"
         key="settlement_mm" if self.foundation_metric.get()=="Settlement (mm)" else "fos"
         chosen_case=self.foundation_case.get() if hasattr(self,"foundation_case") else "Both"
-        cases={"RAFT":[v for v in self.foundation_points if v.foundation=="RAFT"],
-               "ISOLATED":[v for v in self.foundation_points if v.foundation=="ISOLATED"]}
+        sources=self.foundation_points+getattr(self,"_isolated_new_rows",[])
+        cases={"RAFT":[v for v in sources if v.foundation=="RAFT"],
+               "ISOLATED":[v for v in sources if v.foundation=="ISOLATED"]}
+        def value_of(point):
+            if screening:
+                estimate=self._isolated_estimate_map.get(id(point))
+                return estimate.calculated_settlement_mm if estimate else None
+            return point.metrics.get(key)
         marks={"RAFT":"s","ISOLATED":"o"}
         displayed=[]
         for typ,items in cases.items():
             if chosen_case.lower() not in ("both",typ.lower()):continue
             source_rows=[v for v in items if v.east is not None and v.north is not None
-                         and v.metrics.get(key) is not None]
+                         and value_of(v) is not None]
             mapped,excluded=filter_coordinate_outliers([
                  (v.reference,v.east,v.north,v) for v in source_rows])
             rows=[t[3] for t in mapped]
             if rows:displayed.append((typ,rows))
-        all_vals=[v.metrics[key] for _,items in displayed for v in items]
+        all_vals=[value_of(v) for _,items in displayed for v in items]
         import matplotlib.colors as colors
         norm=colors.Normalize(vmin=min(all_vals),vmax=max(all_vals)+1e-9) if all_vals else None
         last=None
         for typ,items in displayed:
             points=ax.scatter([v.east for v in items],[v.north for v in items],
-                   c=[v.metrics[key] for v in items],marker=marks[typ],
+                   c=[value_of(v) for v in items],marker=marks[typ],
                    cmap="viridis",norm=norm,edgecolor="white",linewidth=.45,
                    s=65,label=typ,picker=8)
             self._foundation_plotted[id(points)]=items
