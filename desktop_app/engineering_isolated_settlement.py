@@ -155,6 +155,7 @@ def attach_isolated_estimates(analyses,source_points,inputs:IsolatedInputs,
                              *,max_xy_error_m=2.0):
     """One physical source point at a time; never fabricate matches by filename."""
     rows=[]
+    used_source_analyses=set()
     for p in source_points:
         if p.foundation!="ISOLATED":continue
         candidates=[]
@@ -176,5 +177,16 @@ def attach_isolated_estimates(analyses,source_points,inputs:IsolatedInputs,
                        "NOT ASSESSED — MODEL NOT APPROVED",reason,asdict(inputs),[]))
             continue
         a=candidates[0][1]
+        used_source_analyses.add(id(a))
         rows.append(derive_isolated_settlement(a,inputs,source_settlement_mm=observed))
+    # Raw GEF files may belong to a newer CPT campaign and have ZERO overlap
+    # with a historical summary. They still require a separate transparent
+    # isolated-footing screening row instead of silently disappearing.
+    for analysis in analyses:
+        if id(analysis) in used_source_analyses:
+            continue
+        result=derive_isolated_settlement(analysis,inputs,source_settlement_mm=None)
+        result.warning=(result.warning+" | NO MATCHING ISOLATED REFERENCE RECORD; "
+                        "native CPT screening only; source result unavailable.").strip(" |")
+        rows.append(result)
     return rows
