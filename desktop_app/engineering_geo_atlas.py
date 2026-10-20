@@ -74,7 +74,7 @@ body{background:#eef3f7!important;font-family:Segoe UI,Inter,Arial,sans-serif}
 #cpt-atlas-svg3d .soil-svg-body:hover{stroke:#102d43!important;stroke-width:1.8px!important}
 #cpt-atlas-svg3d .soil-svg-top:hover{stroke:#102d43!important}
 #cpt-atlas-svg3d .soil-svg-label{font:11px Segoe UI,Arial,sans-serif;fill:#233e54}
-body.atlas-mode-3d #atlas-depth-tools > *:not(#atlas-vertical):not(#atlas-vertical-label):not(#atlas-silt-only):not(#atlas-all-layers):not(#atlas-depth):not(#atlas-depth-label):not(#atlas-depth-number):not(#atlas-geology-wrap):not(#atlas-slab-wrap):not(#atlas-measured-wrap):not(#atlas-detail-wrap){display:none!important}
+body.atlas-mode-3d #atlas-depth-tools > *:not(#atlas-vertical):not(#atlas-vertical-label):not(#atlas-silt-only):not(#atlas-all-layers):not(#atlas-depth):not(#atlas-depth-label):not(#atlas-depth-number):not(#atlas-geology-wrap):not(#atlas-slab-wrap):not(#atlas-measured-wrap):not(#atlas-detail-wrap):not(#atlas-stack-wrap){display:none!important}
 #atlas-geology-wrap,#atlas-slab-wrap{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;line-height:1.3;font:600 12px Segoe UI,Arial,sans-serif;color:#1b4963}
 #atlas-slab-wrap input{flex:1;min-width:85px;accent-color:#11748e}
 #atlas-geology{width:18px;height:18px;accent-color:#11748e}
@@ -82,6 +82,8 @@ body.atlas-mode-3d #atlas-depth-tools > *:not(#atlas-vertical):not(#atlas-vertic
 #atlas-measured-wrap{grid-column:1/-1;display:flex;gap:8px;align-items:center;line-height:1.3;font:600 12px Segoe UI,Arial,sans-serif;color:#1b4963}
 #atlas-detail-wrap{grid-column:1/-1;display:flex;flex-direction:column;gap:5px;
  font:700 11px Segoe UI,Arial,sans-serif;color:#1b4963}
+#atlas-stack-wrap{grid-column:1/-1;display:flex;flex-direction:column;gap:5px;font:700 11px Segoe UI,Arial,sans-serif;color:#1b4963}
+#atlas-stack{width:100%;box-sizing:border-box;padding:8px;border:1px solid #c8d9e6;border-radius:7px;background:#fff}
 #atlas-detail{width:100%;box-sizing:border-box;padding:8px;border:1px solid #c8d9e6;
  border-radius:7px;background:#fff;color:#174462}
 #cpt-atlas-svg3d .soil-svg-body{stroke-opacity:.8;transition:opacity .15s}
@@ -440,11 +442,15 @@ function renderSvg3d(preview=false){
  let ribbonsDrawn=0;
  if($("atlas-geology")?.checked && !preview){
   const thickness=Math.max(.1,Math.min(1.5,Number($("atlas-slab")?.value||.5)));
-  const blanket=svgNode("g",{id:"atlas-inferred-layer-volume","aria-label":"Interpreted soil layer bands, not measured geology"});
+  const blanket=svgNode("g",{id:"atlas-inferred-layer-volume","aria-label":"Evidence-bounded interpreted soil horizons, NOT direct observations between CPTs"});
+  const levelCount=Number($("atlas-stack")?.value||3);
+  const horizonOffsets=levelCount===1?[0]:levelCount===5?[-1.2,-.6,0,.6,1.2]:[-.7,0,.7];
+  for(const relativeDepth of horizonOffsets){
+  const horizonDepth=Math.max(.05,depth+relativeDepth);
   for(const [ia,ib,ic] of FACES){
    const ps=[SOURCE[ia],SOURCE[ib],SOURCE[ic]];
    if(ps.some(p=>!p||p.status==="REVIEW"||p.rl===null||p.rl===undefined))continue;
-   const zs=ps.map(p=>zone(p,depth));
+   const zs=ps.map(p=>zone(p,horizonDepth));
    if(zs.some(z=>!z))continue;
    const mean=(i,j)=>({x:(ps[i].x+ps[j].x)/2,y:(ps[i].y+ps[j].y)/2,
                        rl:(ps[i].rl+ps[j].rl)/2});
@@ -454,27 +460,28 @@ function renderSvg3d(preview=false){
    for(let k=0;k<3;k++){
     const prev=(k+2)%3,next=(k+1)%3;
     const nodes=[ps[k],mean(k,next),ctr,mean(k,prev)];
-    const top=nodes.map(p=>project(p.x,p.y,p.rl-depth));
-    const bot=nodes.map(p=>project(p.x,p.y,p.rl-depth-thickness));
+    const top=nodes.map(p=>project(p.x,p.y,p.rl-horizonDepth));
+    const bot=nodes.map(p=>project(p.x,p.y,p.rl-horizonDepth-thickness));
     const color=COLORS[zs[k].category]||COLORS.unknown;
     const face=svgNode("polygon",{
        points:top.map(p=>p.join(",")).join(" "),fill:color,
-       "fill-opacity":.49,class:"soil-layer-ribbon"});
+       "fill-opacity":levelCount>1?.31:.49,class:"soil-layer-ribbon"});
     face.appendChild(svgNode("title",{},
-       "INTERPRETED "+zs[k].category+" at "+fmt(depth,2)+"–"+
-       fmt(depth+thickness,2)+" m BGL (nearest CPT "+ps[k].ref+")"));
+       "INTERPRETED "+zs[k].category+" at "+fmt(horizonDepth,2)+"–"+
+       fmt(horizonDepth+thickness,2)+" m BGL (nearest CPT "+ps[k].ref+")"));
     blanket.appendChild(face);
     for(const side of [[1,2],[2,3]]){
       const [i,j]=side;
       const poly=svgNode("polygon",{
          points:[top[i],top[j],bot[j],bot[i]].map(p=>p.join(",")).join(" "),
-         fill:color,"fill-opacity":.24,stroke:color,"stroke-opacity":.35,
+         fill:color,"fill-opacity":levelCount>1?.14:.24,stroke:color,"stroke-opacity":.35,
          "stroke-width":.45});
       blanket.appendChild(poly);
     }
     ribbonsDrawn++;
    }
   }
+  } // next interpreted horizon depth
   svg.appendChild(blanket);
  }
  const selectable=[];
@@ -571,6 +578,7 @@ function setSvg3dVisible(visible){
  $("atlas-slab-wrap")?.classList.toggle("atlas-hide",!visible);
  $("atlas-measured-wrap")?.classList.toggle("atlas-hide",!visible);
  $("atlas-detail-wrap")?.classList.toggle("atlas-hide",!visible);
+ $("atlas-stack-wrap")?.classList.toggle("atlas-hide",!visible);
 }
 let isoFrame=0,isoPendingFull=false;
 function scheduleIsoFrame(preview=false){
@@ -618,6 +626,7 @@ function initIsoInteraction(){
  $("atlas-geology")?.addEventListener("change",()=>scheduleIsoFrame(false));
  $("atlas-measured")?.addEventListener("change",()=>scheduleIsoFrame(false));
  $("atlas-detail")?.addEventListener("change",()=>scheduleIsoFrame(false));
+ $("atlas-stack")?.addEventListener("change",()=>scheduleIsoFrame(false));
  $("atlas-slab")?.addEventListener("input",event=>{
     $("atlas-slab-label").textContent=fmt(Number(event.target.value),2)+" m";
     scheduleIsoFrame(false);
@@ -722,7 +731,8 @@ function init(){
  "<label id='atlas-geology-wrap' class='atlas-hide'><input type='checkbox' id='atlas-geology' checked>INTERPRETED SOIL-LAYER VOLUME <small>(not measured between CPTs)</small></label>"+
  "<label id='atlas-measured-wrap' class='atlas-hide'><input type='checkbox' id='atlas-measured' checked>SHOW SURVEYED CPT COLUMNS</label>"+
  "<label id='atlas-detail-wrap' class='atlas-hide'>3D DETAIL <select id='atlas-detail'><option value='section' selected>SECTION + LOCAL LAYERS (FAST)</option><option value='all'>ALL MEASURED LAYERS (SLOW)</option></select></label>"+
- "<label id='atlas-slab-wrap' class='atlas-hide'>Visible depth band <input type='range' min='.1' max='1.5' step='.1' value='.5' id='atlas-slab'><output id='atlas-slab-label'>0.50 m</output></label>";
+ "<label id='atlas-slab-wrap' class='atlas-hide'>Vertical section thickness <input type='range' min='.1' max='1.5' step='.1' value='.5' id='atlas-slab'><output id='atlas-slab-label'>0.50 m</output></label>"+
+ "<label id='atlas-stack-wrap' class='atlas-hide'>INTERPRETED SOIL STACKS <select id='atlas-stack'><option value='1'>Single depth layer</option><option value='3' selected>3 depth layers (recommended)</option><option value='5'>5 depth layers (more detail)</option></select></label>";
  document.body.insertBefore(head,document.body.firstChild);
  document.body.insertBefore(bar,head.nextSibling);
  document.body.insertBefore(host,bar.nextSibling);
