@@ -15,6 +15,16 @@
 - Known cases requiring independent signoff include 5 engineer-annotated raw CPTs, A1-292 **6.20/0.10 saved XLSB vs 6.20/0.20 earlier native** and B342/B343/B355 layer-boundary discrepancies. Nine saved survey coordinates were withheld as gross outliers; not silently corrected.
 - Existing [issue #2](https://github.com/karimelzoser/analyze/issues/2), [#3](https://github.com/karimelzoser/analyze/issues/3), and [#4](https://github.com/karimelzoser/analyze/issues/4) remain OPEN.
 
+## A2 71-GEF isolated footing + soil-atlas continuation (2026-10-20)
+
+**Executable implementation checkpoint:** [A2_ISOLATED_ATLAS_CONTINUATION.md](A2_ISOLATED_ATLAS_CONTINUATION.md). This is the handoff for the current W05/W07/W08/W10 improvements and the original 71-private-GEF acceptance. Preserve the private archive outside the public GitHub repository.
+
+- W08 browser visualization regression: focused 3D measured blocks now have a fair per-CPT 700-polygon default budget, with opt-in ALL mode retaining every depth interval and CPT. Prior CI failure `39370283126` (default 1020 > 900 polygons) is the acceptance target. Do not skip browser smoke or relax the threshold just to make a build green.
+- W05 provisional isolated-footing results: nominal sampled-depth coverage is **not** adequate by itself; stress-weighted influence coverage and exact unobserved BGL intervals are now calculated, displayed in the isolated table and included in a dedicated workbook QA sheet. A numerical screening estimate is not validated settlement/FOS.
+- Real-data evidence: 71 physical A2 files, 68 with >=90% observed influence-depth coverage under the documented simplified 3×3m, 1.5B screen. B253/B256 aborted initial pushes are distinct from their later complete attempts; B254 earlier attempt ~86.2% versus later attempt 100%, with source-revision conflict to be preserved.
+- New tests and browser/GUI/Excel regression must pass before claiming deliverable-ready; private 71-file field validation and original source-workbook formula signoff remain OPEN.
+- Source and QA pointers and resumption order are documented in the continuation file; do not restart analysis from stale chat summaries.
+
 ## 1. Why progress has stalled
 1. **Feature-build-first, validation-later:** successful code tests and GUI previews were described as delivered before formula equivalence and geotechnical review.
 2. **Reference output mistaken for algorithm validation:** reading original XLSB cached values and drawing its charts is not independent reproduction of VBA/formulas across changed inputs.
