@@ -241,6 +241,13 @@ def main():
                 assert performance.locator("#atlas-2d").is_visible()
                 performance.locator("#atlas-3d").click()
                 performance.wait_for_function(
+                    "() => document.querySelectorAll('#cpt-atlas-svg3d polygon.soil-svg-body').length > 0",
+                    timeout=45000)
+                default_shapes=performance.locator("#cpt-atlas-svg3d polygon.soil-svg-body").count()
+                assert default_shapes<900,("Default 3D soil view should be legible",default_shapes)
+                assert performance.locator("#atlas-stack").count()==1
+                performance.locator("#atlas-detail").select_option("all")
+                performance.wait_for_function(
                     "() => document.querySelectorAll('#cpt-atlas-svg3d polygon.soil-svg-body').length > 900",
                     timeout=45000)
                 full_shapes=performance.locator("#cpt-atlas-svg3d polygon.soil-svg-body").count()
@@ -259,7 +266,7 @@ def main():
                     timeout=45000)
                 assert not perf_errors,perf_errors[:3]
                 performance.screenshot(path=str(screenshots/"04-large-project-sidebar-and-3d.png"),full_page=True)
-                print(f"PASS: 68-CPT interactive atlas: full={full_shapes} measured segment polygons; during drag={preview_shapes}, restored after release.")
+                print(f"PASS: 68-CPT atlas: default={default_shapes} focused soil-block polygons; optional full={full_shapes}; during drag={preview_shapes}.")
                 performance.close()
             finally:
                 browser.close()
