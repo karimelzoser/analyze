@@ -227,6 +227,9 @@ def extend_project_workbook(wb,analyses,*,source_audit=None,
 
     if foundation_xlsx is not None:
         external=read_summary_xlsx(foundation_xlsx)
+        from engineering_isolated_export import append_isolated_sheets
+        isolated_summary=append_isolated_sheets(
+            wb, analyses, external, getattr(wb,"isolated_assumptions",None))
         foundation_completeness=[]
         for foundation,tab in (("RAFT","Raft Foundation"),("ISOLATED","Isolated Foundation")):
             selected=[r for r in external if r.foundation==foundation]
