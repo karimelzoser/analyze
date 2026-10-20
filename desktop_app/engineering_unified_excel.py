@@ -92,7 +92,7 @@ def _in_memory_image(figure,dpi=135):
 def extend_project_workbook(wb,analyses,*,source_audit=None,
                            original_xlsb=None,foundation_xlsx=None,
                            site_boundary=None,comparison_result=None,
-                           include_profiles=True):
+                           isolated_inputs=None,include_profiles=True):
     """Appends sheets and in-memory figures to existing production workbook.
 
     To preserve the original model, source values are labelled CACHED/IMPORTED
@@ -229,7 +229,7 @@ def extend_project_workbook(wb,analyses,*,source_audit=None,
         external=read_summary_xlsx(foundation_xlsx)
         from engineering_isolated_export import append_isolated_sheets
         isolated_summary=append_isolated_sheets(
-            wb, analyses, external, getattr(wb,"isolated_assumptions",None))
+            wb, analyses, external, isolated_inputs)
         foundation_completeness=[]
         for foundation,tab in (("RAFT","Raft Foundation"),("ISOLATED","Isolated Foundation")):
             selected=[r for r in external if r.foundation==foundation]
