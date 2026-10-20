@@ -48,7 +48,24 @@ def append_isolated_sheets(workbook,analyses,source_points,inputs=None):
                 results.write_number(i,j,val,good)
             else:
                 results.write(i,j,str(val),warn if j in (9,11,12,13) else None)
-    if sources:results.autofilter(0,0,len(sources),len(headings)-1)
+    # Append all raw CPTs that are absent from the uploaded reference summary.
+    # A recent A2 GEF campaign may have no overlap with the older A1/A2 source
+    # workbook. New calculations must still be visible in this same table.
+    by_ref={str(getattr(a,"reference","")):a for a in analyses}
+    for i,estimate in enumerate(estimates[len(sources):],len(sources)+1):
+        raw=by_ref.get(estimate.reference)
+        md=(getattr(raw,"metadata",{}) or {}) if raw is not None else {}
+        values=[estimate.reference,md.get("easting"),md.get("northing"),
+                "NO MATCHING SOURCE RECORD","NOT REPORTED",None,
+                estimate.calculated_settlement_mm,estimate.observed_settlement_mm,
+                estimate.coverage_percent,estimate.status,None,
+                "NEW RAW CPT — NOT PRESENT IN REFERENCE SUMMARY",
+                estimate.criterion_status,estimate.warning]
+        for j,val in enumerate(values):
+            if val is None:results.write(i,j,"NOT AVAILABLE",warn)
+            elif isinstance(val,(float,int)):results.write_number(i,j,val,good)
+            else:results.write(i,j,str(val),warn if j in (3,9,11,12,13) else None)
+    if estimates:results.autofilter(0,0,len(estimates),len(headings)-1)
     trace=workbook.add_worksheet("Isolated Strain Integration")
     for j,label in enumerate(["CPT","Depth BGL (m)","qt (MPa)","Stress increment (kPa)",
             "Modulus M (kPa)","Strain (-)","Incremental settlement (mm)","Result class"]):
@@ -91,6 +108,7 @@ def append_isolated_sheets(workbook,analyses,source_points,inputs=None):
         if isinstance(value,(float,int)):settings.write_number(i,1,value)
         else:settings.write(i,1,str(value))
     return {"source_count":len(sources),
+            "new_raw_without_source":len(estimates)-len(sources),
             "computed":sum(r.calculated_settlement_mm is not None for r in estimates),
             "incomplete":sum(r.calculated_settlement_mm is None for r in estimates),
             "trace_rows":n-1,"estimates":estimates}
