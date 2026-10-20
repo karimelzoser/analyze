@@ -110,3 +110,12 @@ def test_complete_observed_influence_has_full_stress_coverage():
     assert r.stress_coverage_percent==pytest.approx(100.,abs=.05)
     assert r.missing_depth_m==pytest.approx(0.)
     assert r.missing_intervals_bgl==[]
+
+
+def test_numerically_complete_but_conflicting_cpt_is_not_silently_approved():
+    raw=_cpt(depth_end=7.0)
+    raw.status="REVIEW"
+    r=derive_isolated_settlement(raw,IsolatedInputs())
+    assert r.calculated_settlement_mm is not None
+    assert "flagged REVIEW" in r.warning
+    assert r.criterion_status.startswith("NOT ASSESSED")
