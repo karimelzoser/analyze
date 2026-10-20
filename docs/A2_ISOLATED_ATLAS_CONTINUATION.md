@@ -50,3 +50,16 @@ Do not upload these proprietary input files or their coordinates to this reposit
 6. Only after validations: update `PRODUCTION_CLOSURE_PLAN.md` item-level statuses, publish downloadable Windows ZIP and label **ENGINEERING PREVIEW** unless W05 actual formula parity is approved.
 
 **Critical distinction:** Software build success is not same as geotechnical-design certification.
+
+## Latest tested build and evidence — verified after implementation
+
+**Successful Windows GitHub Actions run:** [39371771574](https://github.com/karimelzoser/analyze/actions/runs/39371771574), tested source commit `3bfb2cb8568e879cdfe2853ce407be38057d8e86`. All jobs successful.
+
+- `pytest`: **159 passed, 1 warning** (a plotting legend warning), in 33.80 seconds.
+- Real Microsoft Edge browser atlas smoke: **68 CPT records**, default **700** SVG measured-body polygons (acceptance <900), optional ALL **5,440** polygons available, during drag **605** polygons (acceptance <=720). Sidebar, rotation, depth slice, selected point, and model screenshots checked.
+- Source GUI smoke: all 8 workspaces loaded, synthetic source produced one full PDF plus one all-in-one XLSX with embedded 2D/3D. Safe Cancel checked.
+- PyInstaller Windows executable created, actual packaged GUI startup and normal double-click path successful.
+- 400-CPT **SYNTHETIC** Windows benchmark: numeric 3.83s, comprehensive workbook 14.27s, four map outputs 3.01s, total 21.11s. This does not substitute for timed processing and engineer acceptance on 71 proprietary CPTs.
+- Downloaded artifact published to repository as [release/CPT_Silt_Analyzer_Latest.zip](../release/CPT_Silt_Analyzer_Latest.zip) (85,191,480 bytes).
+
+**Outstanding engineering signoff:** Original XLSB isolated-footing settlement formula parity, 71-private-GEF full app execution on the user's Windows computer, reconciliation of B254 physical substantial retests and acceptance of project CRS/soil interpolation. Working features are engineering-screening, NOT certified final ground-improvement design.
