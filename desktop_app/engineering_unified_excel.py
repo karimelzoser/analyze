@@ -225,11 +225,13 @@ def extend_project_workbook(wb,analyses,*,source_audit=None,
                r["reference_start"],r["reference_thickness"],r["difference_start"],
                r["difference_thickness"],r["point_offset"],r["notes"]) for r in checks],{9:85})
 
+    from engineering_isolated_export import append_isolated_sheets
+    foundation_source=read_summary_xlsx(foundation_xlsx) if foundation_xlsx is not None else []
+    isolated_summary=append_isolated_sheets(wb,analyses,foundation_source,isolated_inputs)
+    # Native GEF soundings receive provisional isolated-footing screen rows
+    # even when no external reference summary is selected.
     if foundation_xlsx is not None:
-        external=read_summary_xlsx(foundation_xlsx)
-        from engineering_isolated_export import append_isolated_sheets
-        isolated_summary=append_isolated_sheets(
-            wb, analyses, external, isolated_inputs)
+        external=foundation_source
         foundation_completeness=[]
         for foundation,tab in (("RAFT","Raft Foundation"),("ISOLATED","Isolated Foundation")):
             selected=[r for r in external if r.foundation==foundation]
