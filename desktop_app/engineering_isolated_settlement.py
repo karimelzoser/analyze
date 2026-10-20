@@ -67,6 +67,11 @@ class IsolatedResult:
     warning: str
     inputs: dict
     integration: list[dict]
+    # Shape of the UNSOUNDED influence region is evidence, not missing data
+    # quietly extrapolated as a settlement value.
+    stress_coverage_percent: float = 0.0
+    missing_depth_m: float = 0.0
+    missing_intervals_bgl: list[tuple[float,float]] | None = None
 
 
 def _value(obj,name,default=None):
@@ -91,7 +96,10 @@ def derive_isolated_settlement(analysis, inputs:IsolatedInputs,
     z1=z0+inputs.width_m*inputs.influence_b
     usedsource=_finite(source_settlement_mm)
 
-    def result(status,partial=None,coverage=0.,last=None,rows=None,warning=""):
+    def result(status,partial=None,coverage=0.,last=None,rows=None,warning="",
+               stress_coverage=0.,missing_intervals=None):
+        # Coverage >= configured threshold produces a SCREENING estimate, never
+        # a verified full-profile settlement or design compliance finding.
         complete=partial if status=="ESTIMATE — COVERAGE SUFFICIENT" else None
         delta=(complete-usedsource if complete is not None and usedsource is not None else None)
         # No independent settlement PASS/FAIL until the correlation is approved.
@@ -99,7 +107,9 @@ def derive_isolated_settlement(analysis, inputs:IsolatedInputs,
         return IsolatedResult(
             ref,status,source,partial,complete,round(coverage*100,2),
             z0,z1,last,usedsource,delta,"NOT ASSESSED — MODEL NOT APPROVED",
-            warning,asdict(inputs),rows or [])
+            warning,asdict(inputs),rows or [],
+            round(stress_coverage*100,2),round((1.-coverage)*(z1-z0),3),
+            missing_intervals or [])
 
     if len(depth)<2 or len(qt)!=len(depth):
         return result("NOT CALCULABLE — RAW PROFILE UNAVAILABLE",warning=
@@ -127,9 +137,27 @@ def derive_isolated_settlement(analysis, inputs:IsolatedInputs,
     within &= np.isfinite(qvals)&(qvals>0)
     depths=grid[within]
     coverage=float(np.sum(within))/len(grid)
+    # A missing 0.2m close to the foundation is often more important than an
+    # equal gap near the end of the influence depth. Quantify both geometric
+    # and stress-weighted evidence coverage; do not use a missing-data
+    # extrapolation to invent resistance.
+    relative=grid-z0
+    all_stress=inputs.net_pressure_kpa*inputs.width_m*inputs.length_m/(
+        (inputs.width_m+relative)*(inputs.length_m+relative))
+    stress_coverage=float(np.sum(all_stress[within])/np.sum(all_stress))
+    missing_intervals=[]
+    missing_indices=np.flatnonzero(~within)
+    if len(missing_indices):
+        split=np.split(missing_indices,np.flatnonzero(np.diff(missing_indices)>1)+1)
+        for group in split:
+            if not len(group):continue
+            low=max(z0,float(grid[group[0]]-inputs.step_m*.5))
+            high=min(z1,float(grid[group[-1]]+inputs.step_m*.5))
+            missing_intervals.append((round(low,3),round(high,3)))
     if not len(depths):
         return result("NOT CALCULABLE — NO OBSERVED INFLUENCE DATA",0.,coverage,
-                      warning="Footing influence zone does not overlap reliable CPT measurements.")
+                      warning="Footing influence zone does not overlap reliable CPT measurements.",
+                      stress_coverage=stress_coverage,missing_intervals=missing_intervals)
     dz=inputs.step_m
     base_depth=depths-z0
     sigma=inputs.net_pressure_kpa*inputs.width_m*inputs.length_m/(
@@ -148,7 +176,16 @@ def derive_isolated_settlement(analysis, inputs:IsolatedInputs,
              "has not been calculated. Not source-XLSB-equivalent, no engineer-approved "
              "modulus factor or design PASS. Unsounded data remain UNKNOWN."%
              inputs.influence_b)
-    return result(status,subtotal,coverage,float(depths[-1]),trace,caution)
+    if stress_coverage<inputs.min_coverage and status=="ESTIMATE — COVERAGE SUFFICIENT":
+        status="INCOMPLETE — STRESS-WEIGHTED DEPTH COVERAGE"
+        caution+=(" Although sampled-depth coverage passes the nominal threshold,"
+                  " omitted measurements include a disproportionately important"
+                  " share of the footing stress influence.")
+    if missing_intervals:
+        caution+=(" Unobserved BGL interval(s): "+", ".join(
+                    "%.2f–%.2f m"%(a,b) for a,b in missing_intervals)+".")
+    return result(status,subtotal,coverage,float(depths[-1]),trace,caution,
+                  stress_coverage=stress_coverage,missing_intervals=missing_intervals)
 
 
 def attach_isolated_estimates(analyses,source_points,inputs:IsolatedInputs,
