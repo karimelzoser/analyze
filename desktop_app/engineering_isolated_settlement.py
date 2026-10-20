@@ -184,6 +184,11 @@ def derive_isolated_settlement(analysis, inputs:IsolatedInputs,
     if missing_intervals:
         caution+=(" Unobserved BGL interval(s): "+", ".join(
                     "%.2f–%.2f m"%(a,b) for a,b in missing_intervals)+".")
+    if str(_value(analysis,"status","")).upper()=="REVIEW":
+        caution+=(" The selected raw CPT is flagged REVIEW (possibly conflicting"
+                  " substantial test revisions). The qt-based screening result"
+                  " may be displayed for investigation only until the test"
+                  " identity and approved revision are reconciled.")
     return result(status,subtotal,coverage,float(depths[-1]),trace,caution,
                   stress_coverage=stress_coverage,missing_intervals=missing_intervals)
 
