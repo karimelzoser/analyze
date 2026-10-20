@@ -40,7 +40,7 @@ def test_higher_modulus_reduces_settlement_load_increases_settlement():
 
 
 def test_partial_soundings_preserve_observed_strain_but_no_fake_total():
-    r=derive_isolated_settlement(_cpt(depth_end=5.5),IsolatedInputs())
+    r=derive_isolated_settlement(_cpt(depth_end=5.5),IsolatedInputs(influence_b=2.0))
     assert r.status=="INCOMPLETE — DEPTH COVERAGE"
     assert r.calculated_settlement_mm is None
     assert r.observed_settlement_mm is not None
