@@ -23,6 +23,7 @@ from engineering_geo_atlas import export_geo_atlas as export_interactive_3d
 from engineering_comparison import read_summary_xlsx, compare_summaries, export_comparison, read_site_boundary_xlsx
 from engineering_depth_comparison import compare_depth_profiles, export_depth_change
 from engineering_foundations import check_foundation_results, export_foundation_validation
+from engineering_isolated_settlement import IsolatedInputs,attach_isolated_estimates
 from engineering_xlsb_reference import ReferenceWorkbookCache,reference_foundations
 
 
@@ -238,6 +239,21 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         self.minimum_fos=tk.StringVar(value="")
         ttk.Entry(limits,textvariable=self.minimum_fos,width=9).pack(side="left",padx=8)
         self._btn(limits,"EXPORT CRITERIA QA",self.export_foundation_criteria).pack(side="right")
+        estimate_bar=tk.Frame(self.foundation_tab,bg="#f2f7fa")
+        estimate_bar.pack(fill="x",padx=16,pady=(2,5))
+        tk.Label(estimate_bar,text="ISOLATED screening | net pressure (kPa)",bg="#f2f7fa").pack(side="left")
+        self.isolated_pressure=tk.StringVar(value="150")
+        ttk.Entry(estimate_bar,textvariable=self.isolated_pressure,width=7).pack(side="left",padx=(4,10))
+        tk.Label(estimate_bar,text="M / qt",bg="#f2f7fa").pack(side="left")
+        self.isolated_modulus_factor=tk.StringVar(value="5")
+        ttk.Entry(estimate_bar,textvariable=self.isolated_modulus_factor,width=6).pack(side="left",padx=(4,10))
+        tk.Label(estimate_bar,text="influence × B",bg="#f2f7fa").pack(side="left")
+        self.isolated_influence_factor=tk.StringVar(value="2")
+        ttk.Entry(estimate_bar,textvariable=self.isolated_influence_factor,width=5).pack(side="left",padx=(4,10))
+        self._btn(estimate_bar,"COMPUTE CPT SCREENING",self.calculate_isolated_screening,
+                  primary=True).pack(side="right")
+        self._isolated_estimate_map={}
+        self.isolated_inputs=None
         self.foundation_note=tk.StringVar(value="REFERENCE ONLY — Load the original raft / isolated summary XLSX.")
         tk.Label(self.foundation_tab,textvariable=self.foundation_note,bg="#ffffff",
                  fg="#9a3412",anchor="w").pack(fill="x",padx=16,pady=5)
@@ -261,7 +277,7 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
         tk.Label(table_tools,text="Click heading to sort",
                  bg="#ffffff",fg="#64748b",font=("Segoe UI",8)).pack(side="right")
         columns=("ref","case","area","e","n","settlement","fos","width","length",
-                 "settlecheck","foscheck")
+                 "settlecheck","foscheck","estimate","coverage","model_status")
         tableholder=tk.Frame(self.foundation_table_view,bg="#ffffff")
         tableholder.pack(fill="both",expand=True,padx=8,pady=(0,8))
         self.foundation_table=ttk.Treeview(tableholder,columns=columns,show="headings",
@@ -271,7 +287,9 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
             "area":("Area",65),"e":("Easting",105),"n":("Northing",118),
             "settlement":("Settlement (mm)",130),"fos":("Min FOS",93),
             "width":("Width (m)",85),"length":("L/W",65),
-            "settlecheck":("Settlement check",132),"foscheck":("FOS check",95)}
+            "settlecheck":("Source settlement check",150),"foscheck":("FOS check",95),
+            "estimate":("CPT estimate (mm)",155),"coverage":("Coverage %",110),
+            "model_status":("Model/coverage QA",265)}
         self._foundation_sort_column="ref"
         self._foundation_sort_reverse=False
         for key,(label,width) in self._foundation_table_columns.items():
@@ -324,7 +342,14 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                 p.north if attr=="n" else p.metrics.get("settlement_mm") if attr=="settlement" else
                 p.metrics.get("fos") if attr=="fos" else p.footing_width_m if attr=="width" else
                 p.footing_lb_ratio if attr=="length" else
-                p.reported_settlement_check if attr=="settlecheck" else p.reported_fos_check)
+                p.reported_settlement_check if attr=="settlecheck" else
+                p.reported_fos_check if attr=="foscheck" else
+                self._isolated_estimate_map.get(id(p)).calculated_settlement_mm
+                    if attr=="estimate" and self._isolated_estimate_map.get(id(p)) else
+                self._isolated_estimate_map.get(id(p)).coverage_percent
+                    if attr=="coverage" and self._isolated_estimate_map.get(id(p)) else
+                self._isolated_estimate_map.get(id(p)).status
+                    if attr=="model_status" and self._isolated_estimate_map.get(id(p)) else None)
             return (value is None, str(value).casefold() if isinstance(value,str) else
                     float(value) if isinstance(value,(float,int)) else 0.)
         data.sort(key=key,reverse=self._foundation_sort_reverse)
@@ -338,10 +363,43 @@ class EngineeringWorkspaceApp(PDFEnabledCPTApp):
                 p.reference,p.foundation,p.area or "—",fmt(p.east,3),fmt(p.north,3),
                 fmt(settlement,2),fmt(fos,3),fmt(p.footing_width_m,2),
                 fmt(p.footing_lb_ratio,2),p.reported_settlement_check or "NOT REPORTED",
-                p.reported_fos_check or "NOT REPORTED"),
+                p.reported_fos_check or "NOT REPORTED",
+                fmt(self._isolated_estimate_map[id(p)].calculated_settlement_mm,2)
+                  if id(p) in self._isolated_estimate_map else "NOT CALCULATED",
+                fmt(self._isolated_estimate_map[id(p)].coverage_percent,1)
+                  if id(p) in self._isolated_estimate_map else "—",
+                self._isolated_estimate_map[id(p)].status
+                  if id(p) in self._isolated_estimate_map else "SOURCE ONLY"),
                 tags=("missing" if settlement is None else "ok",))
         if hasattr(self,"foundation_note") and not data and self.foundation_points:
             self.foundation_note.set("No matching imported "+selected+" foundation records; clear the CPT search or choose another case.")
+
+    def calculate_isolated_screening(self):
+        if not getattr(self,"foundation_points",None):
+            messagebox.showwarning("Foundation data required","Load Pre CPT Summary.xlsx first.")
+            return
+        try:
+            cfg=IsolatedInputs(net_pressure_kpa=float(self.isolated_pressure.get()),
+                 qc_modulus_factor=float(self.isolated_modulus_factor.get()),
+                 influence_b=float(self.isolated_influence_factor.get()))
+            cfg.validate()
+            sources=[p for p in self.foundation_points if p.foundation=="ISOLATED"]
+            estimates=attach_isolated_estimates(self.results,sources,cfg)
+            self.isolated_inputs=cfg
+            self._isolated_estimate_map={id(p):e for p,e in zip(sources,estimates)}
+            full=sum(r.calculated_settlement_mm is not None for r in estimates)
+            source_count=sum(p.metrics.get("settlement_mm") is not None for p in sources)
+            self.foundation_note.set(
+                "%d/%d original source settlement entries; %d native provisional estimates with adequate CPT coverage. "
+                "Missing raw depth is NOT extrapolated. No native design PASS/FAIL."%
+                (source_count,len(sources),full))
+            self._refresh_foundation_table()
+            self.foundation_views.select(self.foundation_table_view)
+        except Exception as exc:
+            messagebox.showerror("Isolated screening calculation failed",str(exc))
+
+    def get_isolated_inputs(self):
+        return getattr(self,"isolated_inputs",None)
 
     def load_foundation_summary(self):
         path=filedialog.askopenfilename(title="Select original calculation XLSB or foundation summary XLSX",
