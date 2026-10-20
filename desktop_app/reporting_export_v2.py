@@ -19,6 +19,7 @@ def export_excel(
     foundation_xlsx: str | Path | None = None,
     site_boundary=None,
     comparison_result=None,
+    isolated_inputs=None,
 ) -> Path:
     """Export the production workbook.
 
@@ -395,6 +396,6 @@ def export_excel(
     extend_project_workbook(
         wb,analyses,source_audit=source_audit,original_xlsb=original_xlsb,
         foundation_xlsx=foundation_xlsx,site_boundary=site_boundary,
-        comparison_result=comparison_result,include_profiles=True)
+        comparison_result=comparison_result,isolated_inputs=isolated_inputs,include_profiles=True)
     wb.close()
     return p
