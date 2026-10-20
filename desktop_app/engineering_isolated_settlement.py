@@ -26,7 +26,7 @@ class IsolatedInputs:
     length_m: float = 3.0
     net_pressure_kpa: float = 150.0
     embedment_m: float = 1.0
-    influence_b: float = 2.0
+    influence_b: float = 1.5
     qc_modulus_factor: float = 5.0
     max_sample_gap_m: float = 0.08
     step_m: float = 0.02
@@ -143,9 +143,11 @@ def derive_isolated_settlement(analysis, inputs:IsolatedInputs,
             "strain":round(float(strain),9),"incremental_settlement_mm":round(float(d),7)}
            for z,q,stress,M,strain,d in zip(depths,qvals[within],sigma,modulus,strains,increments)]
     status="ESTIMATE — COVERAGE SUFFICIENT" if coverage>=inputs.min_coverage else "INCOMPLETE — DEPTH COVERAGE"
-    caution=("PROVISIONAL 2:1 strain integration using empirical M=alpha*qt. "
-             "Not source-XLSB-equivalent, no engineer-approved alpha or design PASS. "
-             "All unsounded depth intervals excluded; missing stress influence cannot be inferred.")
+    caution=("PROVISIONAL 2:1 strain integration using empirical M=alpha*qt, "
+             "evaluated only to %.1fB below footing base; deeper stress influence "
+             "has not been calculated. Not source-XLSB-equivalent, no engineer-approved "
+             "modulus factor or design PASS. Unsounded data remain UNKNOWN."%
+             inputs.influence_b)
     return result(status,subtotal,coverage,float(depths[-1]),trace,caution)
 
 
