@@ -89,7 +89,7 @@ def test_actual_gef_startdate_is_used_as_field_test_date(tmp_path):
     _sample(path)
     text=path.read_text(encoding="ascii")
     text=text.replace("#TESTDATE= 2026-09-21",
-        "#FILEDATE= 2026, 10, 19\\n#STARTDATE= 2026, 10, 15\\n#STARTTIME= 16, 4, 44.000000")
+        "#FILEDATE= 2026, 10, 19\n#STARTDATE= 2026, 10, 15\n#STARTTIME= 16, 4, 44.000000")
     path.write_text(text,encoding="ascii")
     parsed=parse_gef(path)
     assert parsed.metadata["test_date"]=="2026, 10, 15"
