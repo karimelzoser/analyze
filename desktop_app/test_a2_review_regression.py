@@ -68,3 +68,43 @@ def test_b254_two_substantial_retests_require_review_but_retain_provisional_numb
     assert item.final_interval.start==5.55
     assert item.final_interval.thickness==.08
     assert len(audit)==2
+
+
+def test_b254_mixed_review_and_older_verified_cannot_be_silently_accepted():
+    """Real 71-GEF QA: both 4.87m and 5.73m soundings are substantial."""
+    old=fake("P261074_CPT-A2-B254-100.GEF",4.870633,"VERIFIED",
+        SimpleNamespace(start=3.7,end=3.9,thickness=.2))
+    new=fake("P261074_CPT-A2-B254-100-1.GEF",5.730286,"REVIEW",None)
+    for a in (old,new):
+        a.reference="CPT-A2-B254-100"
+        a.metadata["easting"]=421269.814
+        a.metadata["northing"]=2927368.449
+        a.metadata["ground_elevation"]=3.93
+    new.metadata["thin_interval_unrounded_start"]=5.554136
+    new.metadata["thin_interval_unrounded_end"]=5.630478
+    new.metadata["thin_interval_unrounded_thickness"]=.076342
+    selected,audit=select_project_results([old,new],
+        [old.source_path,new.source_path])
+    assert len(selected)==1
+    a=selected[0]
+    assert a.status=="REVIEW"
+    assert a.metadata["source_revision_conflict"] is True
+    assert a.metadata["source_retest_review_conflict"] is True
+    assert a.metadata["incomplete_source_count"]==0
+    assert a.final_interval is not None  # older measured numeric is evidence, not accepted
+    assert a.final_interval.start==3.7
+    assert a.metadata["provisional_conflicting_result"] is True
+    assert "cannot override" in a.metadata["source_selection_reason"].lower()
+    assert len(audit)==2
+    assert any(row["source_file"].endswith("-1.GEF") for row in audit)
+
+
+def test_aborted_earlier_no_silt_still_does_not_invalidate_full_retest():
+    short=fake("P261074_CPT-A2-B256-100.GEF",.55885,"NO SILT")
+    complete=fake("P261074_CPT-A2-B256-100-1.GEF",5.78461,"VERIFIED",
+        SimpleNamespace(start=2.8,end=3.0,thickness=.2))
+    for a in (short,complete): a.reference="CPT-A2-B256-100"
+    selected,_=select_project_results([short,complete])
+    assert selected[0].status=="VERIFIED"
+    assert selected[0].metadata["incomplete_source_count"]==1
+    assert selected[0].metadata["source_revision_conflict"] is False

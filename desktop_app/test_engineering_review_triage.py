@@ -59,3 +59,16 @@ def test_conflicting_full_length_retest_shows_provisional_measured_boundary():
     assert abs(result["measured_end_m"]-5.630)<1e-10
     assert abs(result["measured_thickness_m"]-.076)<1e-10
     assert result["engineering_disposition"].startswith("AWAITING REVIEW")
+
+
+def test_smoothing_disagreement_is_not_mislabeled_sensor_failure():
+    # Typical A2 field pattern: ordinary 0.1m terminal unknown, but the
+    # actual REVIEW trigger was 2-of-4 method sensitivity.
+    sample=_sample(sensitivity_disagreement_review=True)
+    sample.source_path=Path("P261074_CPT-A2-B238-100.GEF")
+    sample.sensor_dropout_depth=5.708389
+    sample.verification_note="2/4 sensitivity windows agree. Terminal sleeve friction dropout."
+    item=triage_review(sample)
+    assert item["category"]=="PROCESSING SENSITIVITY"
+    assert "smoothing" in item["required_action"].lower()
+    assert item["sensor_dropout_m"]==5.708389
