@@ -53,6 +53,14 @@ def triage_review(analysis):
         category="OBSERVED THIN INTERVAL"
         decision=("Approve a stated measured-thickness reporting precision or supply an approved thin-layer rule; "
                   "never round observed thickness upward merely to suppress REVIEW")
+    elif bool(meta.get("sensitivity_disagreement_review")):
+        # A normal (properly censored) terminal fs dropout is not the cause
+        # of a 1/4 or 2/4 smoothing-window disagreement. Preserve that
+        # primary engineering reason in the operator's Review Resolution tab.
+        category="PROCESSING SENSITIVITY"
+        decision=("Compare primary and alternative Ic smoothing-window crossings"
+                  " against the source model; preserve exact observed layers"
+                  " and record an engineer-approved interpretation.")
     elif _float(getattr(analysis,"sensor_dropout_depth",None)) is not None or (
             "dropout" in note.lower() or "sensor" in note.lower()):
         category="INCOMPLETE SENSOR MEASUREMENT"
