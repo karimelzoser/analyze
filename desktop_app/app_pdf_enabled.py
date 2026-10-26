@@ -4,6 +4,7 @@ import os
 import math
 import re
 import zipfile
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from tkinter import filedialog, messagebox
@@ -566,7 +567,9 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
 
     def _work_batch(self, out: Path, gamma: float, wt: float, make_pdfs: bool):
         out.mkdir(parents=True, exist_ok=True)
-        pdfs = out / "PDFs"
+        # A dedicated PDF folder for each analysis prevents stale reports
+        # from earlier runs being mistaken for the new same-point retest set.
+        pdfs = out / "PDFs" / ("Run_" + datetime.now().strftime("%Y%m%d_%H%M%S_%f"))
         cancel=getattr(self,"cancel_event",None)
         def guard():
             if cancel is not None and cancel.is_set():
