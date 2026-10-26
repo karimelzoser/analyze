@@ -119,3 +119,37 @@ def test_short_aborted_soundings_are_still_preserved(tmp_path):
     assert len(results)==2
     assert [x.status for x in results]==original_statuses
     assert len([row for row in audit if row["selected"]=="YES"])==2
+
+
+
+def test_full_batch_outputs_two_source_specific_pdfs_and_excel_rows(tmp_path):
+    """Actual desktop pipeline: no physical source is collapsed or overwritten."""
+    import queue
+    from app_pdf_enabled import PDFEnabledCPTApp
+    first=tmp_path/"P261074_CPT-A2-B254-100.GEF"
+    second=tmp_path/"P261074_CPT-A2-B254-100-1.GEF"
+    write_gef(first,"CPT-A2-B254-100")
+    write_gef(second,"CPT-A2-B254-100")
+    fake=SimpleNamespace(files=[first,second],messages=queue.Queue(),
+                         analysis_stage_value="PRE",cancel_event=None,
+                         site_boundary=None,original_model_path=None,
+                         foundation_reference_path=None)
+    dest=tmp_path/"CPT_Output"
+    PDFEnabledCPTApp._work_batch(fake,dest,18.0,2.0,True)
+    events=[]
+    while not fake.messages.empty():
+        events.append(fake.messages.get_nowait())
+    done=[row for row in events if row[0]=="done"]
+    assert len(done)==1
+    _,saved,pdf_dir,excel,results,errors=done[0]
+    assert len(results)==2 and len({a.reference for a in results})==2
+    assert pdf_dir.is_dir() and pdf_dir.parent.name=="PDFs"
+    pdfs=sorted(pdf_dir.glob("*.pdf"))
+    assert len(pdfs)==2
+    assert "(FILE 1 OF 2)" in pdfs[0].name
+    assert "(FILE 2 OF 2)" in pdfs[1].name
+    assert excel.is_file()
+    assert len([a for a in fake.source_audit if a["selected"]=="YES"])==2
+    assert not [e for e in errors if "PDF generation" in str(e)]
+    with ZipFile(excel) as workbook:
+        assert b"Repeated CPT Files" in workbook.read("xl/workbook.xml")
