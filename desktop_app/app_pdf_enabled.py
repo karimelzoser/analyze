@@ -174,6 +174,22 @@ def retain_physical_cpt_results(analyses, all_sources=None, analysis_errors=None
         pool=raw if raw else items
         ordered=sorted(pool,key=lambda a:(source_revision(a.source_path),a.source_path.name.lower(),key(a.source_path)))
         group_size=len(ordered)
+        # Check whether the nominally same TESTID actually shares XY/RL.
+        survey=[];levels=[]
+        for source in ordered:
+            try:
+                x=float((source.metadata or {}).get("easting"))
+                y=float((source.metadata or {}).get("northing"))
+                if math.isfinite(x) and math.isfinite(y):survey.append((x,y))
+            except (TypeError,ValueError,AttributeError):pass
+            try:
+                z=float((source.metadata or {}).get("ground_elevation"))
+                if math.isfinite(z):levels.append(z)
+            except (TypeError,ValueError,AttributeError):pass
+        spatial_delta=max((math.hypot(x-survey[0][0],y-survey[0][1])
+                           for x,y in survey[1:]),default=0.0) if survey else 0.0
+        level_delta=max((abs(z-levels[0]) for z in levels[1:]),
+                        default=0.0) if levels else 0.0
         for seq,a in enumerate(ordered,1):
             md=dict(getattr(a,"metadata",{}) or {})
             source_ref=a.reference
@@ -185,10 +201,17 @@ def retain_physical_cpt_results(analyses, all_sources=None, analysis_errors=None
                 "same_point_file_count":group_size,
                 "same_point_file_index":seq,
                 "same_point_multiple_files":group_size>1,
+                "same_point_survey_conflict":spatial_delta>.50 or level_delta>.08,
+                "same_point_max_xy_delta_m":round(spatial_delta,3),
+                "same_point_max_level_delta_m":round(level_delta,3),
                 "same_point_note":(
                     f"SAME CPT POINT — SOURCE FILE {seq} OF {group_size}; "
                     "independent physical measurements; compare original "
                     "filenames and field-test dates before selecting a design source."
+                    + (f" SURVEY CONFLICT: coordinates vary {spatial_delta:.3f}m;"
+                       f" ground levels vary {level_delta:.3f}m."
+                       " Confirm if these are even the same physical point."
+                       if spatial_delta>.50 or level_delta>.08 else "")
                     if group_size>1 else "One analyzed physical source file."),
                 "source_selection_reason":(
                     f"Individually reported physical source {seq} of {group_size} "
@@ -656,7 +679,15 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
                         append_pdf_analysis(a.source_path, a, output_pdf)
                     else:
                         from engineering_report_sources import choose_official_pdf
-                        official, reason = choose_official_pdf(a, candidate_results)
+                        if (a.metadata or {}).get("same_point_multiple_files"):
+                            # A physical PDF cannot be assigned to two retests
+                            # on nominal XY alone; keep both raw calculations.
+                            official=None
+                            reason=("SAME POINT MULTIPLE FILES: generating a"
+                                    " source-specific PDF; no ambiguous"
+                                    " official chart pairing.")
+                        else:
+                            official, reason = choose_official_pdf(a, candidate_results)
                         if official is not None:
                             # Calculations remain from raw GEF. The
                             # coordinate-matched original can fill only
