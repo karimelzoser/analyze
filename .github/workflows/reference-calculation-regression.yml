@@ -1,0 +1,80 @@
+name: Validate reference CPT calculation (candidate only)
+
+on:
+  pull_request:
+    paths:
+      - 'desktop_app/**'
+      - '.github/workflows/reference-calculation-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reference-calc-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r desktop_app/requirements.txt pyinstaller pytest
+      - name: Validate reference calculation and full regression suite
+        shell: pwsh
+        working-directory: desktop_app
+        run: |
+          python -m pytest -q
+          python -m py_compile cpt_core.py app_pdf_enabled.py engineering_compact_export.py app_modern_final.py
+      - name: Validate all GUI workspaces and atomic PDF/Excel output
+        shell: pwsh
+        working-directory: desktop_app
+        run: |
+          $env:CPT_SCREENSHOT_DIR = "$PWD/gui-screenshots"
+          $env:CPT_QA_SAMPLE_DIR = "$PWD/ci-sample"
+          python app_modern_final.py --integration-smoke
+      - name: Build reference-calculation Windows candidate
+        shell: pwsh
+        working-directory: desktop_app
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed `
+            --name CPT_Silt_Analyzer_Reference_Candidate `
+            --collect-all matplotlib `
+            --collect-all plotly `
+            --collect-all pymupdf `
+            app_modern_final.py
+      - name: Exercise packaged EXE normal startup and smoke
+        shell: pwsh
+        working-directory: desktop_app
+        run: |
+          $exe = "$PWD/dist/CPT_Silt_Analyzer_Reference_Candidate.exe"
+          $env:CPT_SMOKE_OUT = "$PWD/packaged-smoke.txt"
+          $p = Start-Process -FilePath $exe -ArgumentList "--smoke-test" -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "Packaged EXE smoke failed" }
+          $msg = Get-Content $env:CPT_SMOKE_OUT -Raw -ErrorAction Stop
+          if (-not $msg.StartsWith("PASS:")) { throw "Packaged smoke output not PASS" }
+          $env:CPT_STARTUP_SMOKE_OUT = "$PWD/packaged-startup.txt"
+          $p = Start-Process -FilePath $exe -ArgumentList "--normal-startup-smoke" -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "EXE normal startup failed" }
+          $msg = Get-Content $env:CPT_STARTUP_SMOKE_OUT -Raw -ErrorAction Stop
+          if (-not $msg.StartsWith("PASS:")) { throw "Normal startup not PASS" }
+      - name: Publish independent candidate ZIP (never overwrite main release)
+        shell: pwsh
+        working-directory: desktop_app
+        run: |
+          Compress-Archive -Path 'dist/CPT_Silt_Analyzer_Reference_Candidate.exe' -DestinationPath 'CPT_Silt_Analyzer_Reference_Candidate.zip' -CompressionLevel Optimal
+          Get-FileHash 'CPT_Silt_Analyzer_Reference_Candidate.zip' -Algorithm SHA256
+      - name: Upload candidate and visual sample artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: CPT-Reference-Calculation-Candidate
+          path: |
+            desktop_app/CPT_Silt_Analyzer_Reference_Candidate.zip
+            desktop_app/ci-sample/*.xlsx
+            desktop_app/ci-sample/*.pdf
+            desktop_app/gui-screenshots/*.png
+          retention-days: 30

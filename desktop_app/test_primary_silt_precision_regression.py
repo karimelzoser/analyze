@@ -1,12 +1,19 @@
-"""Prevent smoothing-window consensus from deleting actual measured CPT layers."""
+"""Reference-output regression: conservative Ic screening acceptance.
+
+The raw CPT stage-primary candidate always remains in the measurement/layer
+audit. Only a 3-of-4 window agreement can yield a reportable final interval.
+The baseline is the operator-accepted reference release; this is not an
+independent laboratory USCS classification or foundation design validation.
+"""
 from pathlib import Path
 from types import SimpleNamespace
+
 import numpy as np
 import cpt_core
 
 
-def _run(monkeypatch, window_intervals):
-    source=SimpleNamespace(metadata={"reference":"CPT-A2-B238-100","ground_elevation":3.65})
+def _run(monkeypatch, window_intervals, stage="PRE"):
+    source=SimpleNamespace(metadata={"reference":"CPT-TEST-100","ground_elevation":3.65})
     z=np.arange(0.,6.01,.01)
     base=np.ones_like(z)
     calc=dict(depth=z,qc=base,fs=base*.01,u2=base*.01,
@@ -21,35 +28,65 @@ def _run(monkeypatch, window_intervals):
           [] if window_intervals.get(window) is None else
              [(window_intervals[window].start_raw,window_intervals[window].end_raw)],
           SimpleNamespace(brief_exceedances=[])))
-    return cpt_core.analyze_gef(Path("not_needed.GEF"),stage="PRE")
+    return cpt_core.analyze_gef(Path("not_needed.GEF"),stage=stage)
 
 
-def test_declared_primary_pre_window_is_not_overruled_by_sensitivity(monkeypatch):
-    a=cpt_core.SiltInterval(5.3,5.7,.4,5.25,5.70,.45,5.70)
-    b=cpt_core.SiltInterval(5.2,5.7,.5,5.20,5.70,.50,5.70)
-    result=_run(monkeypatch,{3:a,1:b,5:b,7:a})
+def _interval(start=5.3, end=5.7, thickness=.4):
+    return cpt_core.SiltInterval(start,end,thickness,start,end,thickness,end)
+
+
+def test_two_of_four_is_review_not_verified(monkeypatch):
+    primary=_interval()
+    other=_interval(5.2,5.7,.5)
+    result=_run(monkeypatch,{3:primary,1:other,5:other,7:primary})
+    assert result.status=="REVIEW"
+    assert result.final_interval is None
+    assert result.metadata["processing_sensitivity_support"]==2
+    assert result.metadata["sensitivity_disagreement_review"] is True
+    assert result.metadata["primary_candidate_raw_thickness_m"]==.4
+    assert "REVIEW" in result.verification_note
+
+
+def test_three_of_four_matching_primary_is_verified(monkeypatch):
+    primary=_interval()
+    other=_interval(5.2,5.7,.5)
+    result=_run(monkeypatch,{3:primary,1:primary,5:primary,7:other})
     assert result.status=="VERIFIED"
-    assert result.final_interval is a
-    assert result.metadata["processing_sensitivity_warning"] is True
-    assert "SENSITIVITY WARNING" in result.verification_note
+    assert result.final_interval is primary
+    assert result.metadata["processing_sensitivity_support"]==3
+    assert result.metadata["calculation_policy"]=="REFERENCE_CONSENSUS_3_OF_4_V1"
 
 
-def test_observed_thin_interval_rounding_preserves_0_01m_precision(monkeypatch):
+def test_thin_positive_interval_does_not_silently_change_precision(monkeypatch):
     thin=cpt_core.SiltInterval(5.7,5.7,0.,5.6708,5.7251,.0543,5.7251)
     result=_run(monkeypatch,{3:thin,1:thin,5:thin,7:thin})
-    assert result.status=="VERIFIED"
-    assert result.final_interval is not None
-    assert result.final_interval.thickness>0
-    assert result.final_interval.start==5.67
-    assert result.final_interval.end==5.73
-    assert result.final_interval.thickness==.06
-    assert result.metadata["thin_precision_display_m"]==.01
+    assert result.status=="REVIEW"
+    assert result.final_interval is None
+    assert result.metadata["thin_interval_unrounded_start"]==5.6708
+    assert result.metadata["thin_interval_unrounded_thickness"]==.0543
+    assert "0.01m" in result.verification_note
 
 
-def test_no_primary_sustained_layer_is_no_silt_with_separate_sensitivity_note(monkeypatch):
-    thin=cpt_core.SiltInterval(3.8,4.0,.2,3.8,4.0,.2,4.0)
-    result=_run(monkeypatch,{3:None,1:thin,5:None,7:thin})
+def test_no_primary_and_disagreement_is_review_not_no_silt(monkeypatch):
+    observed=_interval(3.8,4.0,.2)
+    result=_run(monkeypatch,{3:None,1:observed,5:None,7:observed})
+    assert result.status=="REVIEW"
+    assert result.final_interval is None
+    assert result.metadata["processing_sensitivity_support"]==2
+
+
+def test_three_agree_no_primary_is_no_silt(monkeypatch):
+    observed=_interval(3.8,4.0,.2)
+    result=_run(monkeypatch,{3:None,1:None,5:None,7:observed})
     assert result.status=="NO SILT"
     assert result.final_interval is None
-    assert result.metadata["processing_sensitivity_warning"] is True
-    assert "SENSITIVITY WARNING" in result.verification_note
+    assert result.metadata["processing_sensitivity_support"]==3
+
+
+def test_post_primary_10_sample_has_same_consensus_gate(monkeypatch):
+    primary=_interval()
+    other=_interval(5.2,5.7,.5)
+    result=_run(monkeypatch,{10:primary,7:primary,9:other,11:other},stage="POST")
+    assert result.status=="REVIEW"
+    assert result.metadata["analysis_smoothing_window_samples"]==10
+    assert result.metadata["processing_sensitivity_support"]==2

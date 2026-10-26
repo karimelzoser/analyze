@@ -97,16 +97,18 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
         cumulative=observed.cumulative_silt_m if observed else None
         unknown=observed.unknown_m if observed else None
         count=observed.silt_count if observed else None
-        # A genuine conflicting full-depth CPT remains REVIEW, but the
-        # measured candidate is still a quantitative observation. Do not
-        # erase it from the five-column summary. Make its provisional
-        # status unmistakable through cell comments / amber formatting.
+        # The five-column quick sheet is an ACCEPTED-RESULT surface, not a
+        # place to publish provisional numbers. Preserve the candidate in
+        # Full Analysis, Source Audit and Review Evidence for inspection.
+        # In particular a retest SOURCE CONFLICT must never appear as an
+        # ordinary verified silt-depth value merely because it has numbers.
+        reportable=z if a.status=="VERIFIED" else None
         quick.append((i,a.reference,
-                z.start if z is not None else
+                reportable.start if reportable is not None else
                 ("NO SILT" if a.status=="NO SILT" else "REVIEW"),
-                z.thickness if z is not None else
+                reportable.thickness if reportable is not None else
                 (0.0 if a.status=="NO SILT" else None),
-                a.sand_layer_thickness))
+                a.sand_layer_thickness if a.status!="REVIEW" else None))
         detail.append((a.reference,a.status,num(md.get("easting")),num(md.get("northing")),
             num(md.get("ground_elevation")),num(getattr(a,"test_depth_raw",None)),
             z.start if z else None,z.end if z else None,z.thickness if z else None,
@@ -194,9 +196,8 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
     quick_summary,_quick_count=_sheet(book,style,"CPT Analysis",
            ["SI.No","CPT REFERENCE","Silt start depth after (m)","silt depth (m)",
             "Sand layer thickness before silt (m)"],quick,{1:29,2:25,3:19,4:25})
-    # Five numeric columns remain unchanged. Source conflicts show the
-    # provisional numeric interpretation with an amber marker/comment;
-    # Full Analysis and Source Audit retain REVIEW, never VERIFIED.
+    # Keep exactly five columns. REVIEW numeric candidates live in the
+    # detailed worksheets only; the default sheet clearly labels REVIEW.
     for idx,a in enumerate(analyses,1):
         if a.status=="REVIEW":
             quick_summary.conditional_format(idx,0,idx,4,{
