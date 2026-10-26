@@ -102,13 +102,19 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
         # Full Analysis, Source Audit and Review Evidence for inspection.
         # In particular a retest SOURCE CONFLICT must never appear as an
         # ordinary verified silt-depth value merely because it has numbers.
-        reportable=z if a.status=="VERIFIED" else None
+        # Preserve raw numerical engine status but never report NO SILT as
+        # conclusive when this file is a substantially aborted push and a
+        # complete sounding exists for the same TESTID.
+        incomplete=bool(md.get("same_point_short_attempt"))
+        reportable=z if a.status=="VERIFIED" and not incomplete else None
         quick.append((i,a.reference,
                 reportable.start if reportable is not None else
-                ("NO SILT" if a.status=="NO SILT" else "REVIEW"),
+                ("SHORT TEST — INCOMPLETE" if incomplete else
+                 "NO SILT" if a.status=="NO SILT" else "REVIEW"),
                 reportable.thickness if reportable is not None else
-                (0.0 if a.status=="NO SILT" else None),
-                a.sand_layer_thickness if a.status!="REVIEW" else None))
+                (0.0 if a.status=="NO SILT" and not incomplete else None),
+                # This is a depth to the selected interval, not continuous sand.
+                z.start if reportable is not None else None))
         detail.append((a.reference,a.status,num(md.get("easting")),num(md.get("northing")),
             num(md.get("ground_elevation")),num(getattr(a,"test_depth_raw",None)),
             z.start if z else None,z.end if z else None,z.thickness if z else None,
@@ -195,18 +201,30 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
     # Main deliverable: the user's original five columns; no extra fields here.
     quick_summary,_quick_count=_sheet(book,style,"CPT Analysis",
            ["SI.No","CPT REFERENCE","Silt start depth after (m)","silt depth (m)",
-            "Sand layer thickness before silt (m)"],quick,{1:29,2:25,3:19,4:25})
+            "Depth to selected silt (m) — NOT a continuous sand layer"],quick,
+            {1:43,2:25,3:19,4:55})
+    quick_summary.write_comment(0,4,
+        "The numeric E-column measures depth to the selected Ic-screened"
+        " horizon, NOT thickness of an independently verified sand layer."
+        " Earlier fine-grained horizons may occur. NO SILT and REVIEW are"
+        " blank. Consult All Soil Layers and CPT Measurements.")
     # Keep exactly five columns. REVIEW numeric candidates live in the
     # detailed worksheets only; the default sheet clearly labels REVIEW.
     for idx,a in enumerate(analyses,1):
-        if a.status=="REVIEW":
+        md=getattr(a,"metadata",{}) or {}
+        if (a.status=="REVIEW" or md.get("same_point_multiple_files")
+                or md.get("same_point_short_attempt")):
             quick_summary.conditional_format(idx,0,idx,4,{
                 "type":"formula","criteria":"=TRUE","format":style["review"]})
-            explanation=("ENGINEERING REVIEW — NOT VERIFIED. "+
-                         str(getattr(a,"verification_note",""))+
-                         " If numerical silt is shown, it is the selected"
-                         " candidate only; competing full-depth revisions"
-                         " must be independently reconciled.")
+            explanation=("ENGINEERING SOURCE QA — "
+                         + ("SAME POINT, MULTIPLE PHYSICAL FILES. "
+                            if md.get("same_point_multiple_files") else "")
+                         + ("SHORT / ABORTED TEST, NOT FULL-DEPTH NO SILT. "
+                            if md.get("same_point_short_attempt") else "")
+                         + ("REVIEW — NOT VERIFIED. " if a.status=="REVIEW" else
+                            "Numeric screen status is per sounding, NOT approved"
+                            " site-source selection. ")
+                         + str(getattr(a,"verification_note","") or ""))
             quick_summary.write_comment(idx,1,explanation[:30000])
     _sheet(book,style,"Full Analysis",
            ["CPT REFERENCE","Status","Easting","Northing","Ground elevation RL (m)",
@@ -293,6 +311,31 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
                 for r in triage_rows],
             {0:28,1:31,2:49,8:32,9:100,10:105,11:70})
 
+    # Physical files sharing one TESTID/XY remain separate calculations.
+    repeated=[]
+    for a in analyses:
+        md=getattr(a,"metadata",{}) or {}
+        if int(md.get("same_point_file_count",1) or 1)<=1:continue
+        z=getattr(a,"final_interval",None)
+        repeated.append((
+            md.get("canonical_reference") or a.reference,
+            a.reference,a.source_path.name,
+            int(md.get("same_point_file_index",1)),
+            int(md.get("same_point_file_count",1)),
+            "SAME CPT POINT — DISTINCT SOURCE FILE",
+            a.status,md.get("test_date") or "NOT RECORDED",
+            getattr(a,"test_depth_raw",None),
+            z.start if z is not None else None,
+            z.thickness if z is not None else None,
+            "Independent observed source: do not merge or choose a revision"
+            " for design without reconciling the field test identity."))
+    if repeated:
+        _sheet(book,style,"Repeated CPT Files",
+            ["Physical CPT point","Unique output reference","Original input filename",
+             "Source number","Files for this point","Relationship",
+             "Calculation status","Field test date","Measured sounding depth (m)",
+             "Calculated silt start (m)","Calculated thickness (m)","Engineering note"],
+            repeated,{0:30,1:43,2:52,3:16,4:22,5:46,6:20,7:24,8:28,9:27,10:27,11:102})
     # Audit source conflicts, unclassified tails and processing exceptions
     audit_rows=[]
     for r in audits:
@@ -508,7 +551,14 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
             review_thin+=1
         else:
             review_other+=1
-    metrics=[("CPT locations",len(analyses)),
+    unique_points={str((a.metadata or {}).get("canonical_reference") or a.reference)
+                   for a in analyses}
+    extra_sources=sum(max(0,int((a.metadata or {}).get("same_point_file_count",1))-1)
+                     for a in analyses
+                     if int((a.metadata or {}).get("same_point_file_index",1))==1)
+    metrics=[("Physical CPT locations",len(unique_points)),
+             ("Independently analyzed sounding files",len(analyses)),
+             ("Additional same-point source files",extra_sources),
             ("Verified silt",sum(a.status=="VERIFIED" for a in analyses)),
             ("No sustained silt",sum(a.status=="NO SILT" for a in analyses)),
             ("Engineering review",sum(a.status=="REVIEW" for a in analyses)),

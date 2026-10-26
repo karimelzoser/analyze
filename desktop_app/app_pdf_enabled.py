@@ -4,6 +4,7 @@ import os
 import math
 import re
 import zipfile
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from tkinter import filedialog, messagebox
@@ -144,6 +145,146 @@ def _candidate_rank(a) -> tuple:
     except Exception:
         mtime = 0
     return (rev, mtime, a.source_path.name.lower())
+
+
+def retain_physical_cpt_results(analyses, all_sources=None, analysis_errors=None):
+    """Output EVERY numerical sounding independently, without merging calculations.
+
+    Raw GEF/GFF are authoritative for numerical data; an official PDF of the
+    same point is a visual reference, not a second CPT measurement. If only
+    PDFs are supplied, every physical PDF is retained separately. Each raw
+    source gets its own result, raw measurements, PDF, and unique workbook ID.
+    A repeated TESTID means *multiple tests at one location*, not a reason to
+    discard one. Screening calculations/thresholds/precision are unchanged.
+    """
+    analyses=list(analyses)
+    all_sources=list(all_sources or [a.source_path for a in analyses])
+    analysis_errors=dict(analysis_errors or {})
+    def key(path):
+        try:return str(Path(path).resolve()).lower()
+        except Exception:return str(Path(path).absolute()).lower()
+    families={}
+    for a in analyses:
+        families.setdefault(canonical_reference(a.reference),[]).append(a)
+    results=[]
+    selected_by_path={}
+    family_by_path={key(a.source_path):canonical_reference(a.reference) for a in analyses}
+    for family,items in families.items():
+        raw=[a for a in items if a.source_path.suffix.lower() in RAW_EXTENSIONS]
+        pool=raw if raw else items
+        ordered=sorted(pool,key=lambda a:(source_revision(a.source_path),a.source_path.name.lower(),key(a.source_path)))
+        group_size=len(ordered)
+        depths=[]
+        for measured in ordered:
+            try:
+                value=float(measured.test_depth_raw)
+                if math.isfinite(value):depths.append(value)
+            except (TypeError,ValueError,AttributeError):pass
+        deepest=max(depths,default=0.0)
+        # Check whether the nominally same TESTID actually shares XY/RL.
+        survey=[];levels=[]
+        for source in ordered:
+            try:
+                x=float((source.metadata or {}).get("easting"))
+                y=float((source.metadata or {}).get("northing"))
+                if math.isfinite(x) and math.isfinite(y):survey.append((x,y))
+            except (TypeError,ValueError,AttributeError):pass
+            try:
+                z=float((source.metadata or {}).get("ground_elevation"))
+                if math.isfinite(z):levels.append(z)
+            except (TypeError,ValueError,AttributeError):pass
+        spatial_delta=max((math.hypot(x-survey[0][0],y-survey[0][1])
+                           for x,y in survey[1:]),default=0.0) if survey else 0.0
+        level_delta=max((abs(z-levels[0]) for z in levels[1:]),
+                        default=0.0) if levels else 0.0
+        for seq,a in enumerate(ordered,1):
+            md=dict(getattr(a,"metadata",{}) or {})
+            source_ref=a.reference
+            try:source_depth=float(a.test_depth_raw)
+            except (TypeError,ValueError,AttributeError):source_depth=0.0
+            short_attempt=(group_size>1 and deepest>=1.0
+                           and source_depth < min(1.0,.65*deepest))
+            md.update({
+                "source_report_reference":source_ref,
+                "canonical_reference":family,
+                "source_revision":source_revision(a.source_path),
+                "source_family_count":group_size,
+                "same_point_file_count":group_size,
+                "same_point_short_attempt":short_attempt,
+                "same_point_file_index":seq,
+                "same_point_multiple_files":group_size>1,
+                "same_point_survey_conflict":spatial_delta>.50 or level_delta>.08,
+                "same_point_max_xy_delta_m":round(spatial_delta,3),
+                "same_point_max_level_delta_m":round(level_delta,3),
+                "same_point_note":(
+                    f"SAME CPT POINT — SOURCE FILE {seq} OF {group_size}; "
+                    "independent physical measurements; compare original "
+                    "filenames and field-test dates before selecting a design source."
+                    + (f" SURVEY CONFLICT: coordinates vary {spatial_delta:.3f}m;"
+                       f" ground levels vary {level_delta:.3f}m."
+                       " Confirm if these are even the same physical point."
+                       if spatial_delta>.50 or level_delta>.08 else "")
+                    if group_size>1 else "One analyzed physical source file."),
+                "source_selection_reason":(
+                    f"Individually reported physical source {seq} of {group_size} "
+                    f"for {family}; no numerical merge, no silent supersession."),
+            })
+            a.metadata=md
+            # Make workbook IDs, chart series, PDF filenames and atlas hover
+            # labels unique WITHOUT changing any numeric measurement.
+            a.reference=(f"{family} (FILE {seq} OF {group_size})"
+                         if group_size>1 else family)
+            if group_size>1:
+                a.verification_note=(
+                    (str(getattr(a,"verification_note","") or "")+" ")
+                    +md["same_point_note"]
+                    + (" SUBSTANTIALLY SHORT / ABORTED CPT: this recorded"
+                       " calculation is limited to the observed sounding"
+                       " depth and is NOT evidence that the deeper soil"
+                       " has NO SILT. Do not use it to replace the later"
+                       " complete sounding."
+                       if short_attempt else ""))
+            results.append(a)
+            selected_by_path[key(a.source_path)]=a
+    results.sort(key=lambda a:(app_modern.natural_ref_key(
+        str(a.metadata.get("canonical_reference") or a.reference)),
+        int(a.metadata.get("same_point_file_index",1))))
+    audit=[]
+    for p in sorted(all_sources,key=lambda q:(
+            app_modern.natural_ref_key(family_by_path.get(key(q),source_reference_key(q))),
+            source_revision(q),q.name.lower())):
+        k=key(p)
+        a=next((a for a in analyses if key(a.source_path)==k),None)
+        chosen=selected_by_path.get(k)
+        family=family_by_path.get(k,source_reference_key(p))
+        if a is None:
+            status="ERROR";start=thickness=None
+            note=analysis_errors.get(k,analysis_errors.get(str(p),"Source could not be analyzed."))
+            why="Input source failed; retained for error audit."
+        else:
+            z=getattr(a,"final_interval",None)
+            status=a.status
+            start=z.start if z is not None else ("NO SILT" if status=="NO SILT" else None)
+            thickness=z.thickness if z is not None else (0.0 if status=="NO SILT" else None)
+            note=getattr(a,"verification_note","")
+            why=(a.metadata.get("source_selection_reason","")
+                 if chosen is not None else
+                 "Reference PDF only: corresponding RAW GEF/GFF is the numerical source; PDF kept for traceability.")
+        audit.append({
+            "family":family,"source_file":p.name,
+            "source_type":p.suffix.upper().lstrip("."),
+            "revision":source_revision(p),
+            "source_quality":str((getattr(a,"metadata",{}) or {}).get("source_quality")
+                or ("RAW GEF/GFF" if p.suffix.lower() in RAW_EXTENSIONS else "PDF")),
+            "status":status,"silt_start":start,"silt_thickness":thickness,
+            "selected":"YES" if chosen is not None else "NO",
+            "selection_reason":why,"verification_note":note,
+            "result_reference":chosen.reference if chosen is not None else None,
+            "same_point_file_count":(
+                chosen.metadata.get("same_point_file_count",1)
+                if chosen is not None else len(families.get(family,[]))),
+        })
+    return results,audit
 
 
 def select_project_results(analyses, all_sources=None, analysis_errors=None):
@@ -467,7 +608,9 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
 
     def _work_batch(self, out: Path, gamma: float, wt: float, make_pdfs: bool):
         out.mkdir(parents=True, exist_ok=True)
-        pdfs = out / "PDFs"
+        # A dedicated PDF folder for each analysis prevents stale reports
+        # from earlier runs being mistaken for the new same-point retest set.
+        pdfs = out / "PDFs" / ("Run_" + datetime.now().strftime("%Y%m%d_%H%M%S_%f"))
         cancel=getattr(self,"cancel_event",None)
         def guard():
             if cancel is not None and cancel.is_set():
@@ -533,8 +676,10 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
         self.messages.put(("batch_stage",60 if make_pdfs else 90,
                            "Verifying sources and duplicate CPT references",
                            f"{len(candidate_results)} analyzed source(s)"))
-        # Revision-aware project collapse: one final result per CPT location.
-        results, audit_rows = select_project_results(candidate_results, self.files, error_map)
+        # Every independently measured GEF/GFF must produce its own result,
+        # even when TESTID and XY match a retest at the same physical point.
+        # The numerical analysis engine is unchanged.
+        results, audit_rows = retain_physical_cpt_results(candidate_results, self.files, error_map)
         self.source_audit = audit_rows
         if not results:
             detail="; ".join(f"{name}: {problem}" for name,problem in errors[:3])
@@ -552,7 +697,15 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
                         append_pdf_analysis(a.source_path, a, output_pdf)
                     else:
                         from engineering_report_sources import choose_official_pdf
-                        official, reason = choose_official_pdf(a, candidate_results)
+                        if (a.metadata or {}).get("same_point_multiple_files"):
+                            # A physical PDF cannot be assigned to two retests
+                            # on nominal XY alone; keep both raw calculations.
+                            official=None
+                            reason=("SAME POINT MULTIPLE FILES: generating a"
+                                    " source-specific PDF; no ambiguous"
+                                    " official chart pairing.")
+                        else:
+                            official, reason = choose_official_pdf(a, candidate_results)
                         if official is not None:
                             # Calculations remain from raw GEF. The
                             # coordinate-matched original can fill only
@@ -574,7 +727,7 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
 
         guard()
         self.messages.put(("batch_stage",95,"Assembling complete engineering Excel",
-                           f"{len(results)} unique CPT(s); source audit and georeferenced charts"))
+                           f"{len(results)} physical sounding(s); repeated points clearly labeled"))
         excel_path = app_modern_v2.timestamped_excel_path(out)
         # One deliverable: combine calculated CPTs, all raw points, both
         # georeferenced map views, optional XLSB reference and foundation

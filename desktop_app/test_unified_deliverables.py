@@ -136,7 +136,10 @@ def test_unapproved_revision_candidate_is_not_on_accepted_quick_sheet(tmp_path):
         assert cells["C2"].attrib.get("t") in ("s","inlineStr")
         assert "D2" not in cells or cells["D2"].find("m:v",ns) is None
         assert "E2" not in cells or cells["E2"].find("m:v",ns) is None
-        shared=workbook.read("xl/sharedStrings.xml")
+        shared=(workbook.read("xl/sharedStrings.xml")
+                if "xl/sharedStrings.xml" in workbook.namelist() else b"")
+        shared+=b"".join(workbook.read(n) for n in workbook.namelist()
+                         if n.startswith("xl/worksheets/sheet") and n.endswith(".xml"))
         assert b"REVIEW" in shared
         # Numerical candidate survives in the Full Analysis / Review worksheets.
         all_xml=b"".join(workbook.read(s) for s in workbook.namelist()

@@ -125,7 +125,7 @@ def _packaged_gui_smoke():
                                   b"All Soil Layers",b"CPT Metadata",
                                   b"Source Audit",b"Project Maps"):
                         if sheet not in workbook:raise RuntimeError("Missing workbook sheet "+repr(sheet))
-                reports=list((destination/"PDFs").glob("*.pdf"))
+                reports=list((destination/"PDFs").rglob("*.pdf"))
                 if len(reports)!=1:raise RuntimeError("Expected exactly one generated CPT report")
                 with pymupdf.open(str(reports[0])) as report:
                     if report.page_count<3:raise RuntimeError("Generated report needs source chart, QA summary, full-layer appendix")

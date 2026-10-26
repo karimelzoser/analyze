@@ -88,7 +88,7 @@ def engineering_analysis_page(a):
         ("Silt start (reported)",report_start),
         ("Silt end (reported)",report_end),
         ("Silt thickness (reported)",thickness),
-        ("Sand before selected silt",
+        ("Depth to selected Ic horizon (NOT continuous sand)",
          (_num(getattr(a,"sand_layer_thickness",None),2,"m")+
           (" [PROVISIONAL]" if status=="REVIEW" else ""))
          if interval is not None and getattr(a,"sand_layer_thickness",None) is not None
