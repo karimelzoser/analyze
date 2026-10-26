@@ -81,3 +81,20 @@ def test_true_u2_is_preserved_and_not_marked_missing(tmp_path):
     assert gef.metadata["pore_pressure_measured"]
     assert gef.metadata["pore_pressure_source"]=="MEASURED"
     assert abs(gef.columns["u2"][0]-.12)<1e-8
+
+
+def test_actual_gef_startdate_is_used_as_field_test_date(tmp_path):
+    # GEF's STARTDATE is the start of the penetration test, not FILEDATE.
+    path=tmp_path/"from_field.gef"
+    _sample(path)
+    text=path.read_text(encoding="ascii")
+    text=text.replace("#TESTDATE= 2026-09-21",
+        "#FILEDATE= 2026, 10, 19\\n#STARTDATE= 2026, 10, 15\\n#STARTTIME= 16, 4, 44.000000")
+    path.write_text(text,encoding="ascii")
+    parsed=parse_gef(path)
+    assert parsed.metadata["test_date"]=="2026, 10, 15"
+    assert parsed.metadata["test_time"]=="16, 4, 44.000000"
+    assert parsed.metadata["file_date"]=="2026, 10, 15"
+    # STARTDATE is authoritative for test date even if FILEDATE differs.
+    assert any(k=="FILEDATE" and v=="2026, 10, 19"
+               for k,v in parsed.metadata["source_header_entries"])
