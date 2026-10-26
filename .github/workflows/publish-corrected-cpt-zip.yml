@@ -23,6 +23,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
+          fetch-depth: 0
 
       - name: Verify source has not changed since passing Windows candidate
         shell: pwsh
