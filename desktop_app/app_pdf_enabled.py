@@ -229,7 +229,7 @@ def select_project_results(analyses, all_sources=None, analysis_errors=None):
         # measured retest was REVIEW due thin-layer reporting precision.
         # Both represent substantial physical soundings and require an
         # authoritative field-test decision before project acceptance.
-        review_retest_conflict=any(
+        review_retest_conflict=selected.status in CONCLUSIVE_STATUSES and any(
             a is not selected and a.status=="REVIEW"
             and _observed_length(a) is not None
             and longest is not None
