@@ -102,14 +102,19 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
         # Full Analysis, Source Audit and Review Evidence for inspection.
         # In particular a retest SOURCE CONFLICT must never appear as an
         # ordinary verified silt-depth value merely because it has numbers.
-        reportable=z if a.status=="VERIFIED" else None
+        # Preserve raw numerical engine status but never report NO SILT as
+        # conclusive when this file is a substantially aborted push and a
+        # complete sounding exists for the same TESTID.
+        incomplete=bool(md.get("same_point_short_attempt"))
+        reportable=z if a.status=="VERIFIED" and not incomplete else None
         quick.append((i,a.reference,
                 reportable.start if reportable is not None else
-                ("NO SILT" if a.status=="NO SILT" else "REVIEW"),
+                ("SHORT TEST — INCOMPLETE" if incomplete else
+                 "NO SILT" if a.status=="NO SILT" else "REVIEW"),
                 reportable.thickness if reportable is not None else
-                (0.0 if a.status=="NO SILT" else None),
+                (0.0 if a.status=="NO SILT" and not incomplete else None),
                 # This is a depth to the selected interval, not continuous sand.
-                z.start if a.status=="VERIFIED" and z is not None else None))
+                z.start if reportable is not None else None))
         detail.append((a.reference,a.status,num(md.get("easting")),num(md.get("northing")),
             num(md.get("ground_elevation")),num(getattr(a,"test_depth_raw",None)),
             z.start if z else None,z.end if z else None,z.thickness if z else None,
@@ -206,14 +211,20 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
     # Keep exactly five columns. REVIEW numeric candidates live in the
     # detailed worksheets only; the default sheet clearly labels REVIEW.
     for idx,a in enumerate(analyses,1):
-        if a.status=="REVIEW":
+        md=getattr(a,"metadata",{}) or {}
+        if (a.status=="REVIEW" or md.get("same_point_multiple_files")
+                or md.get("same_point_short_attempt")):
             quick_summary.conditional_format(idx,0,idx,4,{
                 "type":"formula","criteria":"=TRUE","format":style["review"]})
-            explanation=("ENGINEERING REVIEW — NOT VERIFIED. "+
-                         str(getattr(a,"verification_note",""))+
-                         " If numerical silt is shown, it is the selected"
-                         " candidate only; competing full-depth revisions"
-                         " must be independently reconciled.")
+            explanation=("ENGINEERING SOURCE QA — "
+                         + ("SAME POINT, MULTIPLE PHYSICAL FILES. "
+                            if md.get("same_point_multiple_files") else "")
+                         + ("SHORT / ABORTED TEST, NOT FULL-DEPTH NO SILT. "
+                            if md.get("same_point_short_attempt") else "")
+                         + ("REVIEW — NOT VERIFIED. " if a.status=="REVIEW" else
+                            "Numeric screen status is per sounding, NOT approved"
+                            " site-source selection. ")
+                         + str(getattr(a,"verification_note","") or ""))
             quick_summary.write_comment(idx,1,explanation[:30000])
     _sheet(book,style,"Full Analysis",
            ["CPT REFERENCE","Status","Easting","Northing","Ground elevation RL (m)",
