@@ -111,3 +111,34 @@ def test_thin_pdf_reviewer_keeps_exact_observed_interval_in_same_excel(tmp_path)
         assert b"OBSERVED THIN LAYER" in xml
         assert b"5.201" in xml and b"5.243" in xml
         assert b"0.042" in xml
+
+
+
+def test_unapproved_revision_candidate_is_not_on_accepted_quick_sheet(tmp_path):
+    """REVIEW may retain a measured candidate, but C2/D2/E2 cannot imply acceptance."""
+    import xml.etree.ElementTree as ET
+    from cpt_core import SiltInterval
+
+    source=tmp_path/"conflict.GEF"
+    make_synthetic_gef(source,33,120)
+    result=analyze_gef(source,water_table_depth=2.0)
+    result.status="REVIEW"
+    result.final_interval=SiltInterval(5.2,5.5,.3,5.2,5.5,.3,5.5)
+    result.metadata["source_revision_conflict"]=True
+    result.metadata["provisional_conflicting_result"]=True
+    result.verification_note="SOURCE CONFLICT: another complete retest disagrees."
+    output=export_excel([result],tmp_path/"review.xlsx")
+
+    with zipfile.ZipFile(output) as workbook:
+        root=ET.fromstring(workbook.read("xl/worksheets/sheet1.xml"))
+        ns={"m":"http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+        cells={c.attrib["r"]:c for c in root.findall(".//m:sheetData/m:row/m:c",ns)}
+        assert cells["C2"].attrib.get("t") in ("s","inlineStr")
+        assert "D2" not in cells or cells["D2"].find("m:v",ns) is None
+        assert "E2" not in cells or cells["E2"].find("m:v",ns) is None
+        shared=workbook.read("xl/sharedStrings.xml")
+        assert b"REVIEW" in shared
+        # Numerical candidate survives in the Full Analysis / Review worksheets.
+        all_xml=b"".join(workbook.read(s) for s in workbook.namelist()
+                         if s.startswith("xl/worksheets/sheet") and s.endswith(".xml"))
+        assert b"5.2" in all_xml and b"5.5" in all_xml
