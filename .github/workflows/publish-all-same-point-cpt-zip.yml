@@ -1,0 +1,88 @@
+name: Publish all physical CPT soundings Windows ZIP to GitHub
+
+on:
+  push:
+    branches:
+      - fix/preserve-all-same-point-cpt-soundings-20261027
+    paths:
+      - '.github/workflows/publish-all-same-point-cpt-zip.yml'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: cpt-all-same-point-release-github-upload
+  cancel-in-progress: false
+
+jobs:
+  publish-corrected-preview:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Verify source has not changed since passing Windows candidate
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $baseline = '10ba3e35ca6b37121683bc6ee180d3e9f95a5b1e'
+          $runId = '40406362339'
+          $runInfo = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$runId" | ConvertFrom-Json
+          if ($runInfo.conclusion -ne 'success' -or $runInfo.head_sha -ne $baseline) {
+            throw "Refusing to publish an unverified source: CI run or source SHA mismatch."
+          }
+          git diff --exit-code $baseline HEAD -- desktop_app
+          if ($LASTEXITCODE -ne 0) {
+            throw "Desktop source changed since tested candidate: requires a new Windows verification."
+          }
+
+      - name: Retrieve exact tested EXE and package downloadable Windows ZIP
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -Type Directory -Force -Path '.cpt_artifact' | Out-Null
+          gh run download 40406362339 -R "$env:GITHUB_REPOSITORY" -n 'CPT-Reference-Calculation-Candidate' -D '.cpt_artifact'
+          if ($LASTEXITCODE -ne 0) { throw "Unable to retrieve validated candidate artifact." }
+          $candidate = Get-ChildItem '.cpt_artifact' -File -Recurse -Filter 'CPT_Silt_Analyzer_Reference_Candidate.zip' | Select-Object -First 1
+          if ($null -eq $candidate) { throw "Tested candidate ZIP was not in the Windows CI artifact." }
+          Expand-Archive -LiteralPath $candidate.FullName -DestinationPath '.cpt_unpack' -Force
+          $exe = '.cpt_unpack/CPT_Silt_Analyzer_Reference_Candidate.exe'
+          if (-not (Test-Path -LiteralPath $exe)) { throw "Tested candidate EXE missing." }
+          # Source run and head commit are strictly checked above. The
+          # unmodified EXE is pulled from that passing run's artifact; verify
+          # its digest again after the user-friendly GitHub repack.
+          $expected = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          New-Item -ItemType Directory -Force '.cpt_package' | Out-Null
+          Copy-Item -LiteralPath $exe -Destination '.cpt_package/CPT_Silt_Analyzer.exe'
+          Copy-Item -LiteralPath 'release/README_ALL_SAME_POINT_CPT_FILES_2026-10-27.txt' -Destination '.cpt_package/README_ALL_SAME_POINT_CPT_FILES_2026-10-27.txt'
+          $out = 'release/CPT_Silt_Analyzer_All_Files_Corrected_2026-10-27.zip'
+          Compress-Archive -Path '.cpt_package/*' -DestinationPath $out -CompressionLevel Optimal -Force
+          if ((Get-Item $out).Length -lt 75000000) { throw "Corrected ZIP is unexpectedly small." }
+          Expand-Archive -LiteralPath $out -DestinationPath '.cpt_check' -Force
+          $insideHash = (Get-FileHash '.cpt_check/CPT_Silt_Analyzer.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($insideHash -ne $expected) { throw "ZIP contents fail executable integrity validation." }
+          Write-Host "VERIFIED EXE SHA256: $expected"
+          Get-FileHash -LiteralPath $out -Algorithm SHA256
+          Get-Item $out | Select-Object FullName,Length
+
+      - name: Commit corrected ZIP to GitHub preview branch
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f -- 'release/CPT_Silt_Analyzer_All_Files_Corrected_2026-10-27.zip'
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Identical corrected archive already published."
+          } else {
+            git commit -m "Publish tested all-soundings CPT Windows ZIP [skip ci]"
+            if ($LASTEXITCODE -ne 0) { throw "Git commit failed." }
+            git push origin 'HEAD:refs/heads/fix/preserve-all-same-point-cpt-soundings-20261027'
+            if ($LASTEXITCODE -ne 0) { throw "Unable to upload corrected ZIP to GitHub branch." }
+          }
