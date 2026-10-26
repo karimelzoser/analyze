@@ -73,6 +73,12 @@ def spatial_points(data):
                 cumulative=observed.cumulative_silt_m
             except (ValueError,AttributeError,TypeError,IndexError,KeyError):
                 pass
+        # Both same-point CPT soundings remain visible and inspectable, but
+        # neither is arbitrarily picked as the sole profile for interpolation.
+        # This changes only map QA status, never calculated CPT status/results.
+        if int(meta.get("same_point_file_count",1) or 1)>1:
+            status="REVIEW"
+            source+=" | SAME POINT — MULTIPLE INDEPENDENT FILES; no spatial interpolation"
         x=_num(meta.get("easting"));y=_num(meta.get("northing"))
         elev=_num(meta.get("ground_elevation"))
         if x is None or y is None:continue
