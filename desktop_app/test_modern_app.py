@@ -61,7 +61,7 @@ def test_primary_excel_has_five_columns(tmp_path):
         # XlsxWriter may store strings inline or in sharedStrings depending on version.
         all_sheets = [z.read(n) for n in z.namelist()
                       if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")]
-        assert any(b"Sand layer thickness before silt" in shared + sheet
+        assert any(b"Depth to selected silt" in shared + sheet
                    for sheet in all_sheets)
         assert any(b'r="E1"' in sheet for sheet in all_sheets)
         assert b"Summary" in workbook and b"Project Maps" in workbook
