@@ -102,7 +102,7 @@ def analysis_record(a: CPTAnalysis) -> dict:
         "records": md.get("records", len(a.depth)), "ground": ground, "easting": md.get("easting"), "northing": md.get("northing"),
         "area_ratio": md.get("area_ratio"), "gamma": md.get("analysis_gamma_soil_kn_m3", md.get("gamma_soil", 18.0)), "water_table": md.get("analysis_water_table_bgl_m", md.get("water_table_depth", None)),
         "test_depth": a.test_depth, "test_depth_raw": a.test_depth_raw, "test_end_rl": test_end_rl,
-        "sand": a.sand_layer_thickness,
+        "sand": (a.sand_layer_thickness if a.status=="VERIFIED" else None),
         "start": z.start if z else ("NO SILT" if a.status == "NO SILT" else "REVIEW"),
         "start_num": z.start if z else None, "start_rl": start_rl,
         "end": z.end if z else None, "end_rl": end_rl,
@@ -220,7 +220,7 @@ def analysis_page(a: CPTAnalysis) -> Figure:
     rows=[
         ["Verification status",r["status"]],["Silt start - reported",str(r["start"]) if isinstance(r["start"],str) else _fmt(r["start"],2," m")],
         ["Silt start RL - reported",_fmt(r["start_rl"],2," m")],["Silt end - reported",_fmt(r["end"],2," m")],["Silt end RL - reported",_fmt(r["end_rl"],2," m")],
-        ["Silt thickness - reported",_fmt(r["thickness"],2," m")],["Sand layer thickness",_fmt(r["sand"],2," m")],
+        ["Silt thickness - reported",_fmt(r["thickness"],2," m")],["Depth to selected silt, not sand thickness",_fmt(r["sand"],2," m")],
         ["Raw interpolated silt start",_fmt(r["raw_start"],3," m")],["Raw analysis end",_fmt(r["raw_end"],3," m")],["Raw interval thickness",_fmt(r["raw_thickness"],3," m")],
         ["Corrected sounding depth",_fmt(r["test_depth_raw"],3," m")],["Maximum valid Ic",_fmt(r["max_ic"],3)],["Ic at silt start",_fmt(r["ic_start"],3)],
         ["Soil behaviour at silt start",r["behavior"]],["Qtn / Fr at start",f"{_fmt(r['qtn_start'],3)} / {_fmt(r['fr_start'],3,'%')}"],
@@ -249,7 +249,7 @@ def generate_pdf(a: CPTAnalysis, output_path: str|Path) -> Path:
 FULL_HEADERS = [
     "SI.No","CPT REFERENCE","Area","Source File","Test Date","Client","Project","Main Contractor","Location","Cone ID","Standard","Records",
     "Ground Elevation (m)","Easting","Northing","Cone Area Ratio","Soil Unit Weight (kN/m3)","Groundwater Depth BGL (m)",
-    "Corrected Test Depth (m)","Test End RL (m)","Sand Layer Thickness (m)","Silt Start Reported (m)","Silt Start RL Reported (m)",
+    "Corrected Test Depth (m)","Test End RL (m)","Depth to selected silt (m), NOT continuous sand","Silt Start Reported (m)","Silt Start RL Reported (m)",
     "Silt End Reported (m)","Silt End RL Reported (m)","Silt Thickness Reported (m)","Raw Silt Start (m)","Raw Silt Start RL (m)",
     "Raw Silt End (m)","Raw Silt End RL (m)","Raw Silt Thickness (m)","Maximum Valid Ic","Mean Valid Ic","Valid Ic Points","Ic at Silt Start",
     "Soil Behaviour at Silt Start","Qtn at Silt Start","Fr at Silt Start (%)","qc at Silt Start (MPa)","fs at Silt Start (MPa)","u2 at Silt Start (MPa)",
@@ -307,7 +307,7 @@ def export_excel(analyses: Iterable[CPTAnalysis], output_path: str|Path, errors:
         ("Maximum silt thickness (m)",mx),("CPT(s) at maximum",", ".join(mxrefs)),("Minimum silt thickness (m)",mn),("Average silt thickness (m)",avg),
         ("Shallowest silt start (m)",shallow),("CPT(s) shallowest",", ".join(r["reference"] for r in starts if shallow is not None and abs(r["start_num"]-shallow)<1e-9)),
         ("Deepest silt start (m)",deep),("CPT(s) deepest",", ".join(r["reference"] for r in starts if deep is not None and abs(r["start_num"]-deep)<1e-9)),
-        ("Maximum sand thickness (m)",max(sands) if sands else None),("Average sand thickness (m)",float(np.mean(sands)) if sands else None)]
+        ("Maximum depth to selected silt (m)",max(sands) if sands else None),("Mean depth to selected silt (m)",float(np.mean(sands)) if sands else None)]
     for c,h in enumerate(["Project KPI","Value"]): sm.write(0,c,h,hdr)
     for i,(k,v) in enumerate(metrics,1): sm.write(i,0,k,label); sm.write_number(i,1,float(v),val) if isinstance(v,(int,float)) and v is not None else sm.write(i,1,"" if v is None else str(v),center)
     sm.set_column(0,0,32); sm.set_column(1,1,54)
@@ -316,8 +316,8 @@ def export_excel(analyses: Iterable[CPTAnalysis], output_path: str|Path, errors:
     ch=wb.add_worksheet("Charts"); ch.write(0,0,"PRINTABLE PROJECT CHARTS",hdr); ch.set_column(0,0,2); ch.set_column(1,20,12)
     if analyses:
         n=len(analyses); cats=["Full Analysis",1,1,n,1]
-        chart1=wb.add_chart({"type":"column"}); chart1.add_series({"name":"Sand thickness","categories":cats,"values":["Full Analysis",1,20,n,20]}); chart1.add_series({"name":"Silt thickness","categories":cats,"values":["Full Analysis",1,25,n,25]}); chart1.set_title({"name":"Sand and Silt Thickness by CPT"}); chart1.set_y_axis({"name":"Thickness (m)"}); chart1.set_x_axis({"name":"CPT Reference"}); chart1.set_size({"width":850,"height":430}); ch.insert_chart("B3",chart1)
-        chart2=wb.add_chart({"type":"column","subtype":"stacked"}); chart2.add_series({"name":"Sand layer","categories":cats,"values":["Full Analysis",1,20,n,20]}); chart2.add_series({"name":"Silt layer","categories":cats,"values":["Full Analysis",1,25,n,25]}); chart2.set_title({"name":"Stacked Layer Thickness"}); chart2.set_y_axis({"name":"Thickness (m)"}); chart2.set_size({"width":850,"height":430}); ch.insert_chart("B25",chart2)
+        chart1=wb.add_chart({"type":"column"}); chart1.add_series({"name":"Depth to silt","categories":cats,"values":["Full Analysis",1,20,n,20]}); chart1.add_series({"name":"Silt thickness","categories":cats,"values":["Full Analysis",1,25,n,25]}); chart1.set_title({"name":"Depth to Silt and Selected Silt Thickness by CPT"}); chart1.set_y_axis({"name":"Thickness (m)"}); chart1.set_x_axis({"name":"CPT Reference"}); chart1.set_size({"width":850,"height":430}); ch.insert_chart("B3",chart1)
+        chart2=wb.add_chart({"type":"column","subtype":"stacked"}); chart2.add_series({"name":"Depth to silt","categories":cats,"values":["Full Analysis",1,20,n,20]}); chart2.add_series({"name":"Silt layer","categories":cats,"values":["Full Analysis",1,25,n,25]}); chart2.set_title({"name":"Depth to Silt and Selected Silt Screen (not stratigraphy)"}); chart2.set_y_axis({"name":"Thickness (m)"}); chart2.set_size({"width":850,"height":430}); ch.insert_chart("B25",chart2)
         chart3=wb.add_chart({"type":"line"}); chart3.add_series({"name":"Silt start","categories":cats,"values":["Full Analysis",1,21,n,21]}); chart3.add_series({"name":"Silt end","categories":cats,"values":["Full Analysis",1,23,n,23]}); chart3.add_series({"name":"Test depth","categories":cats,"values":["Full Analysis",1,18,n,18]}); chart3.set_title({"name":"Silt Start / End / Test Depth"}); chart3.set_y_axis({"name":"Depth BGL (m)","reverse":True}); chart3.set_size({"width":850,"height":430}); ch.insert_chart("B47",chart3)
         if top:
             chart4=wb.add_chart({"type":"bar"}); chart4.add_series({"name":"Silt thickness","categories":["Summary",base+1,0,base+len(top),0],"values":["Summary",base+1,1,base+len(top),1]}); chart4.set_title({"name":"Highest Silt Thickness - Top 25"}); chart4.set_x_axis({"name":"Thickness (m)"}); chart4.set_size({"width":850,"height":430}); ch.insert_chart("B69",chart4)
