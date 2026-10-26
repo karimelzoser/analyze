@@ -174,6 +174,13 @@ def retain_physical_cpt_results(analyses, all_sources=None, analysis_errors=None
         pool=raw if raw else items
         ordered=sorted(pool,key=lambda a:(source_revision(a.source_path),a.source_path.name.lower(),key(a.source_path)))
         group_size=len(ordered)
+        depths=[]
+        for measured in ordered:
+            try:
+                value=float(measured.test_depth_raw)
+                if math.isfinite(value):depths.append(value)
+            except (TypeError,ValueError,AttributeError):pass
+        deepest=max(depths,default=0.0)
         # Check whether the nominally same TESTID actually shares XY/RL.
         survey=[];levels=[]
         for source in ordered:
@@ -193,12 +200,17 @@ def retain_physical_cpt_results(analyses, all_sources=None, analysis_errors=None
         for seq,a in enumerate(ordered,1):
             md=dict(getattr(a,"metadata",{}) or {})
             source_ref=a.reference
+            try:source_depth=float(a.test_depth_raw)
+            except (TypeError,ValueError,AttributeError):source_depth=0.0
+            short_attempt=(group_size>1 and deepest>=1.0
+                           and source_depth < min(1.0,.65*deepest))
             md.update({
                 "source_report_reference":source_ref,
                 "canonical_reference":family,
                 "source_revision":source_revision(a.source_path),
                 "source_family_count":group_size,
                 "same_point_file_count":group_size,
+                "same_point_short_attempt":short_attempt,
                 "same_point_file_index":seq,
                 "same_point_multiple_files":group_size>1,
                 "same_point_survey_conflict":spatial_delta>.50 or level_delta>.08,
@@ -225,7 +237,13 @@ def retain_physical_cpt_results(analyses, all_sources=None, analysis_errors=None
             if group_size>1:
                 a.verification_note=(
                     (str(getattr(a,"verification_note","") or "")+" ")
-                    +md["same_point_note"])
+                    +md["same_point_note"]
+                    + (" SUBSTANTIALLY SHORT / ABORTED CPT: this recorded"
+                       " calculation is limited to the observed sounding"
+                       " depth and is NOT evidence that the deeper soil"
+                       " has NO SILT. Do not use it to replace the later"
+                       " complete sounding."
+                       if short_attempt else ""))
             results.append(a)
             selected_by_path[key(a.source_path)]=a
     results.sort(key=lambda a:(app_modern.natural_ref_key(
