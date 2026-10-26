@@ -279,7 +279,11 @@ def parse_gef(path: str | Path) -> GEFData:
         "pore_pressure_source": ("MEASURED" if idx_u2 is not None
                                   else "NOT PROVIDED — assumed u2=0 for qt; engineering validation required"),
         "pore_pressure_measured": idx_u2 is not None,
-        "test_date": first("TESTDATE") or first("TEST_DATE") or "",
+        # GEF STARTDATE is the recorded start of the physical penetration
+        # test and is distinct from FILEDATE (source-file generation date).
+        # Prefer an explicit test date when supplied.
+        "test_date": first("TESTDATE") or first("TEST_DATE") or first("STARTDATE") or "",
+        "test_time": first("STARTTIME") or "",
     }
     return GEFData(path, headers, metadata, {"depth": depth, "qc": qc, "fs": fs, "u2": u2})
 
