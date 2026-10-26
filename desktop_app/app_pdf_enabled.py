@@ -223,7 +223,19 @@ def select_project_results(analyses, all_sources=None, analysis_errors=None):
                     " from final-layer conflict voting; originals kept in Source Audit."%len(incomplete))
 
         signatures={_result_signature(a) for a in conclusive}
-        conflict=len(signatures)>1
+        # Do not silently fall back to a verified older sounding when a
+        # comparable substantial retest is REVIEW. B254 real-field acceptance
+        # identified an older 4.87m push marked VERIFIED while a later 5.73m
+        # measured retest was REVIEW due thin-layer reporting precision.
+        # Both represent substantial physical soundings and require an
+        # authoritative field-test decision before project acceptance.
+        review_retest_conflict=any(
+            a is not selected and a.status=="REVIEW"
+            and _observed_length(a) is not None
+            and longest is not None
+            and _observed_length(a)>=.80*longest
+            for a in eligible)
+        conflict=(len(signatures)>1 or review_retest_conflict)
         # Different report versions can use the same nominal CPT identifier
         # while referring to different physical tests. These must not be
         # collapsed into a seemingly verified single engineering location.
@@ -249,11 +261,14 @@ def select_project_results(analyses, all_sources=None, analysis_errors=None):
         datum_conflict=any(
             abs(z-levels[0][0])>.08 for z,_ in levels[1:]) if len(levels)>1 else False
         if conflict or spatial_conflict or datum_conflict:
-            reason += (" SOURCE CONFLICT: comparable full-depth revisions disagree"
-                       " in observed engineering classification, physical coordinates,"
-                       " or ground elevation. Selected numeric result is PROVISIONAL,"
-                       " not accepted. All conflicting measurements remain in"
-                       " Source Audit for required engineering reconciliation.")
+            reason += (" SOURCE CONFLICT: comparable substantial retests differ"
+                       " in verified status, observed engineering classification,"
+                       " physical coordinates, or ground elevation."
+                       " The selected numeric result is PROVISIONAL, not accepted."
+                       " Every retest remains in Source Audit for field adjudication.")
+            if review_retest_conflict:
+                reason+=(" A substantial competing physical source requires REVIEW;"
+                         " an older conclusive result cannot override it automatically.")
             selected.status="REVIEW"
             # Keep original measured candidate interval so the project sheet
             # shows an analyzed number, not an empty cell. Its REVIEW status
@@ -275,6 +290,7 @@ def select_project_results(analyses, all_sources=None, analysis_errors=None):
             "source_selection_reason": reason,
             "source_family_count": len(family_sources.get(family, items)),
             "source_revision_conflict": conflict,
+            "source_retest_review_conflict": review_retest_conflict,
             "source_spatial_conflict": spatial_conflict,
             "source_datum_conflict": datum_conflict,
             "incomplete_source_count":len(incomplete),
