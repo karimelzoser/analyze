@@ -61,7 +61,10 @@ def test_duplicate_records_are_in_xlsx_and_source_register(tmp_path):
         names=z.read("xl/workbook.xml")
         assert b"Repeated CPT Files" in names
         assert b"CPT Analysis" in names
-        shared=z.read("xl/sharedStrings.xml")
+        shared=(z.read("xl/sharedStrings.xml") if "xl/sharedStrings.xml" in z.namelist()
+                else b"")
+        shared+=b"".join(z.read(n) for n in z.namelist()
+                         if n.startswith("xl/worksheets/sheet") and n.endswith(".xml"))
         assert b"FILE 1 OF 2" in shared and b"FILE 2 OF 2" in shared
         assert b"SAME CPT POINT" in shared
         assert b"NOT a continuous sand" in shared
