@@ -67,7 +67,10 @@ def default_output(files):
 
 
 def unique_pdf_path(folder: Path, ref: str) -> Path:
-    p = folder / f"{ref}.pdf"
+    # Output filesystem naming only; preserve the full original CPT reference
+    # in the document, source audit, and workbook.
+    from engineering_output_paths import safe_pdf_basename
+    p = folder / safe_pdf_basename(ref, folder)
     n = 2
     while p.exists():
         p = folder / f"{ref}__{n}.pdf"
@@ -600,6 +603,29 @@ class ModernCPTApp(tk.Tk):
         if gamma <= 0 or wt < 0:
             messagebox.showerror("Invalid engineering settings", "Soil unit weight must be positive and groundwater depth cannot be negative.")
             return
+
+        # Prevent WinError 206 *before* spending time analyzing the entire
+        # project. The default folder under a deeply nested OneDrive source
+        # can otherwise exceed Windows MAX_PATH when PDFs/Run_* is appended.
+        from engineering_output_paths import (
+            windows_output_risk, recommended_short_output, output_path_guidance)
+        if windows_output_risk(Path(out)):
+            suggested=recommended_short_output()
+            if windows_output_risk(suggested):
+                messagebox.showerror(
+                    "Output path too long",
+                    output_path_guidance(out) + "\\n\\nChoose a shorter"
+                    " output path manually, such as C:\\\\CPT_Results.")
+                return
+            if not messagebox.askyesno(
+                "Windows output path too long",
+                output_path_guidance(out) +
+                "\\n\\nUse the recommended short output folder instead?"):
+                return
+            out=str(suggested)
+            self.output_var.set(out)
+            self.status_var.set("Long OneDrive output path avoided. "
+                                "Results will be saved to "+out)
 
         self.analysis_stage_value=self.cpt_stage.get()
         self.running = True
