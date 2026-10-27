@@ -614,13 +614,13 @@ class ModernCPTApp(tk.Tk):
             if windows_output_risk(suggested):
                 messagebox.showerror(
                     "Output path too long",
-                    output_path_guidance(out) + "\\n\\nChoose a shorter"
+                    output_path_guidance(out) + "\n\nChoose a shorter"
                     " output path manually, such as C:\\\\CPT_Results.")
                 return
             if not messagebox.askyesno(
                 "Windows output path too long",
                 output_path_guidance(out) +
-                "\\n\\nUse the recommended short output folder instead?"):
+                "\n\nUse the recommended short output folder instead?"):
                 return
             out=str(suggested)
             self.output_var.set(out)
