@@ -603,10 +603,24 @@ class PDFEnabledCPTApp(app_modern_v2.ProfessionalModernCPTApp):
                 Path(out).mkdir(parents=True,exist_ok=True)
                 log_path.write_text(diagnostic,encoding="utf-8")
             except OSError:
-                log_path=Path("(Could not write processing log)")
+                # If the original OneDrive output path is itself too long,
+                # diagnostics must not depend on creating that same path.
+                try:
+                    from engineering_output_paths import recommended_short_output
+                    safe_logs=recommended_short_output()
+                    safe_logs.mkdir(parents=True,exist_ok=True)
+                    log_path=safe_logs/"CPT_Processing_Failure.log"
+                    log_path.write_text(diagnostic,encoding="utf-8")
+                except OSError:
+                    log_path=Path("(Could not write processing log)")
             self.messages.put(("fatal",str(exc),str(log_path)))
 
     def _work_batch(self, out: Path, gamma: float, wt: float, make_pdfs: bool):
+        from engineering_output_paths import windows_output_risk, output_path_guidance
+        if windows_output_risk(out):
+            # Also guards programmatic call paths bypassing the GUI's
+            # interactive redirection prompt; fail BEFORE the computation.
+            raise OSError(206, output_path_guidance(out))
         out.mkdir(parents=True, exist_ok=True)
         # A dedicated PDF folder for each analysis prevents stale reports
         # from earlier runs being mistaken for the new same-point retest set.
