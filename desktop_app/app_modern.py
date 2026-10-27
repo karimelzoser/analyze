@@ -73,7 +73,8 @@ def unique_pdf_path(folder: Path, ref: str) -> Path:
     p = folder / safe_pdf_basename(ref, folder)
     n = 2
     while p.exists():
-        p = folder / f"{ref}__{n}.pdf"
+        # A collision must not reintroduce the original unbounded/unsafe name.
+        p = folder / safe_pdf_basename(f"{ref}__{n}", folder)
         n += 1
     return p
 
