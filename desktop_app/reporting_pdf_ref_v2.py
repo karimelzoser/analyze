@@ -154,6 +154,9 @@ def generate_pdf(a, output_path):
     with PdfPages(dest) as writer:
         figure=report_page(a);writer.savefig(figure);figure.clear()
         figure=analysis_page(a);writer.savefig(figure);figure.clear()
+        from engineering_pdf_summary import reportable_silt_pages
+        for figure in reportable_silt_pages(a):
+            writer.savefig(figure);figure.clear()
         for figure in full_layer_pages(a):
             writer.savefig(figure);figure.clear()
     return dest
