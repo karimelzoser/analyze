@@ -341,19 +341,32 @@ def compute_robertson(gef: GEFData, gamma_soil: float = DEFAULT_GAMMA, water_tab
 
 
 def classify_ic(ic: float) -> str:
+    """SBT display labels from the operator's original Ic classification chart.
+
+    This is LABELING ONLY: no qt/Fr/Qtn/Ic, smoothing, screening-threshold or
+    interval-persistence equation is changed. Missing Ic is never 'clay'.
+    """
     if not np.isfinite(ic):
-        return "Unknown"
+        return "UNKNOWN — no valid Ic classification"
     if ic < 1.31:
         return "Gravelly sand to dense sand"
-    if ic < 2.05:
-        return "Clean to silty sand"
-    if ic < 2.60:
+    if ic < 1.59:
+        return "Clean sand"
+    if ic < 1.83:
+        return "Sand with silt"
+    if ic < 2.276:
+        return "Silty sand"
+    if ic < 2.50:
         return "Silty sand to sandy silt"
+    if ic < 2.68:
+        return "Sandy silt to silty sand"
     if ic < 2.95:
-        return "Clayey silt to silty clay"
+        return "Silt mixture: clayey silt to silty clay"
+    if ic < 3.10:
+        return "Silty clay"
     if ic < 3.60:
-        return "Silty clay to clay"
-    return "Organic soil - clay"
+        return "Clay"
+    return "Organic soils / peat-like"
 
 
 def _median_filter(values: np.ndarray, width: int) -> np.ndarray:
