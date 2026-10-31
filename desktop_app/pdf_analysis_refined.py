@@ -49,6 +49,9 @@ def append_pdf_analysis(source_pdf: str | Path, analysis, output_path: str | Pat
         with PdfPages(supplement) as pages:
             summary=engineering_analysis_page(analysis)
             pages.savefig(summary);summary.clear()
+            from engineering_pdf_summary import reportable_silt_pages
+            for fig in reportable_silt_pages(analysis):
+                pages.savefig(fig);fig.clear()
             for fig in full_layer_pages(analysis):
                 pages.savefig(fig);fig.clear()
         with pymupdf.open(str(source)) as initial, pymupdf.open(str(supplement)) as extra:
