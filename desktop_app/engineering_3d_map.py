@@ -41,8 +41,9 @@ def measured_3d_points(analyses):
         bottom=_valid_number(getattr(analysis,"test_depth_raw",None))
         if bottom is None or bottom<=0:continue
         from engineering_layers import from_analysis
+        from engineering_reporting_policy import visible_silt_layers
         try:
-            layers=from_analysis(analysis).silt_intervals
+            layers=tuple((v.start,v.end) for v in visible_silt_layers(analysis))
             unknown=from_analysis(analysis).unknown_m
         except (AttributeError,ValueError,TypeError,IndexError):
             layers=()
