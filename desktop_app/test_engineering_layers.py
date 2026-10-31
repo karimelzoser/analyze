@@ -61,5 +61,5 @@ def test_bad_depths_rejected():
 
 
 def test_reference_categories_are_behavior_not_uscs():
-    assert behavior_label(2.6)=="SANDY SILT-LIKE"
+    assert behavior_label(2.6)=="SANDY SILT / SILTY SAND-LIKE"
     assert behavior_label(3.2)=="CLAY-LIKE"
