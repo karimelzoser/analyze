@@ -68,9 +68,19 @@ def spatial_points(data):
             try:
                 from engineering_layers import from_analysis
                 observed=from_analysis(item)
-                intervals=tuple((float(a),float(b)) for a,b in observed.silt_intervals)
-                maximum=observed.maximum_silt_m
-                cumulative=observed.cumulative_silt_m
+                from engineering_reporting_policy import visible_silt_layers
+                visible=visible_silt_layers(item)
+                intervals=tuple((v.start,v.end) for v in visible)
+                # Map magnitude is the independent DISPLAY set (>0.10m);
+                # raw/short layers remain available in measurement sheets.
+                maximum=max((v.thickness for v in visible),default=None)
+                cumulative=(sum(v.thickness for v in visible)
+                            if visible else None)
+                if not visible and status in ("NO SILT","VERIFIED"):
+                    status="NO REPORTABLE LAYER"
+                elif not visible and status=="REVIEW" and (
+                    meta.get("thin_interval_unrounded_thickness") is not None):
+                    status="NO REPORTABLE LAYER"
             except (ValueError,AttributeError,TypeError,IndexError,KeyError):
                 pass
         # Both same-point CPT soundings remain visible and inspectable, but
@@ -143,6 +153,8 @@ def _triangle_mask(xy, *, max_spacing_m=None, boundary=None):
 
 
 def _kind(point,warning_m,high_m):
+    if point.status=="NO REPORTABLE LAYER":
+        return "NO LAYER"
     if point.maximum_m is None or point.status=="REVIEW":
         return "REVIEW"
     if point.maximum_m>=high_m-1e-10:return "HIGH"
@@ -181,9 +193,10 @@ def risk_plan(fig:Figure, data, *,boundary=None,warning_m=.10,high_m=.30,
                 ntri=int(np.count_nonzero(~tri.mask))
             except (ValueError,RuntimeError):
                 pass
-    colors={"HIGH":"#c73838","WATCH":"#e39820","LOW":"#298c68","REVIEW":"#8b93a3"}
+    colors={"HIGH":"#c73838","WATCH":"#e39820","LOW":"#298c68",
+            "NO LAYER":"#b5c3c7","REVIEW":"#8b93a3"}
     classes=[(_kind(p,warning_m,high_m),p) for p in points]
-    for kind in ("LOW","WATCH","HIGH","REVIEW"):
+    for kind in ("LOW","WATCH","HIGH","NO LAYER","REVIEW"):
         selected=[p for k,p in classes if k==kind]
         if not selected:continue
         artist=ax.scatter([p.x for p in selected],[p.y for p in selected],
@@ -192,7 +205,9 @@ def risk_plan(fig:Figure, data, *,boundary=None,warning_m=.10,high_m=.30,
                      c=colors[kind],edgecolors="#ffffff" if kind!="REVIEW" else None,
                      linewidths=.9,zorder=4 if kind=="HIGH" else 3,
                      label={"LOW":"Below watch threshold","WATCH":"Screening watch",
-                     "HIGH":"High screening thickness","REVIEW":"REVIEW / unknown"}[kind],
+                     "HIGH":"High screening thickness",
+                     "NO LAYER":"No individual silt interval >0.10m",
+                     "REVIEW":"REVIEW / unresolved source"}[kind],
                      picker=7)
         artists[artist]=selected
     highs=sorted((p for k,p in classes if k=="HIGH"),
@@ -336,7 +351,8 @@ def depth_window_records(data,top_m,bottom_m,*,minimum_coverage=.8):
             intervals=()
             try:
                 from engineering_layers import from_analysis
-                intervals=from_analysis(item).silt_intervals
+                from engineering_reporting_policy import visible_silt_layers
+                intervals=tuple((v.start,v.end) for v in visible_silt_layers(item))
             except (AttributeError,ValueError,TypeError,IndexError):pass
             # One observation at the requested bottom does not imply coverage
             # throughout that interval. Estimate coverage by valid adjacent

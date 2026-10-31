@@ -15,12 +15,18 @@ import xlsxwriter
 
 from cpt_core import CPTAnalysis, natural_ref_key
 
-IC_BOUNDS = [0.0, 1.31, 2.05, 2.60, 2.95, 3.60, 5.0]
+# Exact Ic soil-behavior chart provided by the operator; visual labels only.
+# The project-specific Ic >=2.60 screening equation remains unchanged.
+IC_BOUNDS = [0.0, 1.31, 1.59, 1.83, 2.276, 2.50, 2.68, 2.95, 3.10, 3.60, 5.0]
 IC_NAMES = [
-    "Gravelly sand to dense sand", "Clean to silty sand", "Silty sand to sandy silt",
-    "Clayey silt to silty clay", "Silty clay to clay", "Organic soil - clay",
+    "Gravelly/dense sand", "Clean sand", "Sand with silt", "Silty sand",
+    "Silty sand/sandy silt", "Sandy silt/silty sand",
+    "Silt mixture", "Silty clay", "Clay", "Organic soils/peat",
 ]
-IC_COLORS = ["#FFD75A", "#F6B26B", "#A8DADC", "#79C6C5", "#4F86C6", "#7D9668"]
+IC_COLORS = [
+    "#FFD75A","#F6C46A","#F2AB60","#D8BD81","#A8DADC",
+    "#82CBC7","#79B8B8","#83A9C8","#887DB0","#7D9668",
+]
 SBTN_COLORS = ["#ff7777", "#6f9178", "#7789e8", "#86b8b6", "#a7d5df", "#ffba78", "#ffe188", "#d0d0d0", "#b7b7b7"]
 
 

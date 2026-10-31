@@ -103,12 +103,16 @@ def full_layer_pages(analysis,*,page_size=23):
                 curve.tick_params(axis="x",labelsize=7)
                 curve.set_title("Continuous Ic behavior profile",fontsize=8)
         fig.text(.06,.245,"OBSERVED SCREENING TOTALS",fontsize=9,weight="bold",color="#153851")
-        valid_sum=sum(max(0,b-a) for a,b in observed_intervals)
-        largest=max((max(0,b-a) for a,b in observed_intervals),default=0)
-        summary=(f"Qualifying observed Ic>=2.60 intervals: {len(observed_intervals)}"
-                 f"    |    cumulative: {valid_sum:.3f} m"
-                 f"    |    maximum continuous: {largest:.3f} m"
-                 f"    |    brief crossings: {len(brief)}")
+        from engineering_reporting_policy import visible_silt_layers
+        visible=visible_silt_layers(analysis)
+        valid_sum=sum(v.thickness for v in visible)
+        largest=max((v.thickness for v in visible),default=None)
+        summary=(f"DISPLAYED Ic>=2.60 intervals >0.10m: {len(visible)}"
+                 f"    |    cumulative: {valid_sum:.3f} m" if visible
+                 else "No displayed Ic>=2.60 interval strictly >0.10m")
+        if visible:
+            summary+=f"    |    max: {largest:.3f} m"
+        summary+=f"    |    short/raw observations: {len(observed_intervals)-len(visible)}"
         fig.text(.06,.224,summary,fontsize=7.7)
         if idx==len(parts):
             note=" | ".join(notes[:3])
@@ -118,7 +122,7 @@ def full_layer_pages(analysis,*,page_size=23):
             lines=wrap(note or "No numerical quality notes",width=113,break_long_words=False)
             for k,line in enumerate(lines[:5]):
                 fig.text(.06,.161-.014*k,line,fontsize=7.3,color="#334155")
-            fig.text(.06,.055,"Original source may contain other soil classes; UNKNOWN means not measured, not clean sand.",
+            fig.text(.06,.055,"UNKNOWN after silt is not assumed clay. Thin <0.10m intervals are raw evidence only.",
                      fontsize=7.3,color="#9a3412")
         pages.append(fig)
     return pages

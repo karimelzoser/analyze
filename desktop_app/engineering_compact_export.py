@@ -75,6 +75,7 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
     from cpt_core import natural_ref_key
     from reporting_pro import analysis_record
     from engineering_layers import from_analysis
+    from engineering_reporting_policy import visible_silt_layers, display_silt_summary
     from engineering_geo_explorer import risk_plan,spatial_points
     analyses=sorted(list(analyses),key=lambda a:natural_ref_key(a.reference))
     audits=list(source_audit or [])
@@ -86,11 +87,23 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
     records=[analysis_record(a) for a in analyses]
     points=[]
     layer_rows=[]
+    reportable_layers=[]
     detail=[]
     quick=[]
     for i,(a,r) in enumerate(zip(analyses,records),1):
         md=getattr(a,"metadata",{}) or {}
         z=a.final_interval
+        visible=visible_silt_layers(a)
+        display_status, _ = display_silt_summary(a)
+        for layer_no,layer in enumerate(visible,1):
+            reportable_layers.append((
+                a.reference,a.source_path.name,layer_no,len(visible),
+                layer.start,layer.end,layer.thickness,
+                display_status,a.status,
+                "Observed Ic-screened layer > 0.10m; NOT independently"
+                " certified USCS silt. Separate intervals are never merged"
+                " through intervening sand or missing sensor readings."
+            ))
         try:observed=from_analysis(a)
         except (TypeError,ValueError,AttributeError,IndexError,KeyError):observed=None
         maximum=observed.maximum_silt_m if observed else None
@@ -106,15 +119,27 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
         # conclusive when this file is a substantially aborted push and a
         # complete sounding exists for the same TESTID.
         incomplete=bool(md.get("same_point_short_attempt"))
-        reportable=z if a.status=="VERIFIED" and not incomplete else None
+        # Do not show a sub-0.10m observed interval as a reportable layer
+        # or claim that its thickness is ZERO. Every long interval is in
+        # "Reportable Silt Layers"; this quick sheet keeps one source row.
+        reportable=z if (
+            a.status=="VERIFIED" and not incomplete and z is not None
+            and float(z.thickness_raw)>0.10+1e-9) else None
+        if incomplete:
+            main_label="SHORT TEST — INCOMPLETE"
+        elif visible and a.status=="REVIEW":
+            main_label="REVIEW — SEE SILT LAYERS"
+        elif not visible:
+            main_label=("REVIEW" if a.status=="REVIEW"
+                        and md.get("thin_interval_unrounded_thickness") is None
+                        else "NO LAYER >0.10m")
+        else:
+            main_label="SEE ALL SILT LAYERS" if reportable is None else None
         quick.append((i,a.reference,
-                reportable.start if reportable is not None else
-                ("SHORT TEST — INCOMPLETE" if incomplete else
-                 "NO SILT" if a.status=="NO SILT" else "REVIEW"),
-                reportable.thickness if reportable is not None else
-                (0.0 if a.status=="NO SILT" and not incomplete else None),
-                # This is a depth to the selected interval, not continuous sand.
-                z.start if reportable is not None else None))
+                reportable.start if reportable is not None else main_label,
+                reportable.thickness if reportable is not None else None,
+                # This is depth to a silt interval, not continuous sand.
+                reportable.start if reportable is not None else None))
         detail.append((a.reference,a.status,num(md.get("easting")),num(md.get("northing")),
             num(md.get("ground_elevation")),num(getattr(a,"test_depth_raw",None)),
             z.start if z else None,z.end if z else None,z.thickness if z else None,
@@ -206,8 +231,10 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
     quick_summary.write_comment(0,4,
         "The numeric E-column measures depth to the selected Ic-screened"
         " horizon, NOT thickness of an independently verified sand layer."
-        " Earlier fine-grained horizons may occur. NO SILT and REVIEW are"
-        " blank. Consult All Soil Layers and CPT Measurements.")
+        " Earlier fine-grained horizons may occur. Thin observed intervals <=0.10m"
+        " are deliberately omitted from REPORTS, NOT set to zero."
+        " Every separate thicker silt interval is listed in Reportable Silt"
+        " Layers. Raw Ic data and thin evidence remain in CPT Measurements.")
     # Keep exactly five columns. REVIEW numeric candidates live in the
     # detailed worksheets only; the default sheet clearly labels REVIEW.
     for idx,a in enumerate(analyses,1):
@@ -235,6 +262,15 @@ def export_excel(analyses, output_path, errors=None, source_audit=None, *,
             "Unknown sensor depth (m)","Soil unit weight (kN/m3)",
             "Water table BGL (m)","Cone area ratio","Terminal sensor dropout BGL (m)",
             "Input source","Verification notes"],detail,{0:30,20:55,21:100})
+    # Reporting contract: one row PER observed qualifying interval >0.10m,
+    # even if a CPT has several separated horizons. The main summary remains
+    # one row per physical source, with raw evidence intact in other tabs.
+    _sheet(book,style,"Reportable Silt Layers",
+           ["CPT REFERENCE","Original input file","Layer number",
+            "Visible layers in CPT","Start BGL (m)","End BGL (m)",
+            "Observed thickness (m)","Presentation status",
+            "Underlying engineering status","Interpretation limitation"],
+           reportable_layers,{0:39,1:55,2:16,3:22,4:24,5:24,6:25,7:48,8:30,9:108})
     _sheet(book,style,"All Soil Layers",
            ["CPT REFERENCE","Layer","SBT estimated type (not lab USCS)",
             "Top BGL (m)","Base BGL (m)","Observed thickness (m)",

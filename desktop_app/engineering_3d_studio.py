@@ -13,17 +13,20 @@ from pathlib import Path
 
 import numpy as np
 from engineering_geo_explorer import export_interactive_3d, spatial_points
+from engineering_layers import behavior_label
 
 GROUPS = {
     "sand": ("Sand-like SBT", "#e6b86c"),
-    "transition": ("Transitional sand/silt SBT", "#eaa352"),
-    "silt": ("Fine-grained/silt-mixture SBT", "#67b4af"),
-    "clay": ("Clay-like/organic SBT", "#8e77c6"),
-    "unknown": ("UNKNOWN / unmeasured depth", "#9aa6b2"),
+    "transition": ("Sand/silt transition SBT (2.50 <= Ic < 2.68)", "#eaa352"),
+    "silt": ("Silt mixture / silty clay SBT (2.68 <= Ic < 3.10)", "#67b4af"),
+    "clay": ("Clay-like or organic-like SBT (Ic >= 3.10)", "#8e77c6"),
+    "unknown": ("UNKNOWN — insufficient measurements, not an error", "#9aa6b2"),
 }
 ZONE_GROUP = {
-    1: "clay", 2: "clay", 3: "clay", 4: "silt", 5: "transition",
-    6: "sand", 7: "sand", 8: "transition", 9: "clay"
+    # Original cached zone codes are not always equivalent to numeric Ic.
+    # Unclassified/ambiguous 1,8,9 must not automatically become CLAY.
+    1: "unknown", 2: "clay", 3: "clay", 4: "silt", 5: "transition",
+    6: "sand", 7: "sand", 8: "unknown", 9: "unknown"
 }
 
 
@@ -33,8 +36,11 @@ def _category(layer):
     ic = getattr(layer, "mean_ic", None)
     if ic is None or not np.isfinite(ic):
         return "unknown"
-    return ("sand" if ic < 2.50 else "transition" if ic < 2.60
-            else "silt" if ic < 2.95 else "clay")
+    # Visual grouping follows the user-supplied Ic classification limits.
+    # 2.95-3.10 is SILTY CLAY; actual clay-like starts at 3.10.
+    # Post-silt invalid readings are UNKNOWN, never automatically clay.
+    return ("sand" if ic < 2.50 else "transition" if ic < 2.68
+            else "silt" if ic < 3.10 else "clay")
 
 
 def collect_observed_segments(data):
@@ -104,9 +110,15 @@ def collect_observed_segments(data):
                 segments.append({
                     "ref": ref, "x": x-origin[0], "y": y-origin[1],
                     "top": top, "bottom": bottom, "z0": ground-top, "z1": ground-bottom,
-                    "category": cat, "source": "Raw CPT Ic-based observed SBT",
+                    "category": cat,
+                    "source": ("UNKNOWN — invalid/missing observed Ic"
+                               if cat=="unknown" else "Raw CPT Ic-based estimated SBT"),
                     "zone": None, "quality": str(layer.status),
-                    "ic": layer.mean_ic if layer.mean_ic is not None else None,
+                    "ic": layer.mean_ic if cat!="unknown" else None,
+                    "soil_behavior": (
+                        "UNKNOWN — insufficient evidence; not a soil-type error"
+                        if cat=="unknown" else behavior_label(float(layer.mean_ic))
+                    ),
                 })
     return segments, len(exclusions), origin
 
@@ -179,8 +191,8 @@ def _script(segment_data, chart_id):
 "use strict";
 const SEGMENTS=__SEGMENTS__, CHART=__CHART__;
 const COLORS={sand:"#e6b86c",transition:"#eaa352",silt:"#67b4af",clay:"#8e77c6",unknown:"#9aa6b2"};
-const LABELS={sand:"Sand-like SBT",transition:"Transitional SBT",silt:"Silt-mixture SBT",
-              clay:"Clay/organic-like SBT",unknown:"UNKNOWN sensor coverage"};
+const LABELS={sand:"Sand-like SBT",transition:"Sand/silt transitional SBT",silt:"Silt mixture / silty clay SBT",
+              clay:"Clay-like or organic-like SBT",unknown:"UNKNOWN — no valid Ic (not an error)"};
 const categories=Object.keys(COLORS);
 const RAMP=[[49,104,142],[53,183,121],[249,214,67],[235,112,47],[176,22,64]];
 const siltBlocks=SEGMENTS.filter(s=>s.category==="silt"&&s.bottom>s.top);
@@ -253,6 +265,7 @@ function start(){
           }
           const hover="<b>"+s.ref+"</b><br>"+s.source+"<br>Measured BGL "+
              top.toFixed(2)+"–"+bottom.toFixed(2)+" m<br>"+s.quality+
+             "<br>Behavior range: "+(s.soil_behavior||"Unclassified")+
              "<br>Colored column is a CPT profile SYMBOL, not continuous geology";
           for(let vertex=0;vertex<8;vertex++){
              texts.push(hover+"<br>Maximum observed CPT silt: "+

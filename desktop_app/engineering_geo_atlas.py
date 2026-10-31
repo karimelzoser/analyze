@@ -188,6 +188,10 @@ SCRIPT=r"""
 const SOURCE=__SOURCE__, SEG=__SEG__, FACES=__FACES__, BOUND=__BOUND__, TARGET=__TARGET__;
 const COLORS={sand:"#edc96f",transition:"#efa55a",silt:"#67b4af",clay:"#9a83c3",unknown:"#9ca7b4"};
 const CLASSES=["sand","transition","silt","clay"];
+// EXACT observed >0.10m Ic screening intervals, separate from the full
+// observed soil-behavior stack. No thin crossing or unknown tail is painted.
+const SCREEN = __SCREEN__;
+let siltOnlyActive=false;
 const PALETTE=[[49,104,142],[53,183,121],[249,214,67],[235,112,47],[176,22,64]];
 const $=id=>document.getElementById(id);
 const fmt=(value,n=2)=>value===null||value===undefined||!Number.isFinite(Number(value))?"—":Number(value).toFixed(n);
@@ -487,7 +491,7 @@ function renderSvg3d(preview=false){
  const selectable=[];
  const focusBand=Math.max(.12,Math.min(1.5,Number($("atlas-slab")?.value||.5)));
  const allLayers=$("atlas-detail")?.value==="all";
- let candidates=SEG.filter(s=>s.bottom>stTop&&s.top<stBot&&
+ let candidates=(siltOnlyActive?SCREEN:SEG).filter(s=>s.bottom>stTop&&s.top<stBot&&
    (allLayers || s.ref===selected || (s.top<=depth+focusBand&&s.bottom>=depth-focusBand))&&
    (document.querySelector("[data-layer='"+s.category+"']")?.checked!==false))
   .map(s=>({...s,drawTop:Math.max(s.top,stTop),
@@ -828,6 +832,7 @@ function init(){
  $("atlas-2d").onclick=show2d;$("atlas-3d").onclick=show3d;
  $("atlas-webgl").onclick=showWebgl;
  function applyLayerPreset(siltOnly){
+  siltOnlyActive=!!siltOnly;
   document.querySelectorAll("[data-layer]").forEach(el=>{
    el.checked=!siltOnly||el.dataset.layer==="silt";
   });
@@ -978,6 +983,31 @@ def export_geo_atlas(data, path, *, boundary=None, warning_m=.10, high_m=.30,
                                   high_m=high_m,max_spacing_m=max_spacing_m)
     pts,excluded=spatial_points(data)
     segments,_,origin=collect_observed_segments(data)
+    # Dedicated visible-silt overlay uses the measured observed screening
+    # intervals, not a guessed clay category or tiny 0.05m crossings.
+    from engineering_reporting_policy import visible_silt_layers
+    screen=[]
+    for item in data:
+        if isinstance(item,dict) or not hasattr(item,"depth"):
+            continue
+        md=getattr(item,"metadata",{}) or {}
+        try:
+            east=float(md["easting"]);north=float(md["northing"])
+            ground=float(md["ground_elevation"])
+            if not np.isfinite([east,north,ground]).all():continue
+        except (KeyError,TypeError,ValueError):
+            continue
+        for idx,layer in enumerate(visible_silt_layers(item),1):
+            screen.append({
+                "ref":str(item.reference),"x":east-origin[0],
+                "y":north-origin[1],"top":layer.start,"bottom":layer.end,
+                "z0":ground-layer.start,"z1":ground-layer.end,
+                "category":"silt","ic":None,
+                "source":"Measured Ic>=2.60, reported interval >0.10m",
+                "soil_behavior":"Screened fine-grained SBT (not laboratory USCS)",
+                "quality":f"Observed screening interval {idx}",
+                "reportable_silt":True
+            })
     xy=np.asarray([[p.x,p.y] for p in pts],dtype=float)
     tri,indices,_=_triangle_mask(xy,boundary=boundary)
     mask=np.ma.getmaskarray(tri.triangles) if False else (
@@ -1027,6 +1057,7 @@ def export_geo_atlas(data, path, *, boundary=None, warning_m=.10, high_m=.30,
     if not found:raise ValueError("Primary Plotly model not found")
     code=(SCRIPT.replace("__SOURCE__",json.dumps(data_rows,separators=(",",":")).replace("<","\\u003c"))
           .replace("__SEG__",json.dumps(segments,separators=(",",":")).replace("<","\\u003c"))
+          .replace("__SCREEN__",json.dumps(screen,separators=(",",":")).replace("<","\\u003c"))
           .replace("__FACES__",json.dumps(faces,separators=(",",":")))
           .replace("__BOUND__",json.dumps(boundary_rows,separators=(",",":")))
           .replace("__TARGET__",json.dumps(found.group(1))))
