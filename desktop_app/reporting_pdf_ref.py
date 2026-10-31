@@ -70,13 +70,13 @@ def report_page(a: CPTAnalysis) -> Figure:
     axf.plot(a.fs,vertical,color="#7b2cbf",lw=.8); axf.set_xlim(0,fmax); axf.set_title("Sleeve Friction, fs, MPa",fontsize=7.2); axf.xaxis.tick_top(); axf.tick_params(axis="x",bottom=False,labelbottom=False)
     axu=axf.twiny(); axu.plot(a.u2,vertical,color="#21a366",ls="--",lw=.75); uv=_finite(a.u2); umax=max(.05,float(np.nanpercentile(np.abs(uv),99))*1.15 if len(uv) else .05); axu.set_xlim(umax,0); axu.xaxis.set_ticks_position("bottom"); axu.xaxis.set_label_position("bottom"); axu.spines["bottom"].set_position(("outward",2)); axu.spines["bottom"].set_visible(True); axu.spines["top"].set_visible(False); ticks=np.linspace(umax,0,6); axu.set_xticks(ticks); axu.set_xticklabels([f"{v:.1f}" for v in ticks]); axu.tick_params(axis="x",labelsize=5,pad=0); axu.set_xlabel("Pore Pressure, u2, MPa",fontsize=5.7,labelpad=-1)
     for c,(lo,hi) in enumerate(zip(IC_BOUNDS[:-1],IC_BOUNDS[1:])): axi.axvspan(lo,hi,color=IC_COLORS[c],alpha=.95,lw=0)
-    axi.plot(a.ic,vertical,color="black",lw=.85); axi.set_xlim(0,5); axi.set_title("Soil Behaviour Type Index, Ic",fontsize=7.2); axi.xaxis.tick_top(); axi.set_xticks([0,1.31,2.05,2.60,2.95,3.60,5]); axi.set_xticklabels(["0","1.31","2.05","2.60","2.95","3.60","5.00"],fontsize=5.3)
+    axi.plot(a.ic,vertical,color="black",lw=.85); axi.set_xlim(0,5); axi.set_title("Soil Behaviour Type Index, Ic",fontsize=7.2); axi.xaxis.tick_top(); axi.set_xticks([0,1.31,1.83,2.50,2.68,2.95,3.10,3.60,5]); axi.set_xticklabels(["0","1.31","1.83","2.50","2.68","2.95","3.10","3.60","5"],fontsize=4.5)
     for ax in (axq,axf,axi):
         ax.set_ylim(*ylim); ax.grid(True,which="major",lw=.3,color="#dddddd"); ax.tick_params(labelsize=5.4,length=2.5); [sp.set_linewidth(.75) for sp in ax.spines.values()]
     fig.text(.16,.366,"— Cone resistance",fontsize=5.2,ha="center"); fig.text(.445,.366,"— Sleeve friction",fontsize=5.2,ha="center"); fig.text(.565,.366,"-- Pore Pressure",fontsize=5.2,ha="center"); fig.text(.84,.366,"— Soil behavior type index",fontsize=5.2,ha="center")
     leg=fig.add_subplot(gs[19:24,0:7]); leg.axis("off")
     for i,(name,color) in enumerate(zip(IC_NAMES,IC_COLORS)):
-        r,c=divmod(i,2); x=.02+c*.52; y=.84-r*.25; leg.add_patch(matplotlib.patches.Rectangle((x,y-.055),.035,.11,transform=leg.transAxes,color=color)); leg.text(x+.045,y,name,fontsize=5.5,va="center",transform=leg.transAxes)
+        r,c=divmod(i,2); x=.02+c*.52; y=.90-r*.175; leg.add_patch(matplotlib.patches.Rectangle((x,y-.055),.035,.11,transform=leg.transAxes,color=color)); leg.text(x+.045,y,name,fontsize=5.5,va="center",transform=leg.transAxes)
     meta=fig.add_subplot(gs[24:30,0:8]); meta.axis("off"); e,n=md.get("easting"),md.get("northing"); g=md.get("ground_elevation")
     rows=[["Main Contractor:",str(md.get("main_contractor") or "NOT SUPPLIED IN CPT SOURCE")],
           ["Test Location:",a.reference],
