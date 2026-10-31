@@ -70,10 +70,8 @@ def behavior_label(ic: float) -> str:
         return "SILTY SAND-LIKE"
     if ic < 2.50:
         return "SILTY SAND / SANDY SILT-LIKE"
-    if ic < 2.60:
-        return "SANDY SILT / SILTY SAND-LIKE"
     if ic < 2.68:
-        return "SANDY SILT-LIKE"
+        return "SANDY SILT / SILTY SAND-LIKE"
     if ic < 2.95:
         return "SILT MIXTURE-LIKE"
     if ic < 3.10:
