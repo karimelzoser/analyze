@@ -23,8 +23,10 @@ GROUPS = {
     "unknown": ("UNKNOWN — insufficient measurements, not an error", "#9aa6b2"),
 }
 ZONE_GROUP = {
-    1: "clay", 2: "clay", 3: "clay", 4: "silt", 5: "transition",
-    6: "sand", 7: "sand", 8: "transition", 9: "clay"
+    # Original cached zone codes are not always equivalent to numeric Ic.
+    # Unclassified/ambiguous 1,8,9 must not automatically become CLAY.
+    1: "unknown", 2: "clay", 3: "clay", 4: "silt", 5: "transition",
+    6: "sand", 7: "sand", 8: "unknown", 9: "unknown"
 }
 
 
