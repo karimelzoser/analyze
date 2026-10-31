@@ -351,7 +351,8 @@ def depth_window_records(data,top_m,bottom_m,*,minimum_coverage=.8):
             intervals=()
             try:
                 from engineering_layers import from_analysis
-                intervals=from_analysis(item).silt_intervals
+                from engineering_reporting_policy import visible_silt_layers
+                intervals=tuple((v.start,v.end) for v in visible_silt_layers(item))
             except (AttributeError,ValueError,TypeError,IndexError):pass
             # One observation at the requested bottom does not imply coverage
             # throughout that interval. Estimate coverage by valid adjacent
